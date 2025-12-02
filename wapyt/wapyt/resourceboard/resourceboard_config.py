@@ -6,6 +6,18 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class ResourceItem:
+    """
+    Item descriptor rendered inside the ResourceBoard list.
+
+    Args:
+        id: Identifier returned by ``on_select`` / ``on_action`` callbacks.
+        title: Primary label for the item.
+        subtitle: Secondary label/supporting text.
+        status: Textual status token (e.g., ``"active"``).
+        badge: Small pill rendered next to the title.
+        extra: Arbitrary metadata forwarded to the detail template context.
+    """
+
     id: str
     title: str
     subtitle: Optional[str] = None
@@ -27,6 +39,19 @@ class ResourceItem:
 
 @dataclass
 class ResourceBoardConfig:
+    """
+    Configuration for the master/detail resource browser.
+
+    Args:
+        items: Initial collection of :class:`ResourceItem` or dicts.
+        selected_id: ID that should be selected on load.
+        list_width: Constrains the list column (px).
+        add_button_text: Label for the built-in add button.
+        detail_template: HTML template populated with item placeholders.
+        empty_state: Text or markup rendered when no selection is active.
+        title: Optional heading above the board.
+    """
+
     items: List[Any] = field(default_factory=list)
     selected_id: Optional[str] = None
     list_width: Optional[int] = None

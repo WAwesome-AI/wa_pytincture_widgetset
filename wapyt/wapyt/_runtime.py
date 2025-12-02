@@ -1,5 +1,11 @@
 """
-Utilities to help wapyt import cleanly outside the Pyodide/browser runtime.
+Utilities that bridge the Python API to the Pyodide/browser runtime.
+
+The helpers in this module:
+
+* gracefully degrade when running on CPython so importing ``wapyt`` offline works
+* ensure the JS/CSS asset bundle is injected exactly once (`require_js`)
+* keep Pyodide proxies alive while Python callbacks are registered
 """
 from __future__ import annotations
 
@@ -25,6 +31,12 @@ _assets_loaded = False
 
 
 def create_proxy(callback):  # type: ignore
+    """
+    Wrap a Python callable so it can be passed to JavaScript.
+
+    This defers to :func:`pyodide.ffi.create_proxy` inside Pyodide and raises
+    a clear RuntimeError when invoked on CPython.
+    """
     return _create_proxy(callback)
 
 
@@ -35,6 +47,12 @@ def _inject_css(content: str) -> None:
 
 
 def _load_assets(force: bool = False) -> None:
+    """
+    Evaluate bundled JS files and inject CSS once per session.
+
+    Args:
+        force: When ``True`` the assets are reloaded even if we previously ran.
+    """
     global _assets_loaded
     if js is None:
         return
@@ -65,6 +83,13 @@ def _load_assets(force: bool = False) -> None:
 
 
 def require_js(component: str) -> None:
+    """
+    Ensure the requested widget constructor is available on ``window.wapyt``.
+
+    Raises:
+        RuntimeError: if the current interpreter is not Pyodide or the assets
+        failed to register the requested component.
+    """
     if js is None:
         raise RuntimeError(
             f"{component} requires the browser runtime. This code should only run inside Pyodide."

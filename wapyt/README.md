@@ -18,6 +18,12 @@
 - `ModalWindow`: Simple modal shell that can host arbitrary Layout instances or HTML snippets.
 - `ResourceBoard`: Master/detail resource explorer with selectable rows, action hooks, and optional add button wiring.
 
+## Runtime Architecture
+- Layouts and widgets are declared in Python but render as DOM nodes through the JavaScript bundles under `wapyt/assets/`. Each helper (e.g., `Layout.add_chat`) forwards config dictionaries directly to the matching JS constructor.
+- The `wapyt/_runtime.py` bridge exposes `require_js` to lazily inject JS/CSS exactly once per interpreter and `create_proxy` to keep Pyodide callback proxies alive for event handlers.
+- Layout cells are plain flexbox containers (`wapyt/assets/layout.js` + `wapyt/assets/wapyt.css`), so attaching raw HTML or third-party widgets is as simple as calling `layout.attach_html(cell_id, markup)`.
+- Because everything routes through `window.wapyt`, you can add new widgets by dropping a JS file into `wapyt/assets/`, exporting a constructor, and calling `require_js("MyWidget")` before instantiating it from Python.
+
 ## Getting Started
 
 ```bash

@@ -22,7 +22,17 @@ class LoadUICaller(type):
 
 class Layout(object, metaclass=LoadUICaller):
     """
-    DOM-driven layout wrapper.
+    DOM-driven layout wrapper that mirrors PyTincture's legacy API.
+
+    Quick start::
+
+        layout = Layout(LayoutConfig(rows=[CellConfig(id="main", grow=1)]))
+        chat = layout.add_chat("main")
+        layout.attach_html("main", "<h1>Hydrated</h1>")
+
+    `MainWindow` simply instantiates `Layout(mainwindow=True)` so existing
+    PyTincture apps can continue exposing a `MainWindow` subclass with a
+    `load_ui` method.
     """
 
     layout_config: Optional[Union[LayoutConfig, Dict[str, Any]]] = None

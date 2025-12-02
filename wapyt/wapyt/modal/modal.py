@@ -9,6 +9,16 @@ from wapyt._runtime import js, require_js
 
 @dataclass
 class ModalConfig:
+    """
+    Declarative options for :class:`ModalWindow`.
+
+    Args:
+        title: Header text displayed at the top of the modal.
+        width: Pixel value or CSS size for the modal; defaults to ``520``.
+        height: Pixel value or CSS size for the modal; defaults to ``360``.
+        closable: When ``False`` the chrome hides the close affordance.
+    """
+
     title: str = ""
     width: Union[int, str] = 520
     height: Union[int, str] = 360
@@ -24,6 +34,16 @@ class ModalConfig:
 
 
 class ModalWindow:
+    """
+    Lightweight wrapper around the JavaScript modal component.
+
+    Quick start::
+
+        modal = ModalWindow(ModalConfig(title="Details"))
+        modal.set_content(layout.layout)
+        modal.show()
+    """
+
     def __init__(self, config: Optional[ModalConfig] = None) -> None:
         require_js("ModalWindow")
         config_payload = (config or ModalConfig()).to_dict()

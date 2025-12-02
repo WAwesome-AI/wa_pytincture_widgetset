@@ -14,6 +14,14 @@ def _clean_dict(source: Dict[str, Any]) -> Dict[str, Any]:
 class ChatAgentConfig:
     """
     Describes the assistant/agent that powers the chat experience.
+
+    Args:
+        name: Display name rendered in the header (defaults to ``"Assistant"``).
+        subtitle: Optional subtitle shown below the name.
+        avatar: URL for the avatar image; falls back to initials when missing.
+        accent_color: Hex/rgb color used for accents when the theme supports it.
+        tagline: Short description surfaced in layouts that show agent cards.
+        extra: Free-form mapping merged into the JS payload for custom props.
     """
     name: str = "Assistant"
     subtitle: Optional[str] = None
@@ -38,6 +46,17 @@ class ChatAgentConfig:
 class ChatMessageConfig:
     """
     Represents a single chat message rendered within the widget.
+
+    Args:
+        role: ``"user"``, ``"assistant"``, ``"system"``, or any custom label.
+        content: Markdown/HTML-safe text to render inside the transcript.
+        id: Optional identifier for later updates via ``update_message``.
+        name: Display name (defaults to role-specific fallback).
+        timestamp: ISO timestamp string for chronological context.
+        avatar: Optional avatar URL for per-message overrides.
+        meta: Extra data forwarded to event handlers.
+        streaming: Flag indicating the message is still streaming.
+        actions: Optional list of per-message buttons (dict payloads).
     """
     role: str
     content: str
@@ -68,6 +87,16 @@ class ChatMessageConfig:
 class ChatConfig:
     """
     High-level configuration object for the Chat widget.
+
+    Common fields:
+
+    * ``messages`` – initial transcript (list of :class:`ChatMessageConfig`).
+    * ``storage_key`` – enables persistence via localStorage when set.
+    * ``layout_mode`` / ``layout_density`` – tweak compact/advanced UI.
+    * ``extra`` – attached verbatim to the JS config for experiments.
+
+    Most fields are optional; unspecified values fall back to sensible defaults
+    so AI agents can produce minimal configs and rely on feature detection.
     """
     agent: ChatAgentConfig = field(default_factory=ChatAgentConfig)
     messages: List[Union[ChatMessageConfig, Dict[str, Any]]] = field(default_factory=list)

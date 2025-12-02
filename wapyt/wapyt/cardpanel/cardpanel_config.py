@@ -6,6 +6,14 @@ from typing import Any, Dict, List, Optional, Union
 class CardPanelCardConfig:
     """
     Represents an individual card shown inside the CardPanel widget.
+
+    Args:
+        id: Stable identifier emitted with callbacks.
+        title: Primary text rendered in the card header.
+        subtitle: Secondary text below the title (optional).
+        pill: Optional badge rendered next to the subtitle.
+        icon: Optional class name or URL consumed by templates.
+        extra: Arbitrary metadata accessible via placeholders.
     """
     id: str
     title: str
@@ -42,6 +50,13 @@ class CardPanelConfig:
           or ``{card.subtitle}`` are interpolated from the card/context.
         - ``attrs``/``dataset``/``style``: mapping of attributes with placeholders
         - ``children``: list of nested descriptor nodes
+
+    Additional convenience properties:
+
+    * ``card_columns`` – integer column count translated into CSS grid template.
+    * ``viewport_height`` – constrains the grid height and enables scrolling.
+    * ``card_gap`` / ``card_min_height`` / ``card_height`` – tune card spacing.
+    * ``add_button_text`` / ``search_placeholder`` – copy for built-in chrome.
     """
     title: str = "Data Sources"
     description: str = "Manage and connect to various data sources with intelligent profiling and lineage tracking."

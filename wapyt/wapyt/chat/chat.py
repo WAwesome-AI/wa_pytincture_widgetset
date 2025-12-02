@@ -17,6 +17,16 @@ print(f"[ChatWidget] Wrapper ready ({WRAPPER_REVISION})")
 class Chat:
     """
     Python wrapper around the custom Chat widget.
+
+    Quick start::
+
+        layout = Layout(LayoutConfig(rows=[CellConfig(id="chat", grow=1)]))
+        chat = layout.add_chat("chat", ChatConfig())
+        chat.on_send(lambda payload: print("User sent:", payload["content"]))
+
+    The widget exposes helpers for streaming updates (`start_stream`,
+    `append_stream`, `finish_stream`) so LLM-driven agents can incrementally
+    render responses while work is still in progress.
     """
 
     def __init__(

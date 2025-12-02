@@ -8,6 +8,15 @@ from wapyt.sidebar.sidebar_config import SidebarConfig
 
 
 class Sidebar:
+    """
+    Collapsible navigation rail that emits `select` events.
+
+    Quick start::
+
+        sidebar = layout.add_sidebar("nav", SidebarConfig(items=[...]))
+        sidebar.on_select(lambda item: print("Selected", item["id"]))
+        sidebar.set_active("home")
+    """
     def __init__(
         self,
         config: Optional[SidebarConfig] = None,

@@ -29,6 +29,15 @@ def _sanitize_for_json(value: Any, _stack: Optional[Set[int]] = None) -> Any:
 
 
 class ResourceBoard:
+    """
+    Master/detail browser for resources with select/add/action events.
+
+    Quick start::
+
+        board = layout.add_resourceboard("resources", ResourceBoardConfig(items=[...]))
+        board.on_select(lambda item: print("Row selected:", item["id"]))
+        board.on_action(lambda payload: handle(payload["action"], payload["id"]))
+    """
     def __init__(
         self,
         config: Optional[ResourceBoardConfig] = None,

@@ -15,6 +15,15 @@ print(f"[CardPanel] Wrapper ready ({WRAPPER_REVISION})")
 class CardPanel:
     """
     Python wrapper for the custom CardPanel widget.
+
+    Quick start::
+
+        layout = Layout(LayoutConfig(rows=[CellConfig(id="cards", grow=1)]))
+        panel = layout.add_cardpanel("cards", CardPanelConfig(cards=[...]))
+        panel.on_action(lambda payload: handle_click(payload["action"], payload["cardId"]))
+
+    Use `load`/`add_card` to refresh cards and `register_template` when you
+    need fine-grained control over the rendered HTML.
     """
 
     _template_proxies: Dict[str, List[Any]] = {}

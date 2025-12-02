@@ -13,6 +13,18 @@ def _clean(mapping: Dict[str, Any]) -> Dict[str, Any]:
 
 @dataclass
 class TabConfig:
+    """
+    Describes a single tab strip entry.
+
+    Args:
+        id: Unique identifier for the tab.
+        title: Visible label.
+        icon: Optional CSS class name for leading icon.
+        closable: Whether the close icon should appear.
+        badge: Optional numeric or string badge.
+        disabled: Prevents interaction when True.
+        html: Static markup injected when the tab renders.
+    """
     id: str
     title: str
     icon: Optional[str] = None
@@ -37,6 +49,17 @@ class TabConfig:
 
 @dataclass
 class TabWidgetConfig:
+    """
+    Layout/behavior options for :class:`TabWidget`.
+
+    Args:
+        tabs: Initial list of :class:`TabConfig`.
+        active: Tab ID that should start active.
+        orientation: ``"top"`` or ``"left"`` (defaults to ``"top"``).
+        fill_height: Stretch panel to consume vertical space.
+        keep_alive: Whether hidden tabs stay mounted.
+        extra: Additional properties forwarded to JS (feature flags).
+    """
     tabs: List[TabConfig] = field(default_factory=list)
     active: Optional[str] = None
     orientation: str = "top"
@@ -59,6 +82,14 @@ class TabWidgetConfig:
 class TabWidget:
     """
     Minimal tab system.
+
+    Quick start::
+
+        tabs = layout.add_tabwidget("body", TabWidgetConfig(
+            tabs=[TabConfig(id="chat", title="Chat")]
+        ))
+        tabs.attach_html("chat", "<h1>Hello</h1>")
+        tabs.on_change(lambda tab_id: print("Active tab:", tab_id))
     """
 
     def __init__(

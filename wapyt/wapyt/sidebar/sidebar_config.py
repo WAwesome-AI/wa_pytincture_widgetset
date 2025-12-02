@@ -6,6 +6,17 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class SidebarItem:
+    """
+    Represents a clickable entry in the Sidebar widget.
+
+    Args:
+        id: Identifier emitted by `Sidebar.on_select`.
+        label: Visible text.
+        icon: Optional CSS class (e.g., Material icon).
+        badge: Optional pill rendered to the right of the label.
+        data: Arbitrary metadata forwarded to event handlers.
+    """
+
     id: str
     label: str
     icon: Optional[str] = None
@@ -25,6 +36,17 @@ class SidebarItem:
 
 @dataclass
 class SidebarConfig:
+    """
+    Controls Sidebar rendering/behavior.
+
+    Args:
+        title: Optional heading rendered above the list.
+        collapse_button: Whether the built-in collapse toggle is shown.
+        collapsed: Initial collapsed state.
+        items: List of :class:`SidebarItem` entries.
+        active: ID to mark as selected when the widget mounts.
+    """
+
     title: Optional[str] = None
     collapse_button: bool = True
     collapsed: bool = False
