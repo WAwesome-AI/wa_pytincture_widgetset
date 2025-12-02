@@ -1,0 +1,225 @@
+:root {
+  --wapyt-gap: 0px;
+  --wapyt-border: #e2e8f0;
+  --wapyt-border-dark: #1f2937;
+  --wapyt-bg: #ffffff;
+  --wapyt-bg-dark: #0f172a;
+  --wapyt-surface: #f8fafc;
+  --wapyt-surface-dark: #1e293b;
+  --wapyt-text: #0f172a;
+  --wapyt-text-dark: #f8fafc;
+  --card-fixed-height: auto;
+}
+
+[data-wapyt-theme="dark"] {
+  color-scheme: dark;
+}
+
+.wapyt-layout {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--wapyt-bg);
+  color: var(--wapyt-text);
+  position: relative;
+}
+
+[data-wapyt-theme="dark"] .wapyt-layout {
+  background: var(--wapyt-bg-dark);
+  color: var(--wapyt-text-dark);
+}
+
+.wapyt-layout-root,
+.wapyt-nested {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--wapyt-gap);
+  width: 100%;
+  height: 100%;
+}
+
+.wapyt-flex-row {
+  flex-direction: row;
+}
+
+.wapyt-flex-column {
+  flex-direction: column;
+}
+
+.wapyt-cell {
+  display: flex;
+  flex: 1 1 0;
+  border: 1px solid var(--wapyt-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--wapyt-surface);
+  min-height: 0;
+  position: relative;
+}
+
+[data-wapyt-theme="dark"] .wapyt-cell {
+  border-color: var(--wapyt-border-dark);
+  background: var(--wapyt-surface-dark);
+}
+
+.wapyt-cell-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+}
+
+.wapyt-cell-header {
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--wapyt-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+[data-wapyt-theme="dark"] .wapyt-cell-header {
+  border-color: var(--wapyt-border-dark);
+}
+
+.wapyt-cell-toggle {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.wapyt-cell-body {
+  padding: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.wapyt-layout-borderless .wapyt-cell-body {
+  padding: 0;
+}
+
+.wapyt-cell-hidden {
+  display: none;
+}
+
+.wapyt-cell-collapsed .wapyt-cell-body {
+  display: none;
+}
+
+.wapyt-progress-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.45);
+  color: #fff;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.wapyt-progress-overlay.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.wapyt-tabwidget {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  border-top: 1px solid var(--wapyt-border);
+}
+
+.wapyt-tabwidget-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--wapyt-border);
+  padding: 0;
+}
+
+[data-wapyt-theme="dark"] .wapyt-tabwidget-tabs {
+  border-color: var(--wapyt-border-dark);
+}
+
+.wapyt-tab {
+  border: none;
+  background: transparent;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  font-weight: 500;
+  color: inherit;
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  position: relative;
+}
+
+.wapyt-tab[data-active="true"] {
+  background: var(--wapyt-bg);
+  border: 1px solid var(--wapyt-border);
+  border-bottom-color: var(--wapyt-bg);
+}
+
+[data-wapyt-theme="dark"] .wapyt-tab[data-active="true"] {
+  background: var(--wapyt-bg-dark);
+  border: 1px solid var(--wapyt-border-dark);
+  border-bottom-color: var(--wapyt-bg-dark);
+}
+
+.wapyt-tabwidget-panels {
+  flex: 1 1 auto;
+  position: relative;
+  min-height: 0;
+  padding: 0;
+}
+
+.wapyt-tab-panel {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  overflow: auto;
+  display: none;
+}
+
+.wapyt-tab-panel[data-active="true"] {
+  display: block;
+}
+
+.wapyt-tab-close {
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+.wapyt-tab-badge {
+  background: var(--wapyt-border);
+  border-radius: 999px;
+  padding: 0 0.4rem;
+  font-size: 0.75rem;
+}
+
+.wapyt-tabwidget-fill {
+  min-height: 0;
+}
+
+.wapyt-tabwidget-fill .wapyt-tabwidget-panels {
+  flex: 1 1 auto;
+}
+[data-wapyt-theme="dark"] .wapyt-layout-borderless .wapyt-cell {
+  border: none;
+}
+.wapyt-layout-borderless .wapyt-cell {
+  border: none;
+}
+[data-wapyt-theme="dark"] .wapyt-tabwidget {
+  border-top: 1px solid var(--wapyt-border-dark);
+}

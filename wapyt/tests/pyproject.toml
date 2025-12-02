@@ -1,0 +1,18 @@
+[project]
+name = "wapyt-tests"
+version = "0.0.0"
+description = "PyTincture demo applications for the wapyt widgetset."
+requires-python = ">=3.13"
+dependencies = [
+    "boto3>=1.40.76",
+    "litellm>=1.80.0",
+    "pytincture>=0.9.19",
+    "wapyt>=0.1.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+pytincture = { path = "../../../pytincture" }
+wapyt = { path = "../" }
