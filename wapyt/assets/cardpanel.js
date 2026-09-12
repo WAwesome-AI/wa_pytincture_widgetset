@@ -2,6 +2,16 @@ function createUniqueId(prefix) {
     return `${prefix}_${Math.random().toString(16).slice(2)}`;
 }
 
+function wapytEscapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+    }[char]));
+}
+
 (function () {
     globalThis.wapyt = globalThis.wapyt || {};
 
@@ -714,13 +724,18 @@ const css = `
                 return "";
             };
 
-            const interpolate = (value, card, context) => {
+            // `escape` is set wherever the result becomes markup rather than
+            // text or an attribute value, so card data cannot inject HTML.
+            const interpolate = (value, card, context, { escape = false } = {}) => {
                 if (typeof value !== "string") {
                     return value;
                 }
                 return value.replace(/\{([^}]+)\}/g, (_, token) => {
                     const resolved = resolvePlaceholder(token.trim(), card, context);
-                    return resolved == null ? "" : String(resolved);
+                    if (resolved == null) {
+                        return "";
+                    }
+                    return escape ? wapytEscapeHtml(resolved) : String(resolved);
                 });
             };
 
@@ -751,7 +766,7 @@ const css = `
                 }
 
                 if (typeof nodeDescriptor === "string") {
-                    const html = interpolate(nodeDescriptor, card, context).trim();
+                    const html = interpolate(nodeDescriptor, card, context, { escape: true }).trim();
                     if (!html) {
                         return document.createTextNode("");
                     }
@@ -814,7 +829,7 @@ const css = `
                 if (nodeDescriptor.text !== undefined) {
                     element.textContent = interpolate(nodeDescriptor.text, card, context);
                 } else if (nodeDescriptor.html !== undefined) {
-                    element.innerHTML = interpolate(nodeDescriptor.html, card, context);
+                    element.innerHTML = interpolate(nodeDescriptor.html, card, context, { escape: true });
                 }
 
                 if (Array.isArray(nodeDescriptor.children)) {

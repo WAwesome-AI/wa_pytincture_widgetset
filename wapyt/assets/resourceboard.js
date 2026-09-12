@@ -1,6 +1,16 @@
 (function () {
   globalThis.wapyt = globalThis.wapyt || {};
 
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    }[char]));
+  }
+
   function resolveHost(target) {
     if (target && typeof target.attachHTML === "function") {
       const mountId = `wapyt_resourceboard_${Math.random().toString(16).slice(2)}`;
@@ -123,8 +133,8 @@
         button.className = "wapyt-rb-item";
         button.dataset.resourceId = item.id;
         button.innerHTML = `
-          <div class="wapyt-rb-item-title">${item.title || ""}</div>
-          ${item.subtitle ? `<div class="wapyt-rb-item-sub">${item.subtitle}</div>` : ""}
+          <div class="wapyt-rb-item-title">${escapeHtml(item.title || "")}</div>
+          ${item.subtitle ? `<div class="wapyt-rb-item-sub">${escapeHtml(item.subtitle)}</div>` : ""}
         `;
         button.addEventListener("click", () => this.select(item.id));
         this._list.appendChild(button);
@@ -152,12 +162,12 @@
           <div class="wapyt-rb-detail-card">
             <div class="wapyt-rb-detail-header">
               <div>
-                <h2>${item.title || ""}</h2>
-                ${item.subtitle ? `<p>${item.subtitle}</p>` : ""}
+                <h2>${escapeHtml(item.title || "")}</h2>
+                ${item.subtitle ? `<p>${escapeHtml(item.subtitle)}</p>` : ""}
               </div>
               ${
                 context.status
-                  ? `<span class="wapyt-rb-status">${context.status}</span>`
+                  ? `<span class="wapyt-rb-status">${escapeHtml(context.status)}</span>`
                   : ""
               }
             </div>
@@ -179,7 +189,7 @@
       const ctx = Object.assign({}, item.extra || {}, item);
       if (!ctx.modelsHtml && Array.isArray(item.extra?.models)) {
         ctx.modelsHtml = item.extra.models
-          .map((model) => `<span class="wapyt-rb-chip">${model}</span>`)
+          .map((model) => `<span class="wapyt-rb-chip">${escapeHtml(model)}</span>`)
           .join("");
       }
       return ctx;
@@ -199,10 +209,14 @@
         if (value == null) {
           return "";
         }
+        // Values are item data and are escaped by default. Keys ending in
+        // "Html" are the documented opt-out for app-supplied markup.
+        const raw = /Html$/.test(parts[parts.length - 1]);
         if (Array.isArray(value)) {
-          return value.join(", ");
+          const joined = value.join(", ");
+          return raw ? joined : escapeHtml(joined);
         }
-        return String(value);
+        return raw ? String(value) : escapeHtml(value);
       });
     }
 

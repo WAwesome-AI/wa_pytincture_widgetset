@@ -70,19 +70,47 @@
         }
     }
 
+    const SAFE_URL_PREFIX = /^(?:https?:|mailto:|tel:|[#/]|\.{1,2}\/)/i;
+
+    function sanitizeUrl(href) {
+        // Control characters (including newlines and tabs) are stripped by the
+        // URL parser but not by a naive scheme test, so remove them first.
+        const value = String(href ?? "").replace(/[\u0000-\u0020]/g, "");
+        if (!value) {
+            return "";
+        }
+        if (SAFE_URL_PREFIX.test(value)) {
+            return value;
+        }
+        // Reject any other explicit scheme (javascript:, data:, vbscript:, ...).
+        return /^[a-z][a-z0-9+.-]*:/i.test(value) ? "" : value;
+    }
+
     function renderInlineMarkdown(text) {
-        let html = escapeHtml(text);
-        html = html.replace(/\[([^\]]+)\]\(([^\s)]+)(?:\s+"([^"]+)")?\)/g, (_match, label, href, title) => {
-            const safeHref = escapeHtml(href);
-            const safeLabel = escapeHtml(label);
-            const safeTitle = title ? ` title=\"${escapeHtml(title)}\"` : "";
-            return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer"${safeTitle}>${safeLabel}</a>`;
+        // Links are extracted from the raw text before escaping: escaping first
+        // turns the optional `"title"` into &quot; (so it never matches) and
+        // double-escapes `&` inside hrefs, which breaks query strings.
+        const links = [];
+        const raw = String(text ?? "").replace(/\u0000/g, "");
+        let html = raw.replace(/\[([^\]]+)\]\(([^\s)]+)(?:\s+"([^"]+)")?\)/g, (match, label, href, title) => {
+            const safeHref = sanitizeUrl(href);
+            if (!safeHref) {
+                // Leave the markdown as literal text; it gets escaped below.
+                return match;
+            }
+            const safeTitle = title ? ` title="${escapeHtml(title)}"` : "";
+            const index = links.push(
+                `<a href="${escapeHtml(safeHref)}" target="_blank" rel="noopener noreferrer"${safeTitle}>${escapeHtml(label)}</a>`
+            ) - 1;
+            return `\u0000link${index}\u0000`;
         });
+        html = escapeHtml(html);
         html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
         html = html.replace(/__([^_]+)__/g, "<strong>$1</strong>");
         html = html.replace(/(?<!_)_([^_]+)_(?!_)/g, "<em>$1</em>");
         html = html.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>");
         html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+        html = html.replace(/\u0000link(\d+)\u0000/g, (_match, index) => links[Number(index)] || "");
         return html;
     }
 
@@ -218,9 +246,14 @@
 
     function renderMarkdown(text) {
         if (!text) return "";
-        if (typeof marked !== "undefined" && typeof marked.parse === "function") {
+        // `marked` emits raw HTML verbatim and has had no built-in sanitizer
+        // since v5, so it is only safe to use when DOMPurify is also present.
+        // Otherwise fall back to the escaping renderer below.
+        const hasMarked = typeof marked !== "undefined" && typeof marked.parse === "function";
+        const hasPurify = typeof DOMPurify !== "undefined" && typeof DOMPurify.sanitize === "function";
+        if (hasMarked && hasPurify) {
             try {
-                return marked.parse(text);
+                return DOMPurify.sanitize(marked.parse(text));
             } catch (error) {
                 console.warn("[ChatWidget] markdown parse failed", error);
             }
@@ -592,6 +625,14 @@
                 agentSubtitle: createUniqueId("agent-subtitle"),
             };
 
+            // Artifact chips are the one fragment of message HTML we inject
+            // without escaping. Tagging them with an unguessable nonce means
+            // model output that merely *looks* like a chip is still escaped.
+            this._artifactNonce = createUniqueId("wapyt-artifact").replace(/[^a-zA-Z0-9_-]/g, "");
+            this._artifactIconPattern = new RegExp(
+                `(<div class="artifact-icon" data-wapyt-artifact="${this._artifactNonce}"[\\s\\S]*?</div>)`
+            );
+
             this._renderShell();
             this._cacheDom();
             this._applyLayoutMode();
@@ -948,7 +989,7 @@
                         <div class="artifact-body">
                             <pre class="artifact-code" id="${this.ids.artifactCode}"><code id="${this.ids.artifactCodeContent}"></code></pre>
                             <div class="artifact-preview" id="${this.ids.artifactPreview}">
-                                <iframe id="${this.ids.artifactIframe}" sandbox="allow-scripts allow-same-origin"></iframe>
+                                <iframe id="${this.ids.artifactIframe}" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
                             </div>
                         </div>
                         <div class="artifact-actions">
@@ -1879,7 +1920,7 @@
             const injectIcon = (artifact) => {
                 hasCompleteArtifacts = true;
                 artifacts.push(artifact);
-                return `\n\n<div class="artifact-icon" data-artifact-id="${artifact.id}"><span class="material-icons">code</span><span>${artifact.title}</span></div>\n\n`;
+                return `\n\n<div class="artifact-icon" data-wapyt-artifact="${this._artifactNonce}" data-artifact-id="${escapeHtml(artifact.id)}"><span class="material-icons">code</span><span>${escapeHtml(artifact.title)}</span></div>\n\n`;
             };
 
             const newPattern = /:{3,4}artifact\{([^}]*)\}([\s\S]*?)(?:\s*:{3,4})/gi;
@@ -1908,7 +1949,10 @@
                 return injectIcon(artifact);
             });
 
-            processedText = processedText.replace(/(<div class="artifact-icon"[^>]*>[\s\S]*?<\/div>)\s*:/g, "$1");
+            processedText = processedText.replace(
+                new RegExp(`(<div class="artifact-icon" data-wapyt-artifact="${this._artifactNonce}"[\\s\\S]*?</div>)\\s*:`, "g"),
+                "$1"
+            );
 
             const hasNewStart = /:{3,4}artifact\{[^}]*\}/i.test(text);
             const hasLegacyStart = /::::Artifact\s+[^\n]+/i.test(text) || /::::Artifact\s+[^\n]+/i.test(text);
@@ -1970,8 +2014,8 @@
             let displayText = message.content || "";
             let artifacts = [];
             if (message.role !== "user" && this.options.enableArtifacts && displayText) {
-                if (displayText.includes("artifact-icon")) {
-                    // Already processed HTML
+                if (displayText.includes(this._artifactNonce)) {
+                    // Already processed by a previous render pass.
                 } else {
                     const result = this._processStreamingText(displayText, { messageId: message.id });
                     displayText = result.processedText;
@@ -1991,11 +2035,12 @@
                     }
                 }
             }
-            if (displayText.includes("artifact-icon")) {
-                const parts = displayText.split(/(<div class="artifact-icon"[^>]*>[\s\S]*?<\/div>)/);
+            if (displayText.includes(this._artifactNonce)) {
+                const parts = displayText.split(new RegExp(this._artifactIconPattern.source));
                 const renderedParts = parts.map((segment) => {
                     if (!segment) return "";
-                    if (segment.includes("artifact-icon")) {
+                    if (segment.includes(this._artifactNonce)) {
+                        // Our own chip markup, built with escaped fields above.
                         return segment;
                     }
                     if (!segment.trim()) {
@@ -2004,10 +2049,10 @@
                     const rendered = renderMarkdown(segment);
                     return rendered || escapeHtml(segment).replace(/\n/g, "<br>");
                 });
-                contentEl.innerHTML = renderedParts.join("") || displayText;
+                contentEl.innerHTML = renderedParts.join("") || escapeHtml(displayText);
             } else if (displayText.trim()) {
                 const html = renderMarkdown(displayText);
-                contentEl.innerHTML = html || displayText.replace(/\n/g, "<br>");
+                contentEl.innerHTML = html || escapeHtml(displayText).replace(/\n/g, "<br>");
             } else {
                 contentEl.innerHTML = "";
             }
@@ -2707,21 +2752,18 @@
             const iframe = this.els.artifactIframe;
             const type = (this.currentArtifact.type || "").toLowerCase();
             if (type === "text/html") {
-                const blob = new Blob([this.currentArtifact.content], { type: "text/html" });
-                iframe.src = URL.createObjectURL(blob);
+                iframe.srcdoc = this.currentArtifact.content;
                 return;
             }
             if (type === "image/svg+xml") {
-                const svgContent = `<!DOCTYPE html><html><body style=\"margin:0;padding:20px;display:flex;justify-content:center;align-items:center;min-height:100vh;\">${this.currentArtifact.content}</body></html>`;
-                const blob = new Blob([svgContent], { type: "text/html" });
-                iframe.src = URL.createObjectURL(blob);
+                iframe.srcdoc = `<!DOCTYPE html><html><body style=\"margin:0;padding:20px;display:flex;justify-content:center;align-items:center;min-height:100vh;\">${this.currentArtifact.content}</body></html>`;
                 return;
             }
             if (type === "text/x-python" || type === "application/x-python" || type === "application/python" || type === "text/python") {
                 this._loadPythonArtifactPreview(this.currentArtifact.content);
                 return;
             }
-            iframe.src = "data:text/html,<body style='padding:20px;font-family:monospace;'>Preview not available for this file type</body>";
+            iframe.srcdoc = "<body style='padding:20px;font-family:monospace;'>Preview not available for this file type</body>";
         }
 
         _loadPythonArtifactPreview(source) {
@@ -2734,8 +2776,7 @@
             const baseHtmlEnd = "</body></html>";
 
             const showHtml = (body) => {
-                const blob = new Blob([baseHtmlStart + body + baseHtmlEnd], { type: "text/html" });
-                iframe.src = URL.createObjectURL(blob);
+                iframe.srcdoc = baseHtmlStart + body + baseHtmlEnd;
             };
 
             showHtml("<h3>Python Execution Output</h3><pre>Running...</pre>");

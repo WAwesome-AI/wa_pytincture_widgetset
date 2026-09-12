@@ -60,6 +60,11 @@ wapyt/
 
 - The JavaScript bundles define the `window.wapyt` namespace and are evaluated automatically by PyTincture’s loader (see `pytincture/frontend/pytincture.js`).
 - Layout styles live in `assets/wapyt.css`; adjust tokens there to integrate with your design system.
+- Message content is rendered by the escaping markdown renderer in `assets/chat.js`. If a page also loads
+  [`marked`](https://marked.js.org/), the widget uses it **only** when `DOMPurify` is present as well —
+  `marked` passes raw HTML through, so without a sanitizer the widget falls back to its own renderer.
+- Artifact previews run in `<iframe sandbox="allow-scripts">` with no `allow-same-origin`: artifact code is
+  treated as untrusted and cannot reach the host page.
 - The tests are intentionally small, framework-free PyTincture apps so you can copy/paste into your own projects.
 
 ## License

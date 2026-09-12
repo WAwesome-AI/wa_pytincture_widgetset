@@ -1,6 +1,16 @@
 (function () {
   const globalNS = (globalThis.wapyt = globalThis.wapyt || {});
 
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    }[char]));
+  }
+
   function resolveHost(target) {
     if (target && typeof target.attachHTML === "function") {
       const mountId = `wapyt_tabhost_${Math.random().toString(16).slice(2)}`;
@@ -163,10 +173,10 @@
       button.className = "wapyt-tab";
       button.dataset.tabId = tab.id;
       button.innerHTML = `
-        <span class="wapyt-tab-title">${tab.title || tab.id}</span>
+        <span class="wapyt-tab-title">${escapeHtml(tab.title || tab.id)}</span>
         ${
           tab.badge != null
-            ? `<span class="wapyt-tab-badge">${tab.badge}</span>`
+            ? `<span class="wapyt-tab-badge">${escapeHtml(tab.badge)}</span>`
             : ""
         }
       `;
