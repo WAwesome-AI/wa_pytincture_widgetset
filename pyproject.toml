@@ -18,6 +18,11 @@ dependencies = [
 [project.urls]
 homepage = "https://github.com/schapman1974/wA_pytincture_widgetset"
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
 [tool.setuptools]
 include-package-data = true
 
