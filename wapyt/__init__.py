@@ -9,7 +9,8 @@ __description__ = "DHTMLX-free widgetset for PyTincture apps"
 
 from .layout.layout import Layout, MainWindow
 from .layout.layout_config import LayoutConfig, CellConfig
-from .chat.chat import Chat, ChatConfig, ChatAgentConfig, ChatMessageConfig
+from .chat.chat import Chat, ChatStreamError
+from .chat.chat_config import ChatConfig, ChatAgentConfig, ChatMessageConfig
 from .cardpanel.cardpanel import CardPanel, CardPanelConfig, CardPanelCardConfig
 from .tabwidget.tabwidget import TabWidget, TabWidgetConfig, TabConfig
 from .sidebar.sidebar import Sidebar
@@ -24,6 +25,7 @@ __all__ = [
     "LayoutConfig",
     "CellConfig",
     "Chat",
+    "ChatStreamError",
     "ChatConfig",
     "ChatAgentConfig",
     "ChatMessageConfig",
