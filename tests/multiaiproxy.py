@@ -6,16 +6,25 @@ PyTincture compatibility.
 """
 
 import json
+import logging
 import os
 
 import litellm
 
 from dotenv import load_dotenv
 
-litellm._turn_on_debug()
-
-
 from pytincture.dataclass import backend_for_frontend, bff_stream
+
+logger = logging.getLogger(__name__)
+
+# `load_dotenv` was imported but never called, so provider keys placed in a
+# .env file were silently ignored.
+load_dotenv()
+
+# LiteLLM's debug mode logs full request bodies, including API keys. Keep it
+# opt-in rather than on by default.
+if os.getenv("LITELLM_DEBUG", "").strip().lower() in {"1", "true", "yes"}:
+    litellm._turn_on_debug()
 
 # ---------------------------------------------------------------------------
 # Defaults (can be overridden when instantiating the proxy)
@@ -25,6 +34,60 @@ from pytincture.dataclass import backend_for_frontend, bff_stream
 
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "")
 REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "60"))
+MAX_REQUEST_TIMEOUT = float(os.getenv("MAX_REQUEST_TIMEOUT", "300"))
+XAI_API_BASE = os.getenv("XAI_API_BASE", "https://api.x.ai/v1")
+
+# Generation parameters a browser client may set. Anything else is dropped:
+# LiteLLM also accepts transport options such as `api_base`, `api_key`,
+# `custom_llm_provider` and `extra_headers`, and forwarding those from the
+# client would let it point this server's provider credentials at a host of
+# its own choosing.
+ALLOWED_COMPLETION_OPTIONS = frozenset({
+    "temperature",
+    "top_p",
+    "top_k",
+    "max_tokens",
+    "max_completion_tokens",
+    "stop",
+    "presence_penalty",
+    "frequency_penalty",
+    "seed",
+    "n",
+    "response_format",
+    "reasoning_effort",
+})
+
+
+def _filter_completion_options(options):
+    """Keep only known generation parameters from a client-supplied mapping."""
+    allowed = {}
+    rejected = []
+    for key, value in (options or {}).items():
+        if key in ALLOWED_COMPLETION_OPTIONS:
+            allowed[key] = value
+        else:
+            rejected.append(key)
+    if rejected:
+        logger.warning(
+            "Ignoring completion options not on the allowlist: %s",
+            ", ".join(sorted(rejected)),
+        )
+    return allowed
+
+
+def _resolve_timeout(requested, default):
+    """Clamp a client-supplied timeout into a sane range."""
+    if requested is None:
+        return default
+    try:
+        value = float(requested)
+    except (TypeError, ValueError):
+        logger.warning("Ignoring non-numeric timeout %r", requested)
+        return default
+    if value <= 0:
+        return default
+    return min(value, MAX_REQUEST_TIMEOUT)
+
 
 DEFAULT_PROVIDER_CONFIG = {
     "providers": {
@@ -94,7 +157,7 @@ class UnifiedAIProvider:
 
     def __init__(self, provider_config):
         self.provider_config = provider_config or {"providers": {}}
-        #self.setup_environment()
+        self.setup_environment()
         self._build_model_mapping()
 
     @staticmethod
@@ -151,35 +214,24 @@ class UnifiedAIProvider:
 
     def stream_completion(self, model, messages, **kwargs):
         litellm_model = self.get_litellm_model(model)
+        call_kwargs = dict(kwargs)
 
         if self.is_xai_model(model):
-            original_base_url = os.getenv("OPENAI_BASE_URL")
-            os.environ["OPENAI_BASE_URL"] = "https://api.x.ai/v1"
-            try:
-                response = litellm.completion(
-                    model=litellm_model,
-                    messages=list(messages),
-                    stream=True,
-                    api_key=os.getenv("XAI_API_KEY"),
-                    **kwargs,
-                )
-                for chunk in response:
-                    yield chunk
-            finally:
-                if original_base_url is not None:
-                    os.environ["OPENAI_BASE_URL"] = original_base_url
-                elif "OPENAI_BASE_URL" in os.environ:
-                    del os.environ["OPENAI_BASE_URL"]
-        else:
-            response = litellm.completion(
-                model=litellm_model,
-                messages=list(messages),
-                stream=True,
-                **kwargs
-            )
-            print("RESPONSE", response)
-            for chunk in response:
-                yield chunk
+            # Passed per call rather than exported into os.environ. The previous
+            # version set OPENAI_BASE_URL for the duration of the request, which
+            # is process-global: a concurrent OpenAI request could pick up the
+            # xAI base URL and be sent there with an OpenAI key.
+            call_kwargs["api_base"] = XAI_API_BASE
+            call_kwargs["api_key"] = os.getenv("XAI_API_KEY")
+
+        response = litellm.completion(
+            model=litellm_model,
+            messages=list(messages),
+            stream=True,
+            **call_kwargs,
+        )
+        for chunk in response:
+            yield chunk
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +258,7 @@ class multiaiproxy:
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
-            print("Warning: MULTIPROXY_PROVIDER_CONFIG is not valid JSON; falling back to defaults.")
+            logger.warning("MULTIPROXY_PROVIDER_CONFIG is not valid JSON; falling back to defaults.")
             return None
 
     def get_available_models(self):
@@ -237,10 +289,10 @@ class multiaiproxy:
 
     @bff_stream()
     def chat_stream(self, messages, model=None, **extra):
-        options = extra.copy()
-        timeout_override = options.pop("timeout", None)
-        options.pop("stream", None)
-        timeout = timeout_override or self._timeout
+        # `extra` arrives from the browser, so only known generation
+        # parameters are forwarded to LiteLLM.
+        timeout = _resolve_timeout(extra.get("timeout"), self._timeout)
+        options = _filter_completion_options(extra)
 
         selected_model = model or self._default_model
 
