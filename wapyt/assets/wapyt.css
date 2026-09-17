@@ -223,3 +223,44 @@
 [data-wapyt-theme="dark"] .wapyt-tabwidget {
   border-top: 1px solid var(--wapyt-border-dark);
 }
+
+/* ---------------------------------------------------------------------------
+ * Icon containment safety net.
+ *
+ * Icons resolve to Material Design Icons classes via icons.js, using the font
+ * pytincture serves from its own origin. This block is defence in depth for the
+ * failure that motivated it: the widgets previously rendered Material Symbols
+ * *ligature* spans, whose text content is the icon name. When that font is
+ * blocked -- pytincture's CSP is `style-src 'self' 'unsafe-inline'`, so every
+ * CDN stylesheet is -- the name rendered as literal text: "add_comment" is
+ * ~84px of Arial inside a 36px round button, so labels overflowed their buttons
+ * and overlapped each other.
+ *
+ * A class-based font cannot regress that way, but any future ligature icon, or
+ * MDI itself failing to load, would. Clamping the box means a missing glyph
+ * degrades to blank space instead of wrecking the layout.
+ * ------------------------------------------------------------------------- */
+.wapyt-sidebar-icon,
+.wapyt [class^="mdi-"],
+.wapyt [class*=" mdi-"],
+.mdi[class*="mdi-"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1em;
+  height: 1em;
+  line-height: 1;
+  overflow: hidden;
+  font-style: normal;
+  /* Never let a glyph-less fallback typeset its own name. */
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+/* The MDI webfont ships its glyphs via ::before, which must stay unclamped. */
+.mdi[class*="mdi-"]::before,
+.wapyt-sidebar-icon::before {
+  display: block;
+  line-height: 1;
+}

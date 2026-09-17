@@ -1,22 +1,12 @@
 (function () {
   const globalNS = (globalThis.wapyt = globalThis.wapyt || {});
 
-  function ensureIconFonts() {
-    if (!document.getElementById("wapyt-material-icons")) {
-      const link = document.createElement("link");
-      link.id = "wapyt-material-icons";
-      link.rel = "stylesheet";
-      link.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded";
-      document.head.appendChild(link);
-    }
-    if (!document.getElementById("wapyt-mdi-icons")) {
-      const link = document.createElement("link");
-      link.id = "wapyt-mdi-icons";
-      link.rel = "stylesheet";
-      link.href = "https://cdn.jsdelivr.net/npm/@mdi/font@7/css/materialdesignicons.min.css";
-      document.head.appendChild(link);
-    }
-  }
+  // No-op. Both stylesheets this used to inject (Material Symbols from
+  // fonts.googleapis.com, MDI from jsdelivr) are blocked by pytincture's
+  // `style-src 'self' 'unsafe-inline'` CSP. pytincture already injects MDI from
+  // its own origin, and icons.js maps every icon onto it. Kept as a no-op so
+  // existing call sites need no change.
+  function ensureIconFonts() {}
 
   function resolveHost(target) {
     if (target && typeof target.attachHTML === "function") {
@@ -126,13 +116,15 @@
       if (!value) {
         return null;
       }
-      if (value.includes("mdi")) {
-        span.className = `wapyt-sidebar-icon ${value}`;
-      } else if (value.startsWith("<")) {
+      if (value.startsWith("<")) {
         span.innerHTML = value;
       } else {
-        span.classList.add("material-symbols-rounded");
-        span.textContent = value;
+        // Covers both "mdi mdi-x" passed straight through and a Material
+        // Symbols ligature name mapped onto MDI. Previously the else-branch
+        // set textContent to the raw name, which rendered as literal text
+        // whenever the ligature font failed to load.
+        span.className = `wapyt-sidebar-icon ${globalNS.icons.iconClass(value)}`;
+        span.setAttribute("aria-hidden", "true");
       }
       return span;
     }
