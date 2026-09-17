@@ -15,3 +15,6 @@ package = false
 
 [tool.uv.sources]
 wapyt = { path = "../" }
+# Develop against the local checkout (1.0.0rc5); a bare version pin would not
+# select a pre-release from PyPI.
+pytincture = { path = "../../pytincture" }

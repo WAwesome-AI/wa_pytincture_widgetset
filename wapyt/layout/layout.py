@@ -38,7 +38,7 @@ class Layout(object, metaclass=LoadUICaller):
     layout_config: Optional[Union[LayoutConfig, Dict[str, Any]]] = None
 
     def __init__(self, config: Optional[Union[LayoutConfig, Dict[str, Any]]] = None, *, mainwindow: bool = False, **kwargs: Any) -> None:
-        #require_js("Layout")
+        require_js("Layout")
         self.parent = kwargs.get("parent")
         base_config = config or self.layout_config
         if base_config is None:
