@@ -237,10 +237,10 @@ decodes WAV through the same PyAV path. Details that matter:
 None of Pantheon's half-duplex, barge-in or `looksSelfHeard` machinery is here, because that exists
 only to stop a mic hearing its own TTS. Adding TTS would bring all of it back.
 
-**Requires a secure context and `Permissions-Policy: microphone=(self)`.** pytincture ships
-`microphone=()`, a browser-level block that no user consent overrides; set
-`PYTINCTURE_PERMISSIONS_POLICY` to relax it. `http://127.0.0.1` counts as a secure context;
-`http://<lan-ip>` does not.
+**Requires a secure context and microphone permission.** pytincture denies device access by
+default with `Permissions-Policy: microphone=()`, a browser-level block that no user consent
+overrides; set **`PYTINCTURE_ALLOW_MICROPHONE=1`** (pytincture >= 1.0.0rc8) to opt in.
+`http://127.0.0.1` counts as a secure context; `http://<lan-ip>` does not.
 
 ## Running
 
