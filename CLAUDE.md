@@ -1,6 +1,6 @@
 # wapyt — wA PyTincture Widgetset
 
-DHTMLX-free widgetset for [pyTincture](https://github.com/schapman1974/pytincture). Seven widgets
+DHTMLX-free widgetset for [pyTincture](https://github.com/pytincture/pytincture). Seven widgets
 (Layout, Chat, CardPanel, TabWidget, Sidebar, ModalWindow, ResourceBoard) declared in Python, rendered
 as plain DOM by bundled JS, running inside Pyodide. The commercial-licence alternative to `dhxpyt`.
 
@@ -331,5 +331,3 @@ Not bugs to fix blindly — context for when they surface:
   with stale `WRAPPER_REVISION` cache-busters.
 - `CardPanelConfig` defaults to `title="Data Sources"` with a description about lineage tracking —
   app-specific copy baked into a generic widget.
-- `pyproject.toml` `homepage` still points at `schapman1974/wA_pytincture_widgetset`; the repo is
-  `WAwesome-AI/wa_pytincture_widgetset`.

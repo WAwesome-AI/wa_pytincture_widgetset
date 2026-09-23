@@ -29,6 +29,11 @@
       "sha256": "3e79be992fa0d30e3bced04c79657b8a945e224b0dbdc7ea5d4bace97c16c2ff"
     },
     {
+      "path": "wapyt/assets/filetransfer.js",
+      "type": "javascript",
+      "sha256": "912e50d88e0a7a4305ea1b0b5196fa33487e8fc49a816f864e4beda97119a7fb"
+    },
+    {
       "path": "wapyt/assets/datatable.js",
       "type": "javascript",
       "sha256": "43c35e9a0604764609b59f77cefbff9e928cf4275f1b8ab0d13303df4c54d537"
