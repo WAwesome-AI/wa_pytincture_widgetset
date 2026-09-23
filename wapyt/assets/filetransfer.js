@@ -136,14 +136,22 @@
         finish(files.length ? result(true, { files }) : result(false, { cancelled: true }));
       });
 
-      // There is no cancel event on a file input. `cancel` fires in modern
-      // browsers; the focus fallback covers the rest.
-      input.addEventListener("cancel", () => finish(result(false, { cancelled: true })));
-      window.addEventListener(
-        "focus",
-        () => setTimeout(() => finish(result(false, { cancelled: true })), 700),
-        { once: true }
-      );
+      // Dismissal is reported by the `cancel` event — Chrome 113+, Firefox
+      // 109+, Safari 16.4+, all far older than the File System Access API this
+      // module already needs.
+      //
+      // There is deliberately NO window-focus fallback. Focus returns the
+      // moment the dialog closes, whereas `change` can arrive seconds later:
+      // the browser still has to enumerate a chosen directory, and Chrome
+      // interposes an "Upload N files to this site?" confirmation. A
+      // focus-based timer therefore resolves "cancelled" while the real
+      // selection is still on its way, and the upload silently never starts.
+      input.addEventListener("cancel", () => {
+        // Guard anyway: a late or spurious cancel must not discard a selection
+        // that has already been made.
+        if (input.files && input.files.length) return;
+        finish(result(false, { cancelled: true }));
+      });
 
       input.click();
     });
