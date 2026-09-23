@@ -56,6 +56,13 @@ class TerminalConfig:
         reconnect: Reconnect automatically when the socket drops.
         reconnect_max_attempts: Give up after this many consecutive failures.
         reconnect_base_ms: First backoff delay; doubles per attempt.
+        fit_debounce_ms: Wait this long after the container stops changing size
+            before re-fitting. 0 (the default) fits on every ResizeObserver
+            callback, which is right for a container that only changes size
+            occasionally. Set it (~120) when the container can be dragged: a
+            resize drag otherwise sends a PTY resize per frame, and the remote
+            redraws for every one of them. An explicit ``fit()`` is never
+            debounced.
         cursor_blink: Whether the cursor blinks.
         extra: Additional properties forwarded to JS verbatim.
     """
@@ -70,6 +77,7 @@ class TerminalConfig:
     reconnect: bool = True
     reconnect_max_attempts: int = 5
     reconnect_base_ms: int = 1000
+    fit_debounce_ms: int = 0
     cursor_blink: bool = True
     extra: Dict[str, Any] = field(default_factory=dict)
 
@@ -85,6 +93,7 @@ class TerminalConfig:
             "reconnect": self.reconnect,
             "reconnectMaxAttempts": self.reconnect_max_attempts,
             "reconnectBaseMs": self.reconnect_base_ms,
+            "fitDebounceMs": self.fit_debounce_ms,
             "cursorBlink": self.cursor_blink,
         }
         payload.update(self.extra or {})
