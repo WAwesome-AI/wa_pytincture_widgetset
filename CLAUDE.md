@@ -314,6 +314,25 @@ Separately, `config.minSize` was being written to `style.minSize`, which is not
 a CSS property, so the declared minimum never applied. It now maps to
 `minWidth`/`minHeight` by axis.
 
+## Modal sizing (fixed 2026-09-23)
+
+`.wapyt-modal` and its header/body never declared `box-sizing`, so they were
+`content-box` while carrying `padding: 1rem 1.5rem`. The body is a flex item of
+the modal, so it stretched to a 560px *content* box and then added 48px of
+padding on top — a 608px box inside a 562px parent. The content did not scroll,
+it overflowed the dialog, because the overflow was on the body rather than in
+it. A modal declared at `width=560` also rendered 562px, since the 1px border
+sat outside too.
+
+IguanaXterm's session editor is where it showed: nine fields running ~23px past
+the rounded corner. Every modal had it; it was only obvious where the content
+filled the width. All three chrome elements are now `border-box`.
+
+Worth knowing when sizing a modal: the declared `height` is now honest, so
+content taller than it scrolls inside the body rather than the modal growing.
+The session editor needed 740px for nine fields plus the action row — at 640 the
+Save button sat below the fold.
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:
