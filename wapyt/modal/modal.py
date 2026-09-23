@@ -49,6 +49,18 @@ class ModalWindow:
         config_payload = (config or ModalConfig()).to_dict()
         self.modal = js.wapyt.ModalWindow.new(js.JSON.parse(json.dumps(config_payload)))
 
+    @property
+    def body(self) -> Any:
+        """
+        The modal's content element, for mounting a widget straight into it::
+
+            form = Form(config, container=modal.body)
+
+        ``set_content`` replaces the body wholesale, which destroys a widget
+        already mounted there; this hands back the element to build into.
+        """
+        return self.modal.bodyEl
+
     def set_content(self, component: Any) -> None:
         self.modal.setContent(component)
 
