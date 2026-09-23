@@ -17,21 +17,46 @@
         return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     }
 
+    // ~0.7s of 4096-frame blocks retained before the energy gate opens, so an
+    // utterance does not lose its first syllable to the gate's reaction time.
+    const HF_PRE_ROLL = 8;
+
+    // Float32 blocks -> 16-bit PCM WAV. Continuous capture taps raw PCM off the
+    // AudioContext that the energy gate already needs, so it has to package the
+    // samples itself; WAV keeps the server side codec-free.
+    function pcmToWav(chunks, rate) {
+        let n = 0;
+        for (const c of chunks) n += c.length;
+        const buf = new ArrayBuffer(44 + n * 2);
+        const view = new DataView(buf);
+        const str = (o, t) => { for (let i = 0; i < t.length; i++) view.setUint8(o + i, t.charCodeAt(i)); };
+        str(0, "RIFF"); view.setUint32(4, 36 + n * 2, true); str(8, "WAVEfmt ");
+        view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+        view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true);
+        view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+        str(36, "data"); view.setUint32(40, n * 2, true);
+        let o = 44;
+        for (const c of chunks) {
+            for (let i = 0; i < c.length; i++, o += 2) {
+                const x = Math.max(-1, Math.min(1, c[i]));
+                view.setInt16(o, x < 0 ? x * 0x8000 : x * 0x7fff, true);
+            }
+        }
+        return new Blob([buf], { type: "audio/wav" });
+    }
+
     function clamp(value, min, max) {
         if (Number.isNaN(value)) return min;
         return Math.max(min, Math.min(max, value));
     }
 
-    function ensureMaterialIcons() {
-        if (document.getElementById("ragchat-material-icons")) {
-            return;
-        }
-        const link = document.createElement("link");
-        link.id = "ragchat-material-icons";
-        link.rel = "stylesheet";
-        link.href = "https://fonts.googleapis.com/icon?family=Material+Icons";
-        document.head.appendChild(link);
-    }
+    // No-op: the Material Icons stylesheet this injected is blocked by
+    // pytincture's CSP. Icons now resolve through icons.js onto the MDI font
+    // pytincture already serves. See icons.js for the why.
+    function ensureMaterialIcons() {}
+
+    // Local alias so the call sites below stay short.
+    const icon_markup = (value, extra) => globalThis.wapyt.icons.iconMarkup(value, extra);
 
     function escapeHtml(value) {
         return (value ?? "").replace(/[&<>"']/g, (char) => {
@@ -329,7 +354,7 @@
             .message-timestamp.is-hidden { display: none; }
             .message-tray { width: 100%; display: flex; justify-content: flex-end; align-items: center; gap: 4px; padding: 2px 4px 0; }
             .message-copy-btn { border: none; background: rgba(148,163,184,0.2); color: inherit; width: 26px; height: 26px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s ease, transform 0.2s ease; }
-            .message-copy-btn .material-icons { font-size: 16px; }
+            .message-copy-btn .mdi { font-size: 16px; }
             .message-copy-btn:hover { background: rgba(59,130,246,0.28); transform: translateY(-1px); }
             .rag-user-message .message-copy-btn { background: rgba(15,23,42,0.1); color: #0b1e3f; }
             .rag-user-message .message-copy-btn:hover { background: rgba(15,23,42,0.18); }
@@ -348,6 +373,44 @@
             .message-thinking .thinking-label { font-style: italic; }
             .rag-dark .message-thinking,
             .rag-dark .composer-help { color: rgba(148,163,184,0.78); }
+
+            /* Mic button. Kept as its own standalone rule: this block was once
+               spliced into the middle of the selector list above, which handed
+               .rag-dark .message-thinking a 42px box and, worse, a
+               display:inline-flex that outranked the base .message-thinking
+               display:none -- so the "Thinking…" indicator showed permanently on
+               every message in dark mode and lost its readable colour. */
+            .rag-mic-btn {
+                display: inline-flex; align-items: center; justify-content: center;
+                width: 42px; height: 42px; flex: 0 0 auto;
+                border: 1px solid rgba(148,163,184,0.35);
+                border-radius: 12px;
+                background: transparent; color: inherit;
+                cursor: pointer; align-self: flex-end;
+                transition: background .15s ease, border-color .15s ease, color .15s ease;
+                /* the press-and-hold gesture must not select surrounding text */
+                user-select: none; -webkit-user-select: none; touch-action: none;
+            }
+            .rag-mic-btn:hover:not(:disabled) { background: rgba(148,163,184,0.12); }
+            /* Armed but not hearing speech: steady blue. Hearing speech: pulsing,
+               so it is obvious whether the gate is actually opening. */
+            .rag-mic-continuous.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+            .rag-mic-continuous.active.listening {
+                background: #16a34a; border-color: #16a34a;
+                animation: wapyt-mic-pulse 1.2s ease-in-out infinite;
+            }
+            .rag-mic-btn:disabled { opacity: .45; cursor: not-allowed; }
+            .rag-mic-btn.recording {
+                background: #dc2626; border-color: #dc2626; color: #fff;
+                animation: wapyt-mic-pulse 1.2s ease-in-out infinite;
+            }
+            @keyframes wapyt-mic-pulse {
+                0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,.55); }
+                50%     { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .rag-mic-btn.recording { animation: none; }
+            }
             .rag-message.is-thinking .message-thinking { display: flex; }
             .rag-message.is-thinking .message-content { display: none; }
             .thinking-dots { display: flex; gap: 4px; }
@@ -408,8 +471,8 @@
             .rag-thin .artifact-actions button { padding: 8px 12px; font-size: 12px; }
             .model-selector { position: relative; display: inline-flex; flex-direction: column; min-width: 240px; }
             .model-selector__trigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(15,23,42,0.12); background: rgba(255,255,255,0.9); color: inherit; cursor: pointer; font-size: 13px; font-weight: 500; transition: box-shadow 0.15s ease, border-color 0.15s ease; }
-            .model-selector__trigger .material-icons { font-size: 18px; transition: transform 0.2s ease; }
-            .model-selector[data-open="true"] .model-selector__trigger .material-icons { transform: rotate(180deg); }
+            .model-selector__trigger .mdi { font-size: 18px; transition: transform 0.2s ease; }
+            .model-selector[data-open="true"] .model-selector__trigger .mdi { transform: rotate(180deg); }
             .model-selector__trigger:focus-visible { outline: 2px solid rgba(59,130,246,0.45); outline-offset: 2px; }
             .model-selector__text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
             .model-selector__label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.6; }
@@ -465,7 +528,7 @@
             .artifact-actions button { flex: 1; border: none; border-radius: 10px; padding: 10px 12px; font-size: 13px; background: rgba(59,130,246,0.18); color: inherit; cursor: pointer; }
             .artifact-actions button:hover { background: rgba(59,130,246,0.28); }
             .artifact-icon { display: inline-flex; align-items: center; gap: 6px; background: rgba(59,130,246,0.15); padding: 6px 10px; border-radius: 999px; font-size: 13px; cursor: pointer; margin: 6px 6px 0 0; }
-            .artifact-icon span.material-icons { font-size: 18px; }
+            .artifact-icon .mdi { font-size: 18px; }
             .rag-main.with-artifact { margin-right: 40%; }
             @media (max-width: 1200px) {
                 .artifact-panel.visible { width: 48%; }
@@ -534,6 +597,14 @@
                 agent: { name: "Assistant", subtitle: "" },
                 demoResponse: DEFAULT_DEMO_RESPONSE,
                 storageKey: null,
+                // Model to select when nothing has been remembered yet.
+                defaultModel: null,
+                // Push-to-talk. The widget only CAPTURES audio -- transcription is
+                // the app's job, via the "voice" event. Requires a secure context
+                // (https, or http on localhost) and a Permissions-Policy that
+                // allows microphone=(self); pytincture blocks it by default.
+                voiceInput: false,
+                voiceMaxSeconds: 120,
                 enableArtifacts: true,
                 autoAppendUserMessages: true,
                 inputPlaceholder: "Ask a question…",
@@ -555,7 +626,13 @@
                 artifactPanelWidth: `${this._storagePrefix}:artifactWidth`,
                 sidebarCollapsed: `${this._storagePrefix}:sidebar`,
                 isDarkMode: `${this._storagePrefix}:darkMode`,
+                lastModel: `${this._storagePrefix}:lastModel`,
             };
+            // The model the user last chose, remembered across sessions. Distinct
+            // from the per-chat model: a brand new profile (or a first-ever visit)
+            // has no chat to inherit from and would otherwise land on whatever
+            // happens to be first in the catalogue.
+            this._userPickedModel = false;
 
             this.chats = [];
             this.activeChatId = null;
@@ -601,6 +678,8 @@
                 inputForm: createUniqueId("rag-input-form"),
                 queryInput: createUniqueId("rag-query"),
                 sendButton: createUniqueId("rag-send"),
+                micButton: createUniqueId("rag-mic"),
+                continuousButton: createUniqueId("rag-mic-continuous"),
                 modelSelect: createUniqueId("rag-model-select"),
                 modelSelectTrigger: createUniqueId("rag-model-trigger"),
                 modelSelectMenu: createUniqueId("rag-model-menu"),
@@ -878,7 +957,7 @@
                 const aria = tooltip ? ` aria-label="${tooltip}"` : "";
                 sidebarButtons.push(`
                     <button class="sidebar-btn" type="button" data-action="${action}"${aria}>
-                        ${icon ? `<span class="material-icons">${icon}</span>` : ""}
+                        ${icon ? icon_markup(icon) : ""}
                         ${tooltip ? `<div class="tooltip">${tooltip}</div>` : ""}
                     </button>
                 `);
@@ -900,7 +979,7 @@
                 const initialTooltip = this.sidebarCollapsed ? collapsedTooltip : expandedTooltip;
                 sidebarButtons.push(`
                     <button class="sidebar-btn" type="button" data-action="toggle-sidebar" data-icon-expanded="${expandedIcon}" data-icon-collapsed="${collapsedIcon}" data-tooltip-expanded="${expandedTooltip}" data-tooltip-collapsed="${collapsedTooltip}" aria-label="${initialTooltip}">
-                        <span class="material-icons">${initialIcon}</span>
+                        ${icon_markup(initialIcon)}
                         <div class="tooltip">${initialTooltip}</div>
                     </button>
                 `);
@@ -931,7 +1010,7 @@
                                 <span class="model-selector__label">Model</span>
                                 <span class="model-selector__value" id="${this.ids.modelSelectValue}">Loading models...</span>
                             </span>
-                            <span class="material-icons">expand_more</span>
+                            ${icon_markup("expand_more")}
                         </button>
                         <div class="model-selector__menu" id="${this.ids.modelSelectMenu}" hidden tabindex="-1">
                             <div class="model-selector__columns" id="${this.ids.modelSelectColumns}">
@@ -970,8 +1049,10 @@
                                     <textarea id="${this.ids.queryInput}" placeholder="${this.options.inputPlaceholder || "Ask something..."}"></textarea>
                                     <div class="composer-help" id="${this.ids.composerHelp}">${composerHelp || ""}</div>
                                 </div>
+                                ${this.options.voiceInput ? `<button type="button" class="rag-mic-btn" id="${this.ids.micButton}" title="Hold to talk" aria-label="Hold to talk">${icon_markup("microphone")}</button>` : ""}
+                                ${this.options.voiceInput && this.options.voiceContinuous ? `<button type="button" class="rag-mic-btn rag-mic-continuous" id="${this.ids.continuousButton}" title="Listen continuously" aria-label="Listen continuously" aria-pressed="false">${icon_markup("mic_continuous")}</button>` : ""}
                                 <button type="submit" id="${this.ids.sendButton}">
-                                    <span class="material-icons">send</span>
+                                    ${icon_markup("send")}
                                     ${this.options.sendButtonText || "Send"}
                                 </button>
                             </form>
@@ -1015,6 +1096,8 @@
                 inputForm: byId(this.ids.inputForm),
                 queryInput: byId(this.ids.queryInput),
                 sendButton: byId(this.ids.sendButton),
+                micButton: byId(this.ids.micButton),
+                continuousButton: byId(this.ids.continuousButton),
                 modelSelect: byId(this.ids.modelSelect),
                 modelSelectTrigger: byId(this.ids.modelSelectTrigger),
                 modelSelectMenu: byId(this.ids.modelSelectMenu),
@@ -1199,6 +1282,7 @@
             this.els.queryInput.addEventListener("input", onInput);
             this.els.queryInput.addEventListener("keydown", onKeydown);
             this.els.inputForm.addEventListener("submit", onFormSubmit);
+            this._bindVoiceInput();
             this.els.chatContainer.addEventListener("click", onChatContainerClick);
             if (this.els.sidebarControls) {
                 this.els.sidebarControls.addEventListener("click", onSidebarClick);
@@ -1661,6 +1745,14 @@
                 this._renderChatList();
             }
             if (options.persist) {
+                // An explicit pick becomes the remembered preference for future
+                // sessions. Fallback selections deliberately do not persist.
+                this._userPickedModel = true;
+                try {
+                    localStorage.setItem(this._storageKeys.lastModel, modelId);
+                } catch (err) {
+                    /* storage may be unavailable; preference is best-effort */
+                }
                 this.saveState();
             }
             if (options.closeMenu) {
@@ -1729,13 +1821,25 @@
                 return;
             }
 
+            const preferred = this._getPreferredModel();
             if (!this._selectedModel || !this.availableModels.includes(this._selectedModel)) {
                 const activeChat = this._getActiveChat();
-                if (activeChat && activeChat.model && this.availableModels.includes(activeChat.model)) {
-                    this._selectedModel = activeChat.model;
-                } else {
-                    this._selectedModel = this.availableModels[0];
-                }
+                const candidates = [activeChat && activeChat.model, preferred];
+                this._selectedModel =
+                    candidates.find((m) => m && this.availableModels.includes(m)) ||
+                    this.availableModels[0];
+            } else if (
+                !this._userPickedModel &&
+                preferred &&
+                preferred !== this._selectedModel &&
+                this.availableModels.includes(preferred)
+            ) {
+                // The catalogue grew after first render -- apps load their provider
+                // list from a backend, so the preferred model often is not available
+                // during the first _applyModelHierarchy and we fell back to
+                // availableModels[0]. Now that it exists, honour it. Guarded on
+                // _userPickedModel so this never overrides a deliberate choice.
+                this._selectedModel = preferred;
             }
 
             const path = this._findPathForModel(this._selectedModel);
@@ -1748,6 +1852,18 @@
             this._updateModelSelectorDisplay();
             this._renderModelColumns();
             this._renderChatList();
+        }
+
+        // Remembered choice first, then the app-configured default. Returns null
+        // when neither is set, so callers fall back to the catalogue order.
+        _getPreferredModel() {
+            let stored = null;
+            try {
+                stored = localStorage.getItem(this._storageKeys.lastModel);
+            } catch (err) {
+                stored = null;
+            }
+            return stored || this.options.defaultModel || null;
         }
 
         _getSelectedModel() {
@@ -1782,7 +1898,7 @@
             if (!toggleButton) {
                 return;
             }
-            const iconEl = toggleButton.querySelector(".material-icons");
+            const iconEl = toggleButton.querySelector(".mdi");
             const tooltipEl = toggleButton.querySelector(".tooltip");
             const toggleCfg = this._ui.sidebar.toggleSidebar || {};
             const icons = Object.assign({ expanded: "menu_open", collapsed: "menu" }, (toggleCfg.icons || {}));
@@ -1790,7 +1906,11 @@
             const iconValue = this.sidebarCollapsed ? icons.collapsed : icons.expanded;
             const tooltipValue = this.sidebarCollapsed ? tooltips.collapsed : tooltips.expanded;
             if (iconEl) {
-                iconEl.textContent = iconValue;
+                // Icons are MDI classes, never ligature text. Writing the name into
+                // textContent here left the raw string inside the button on top of
+                // the glyph -- the same failure the icons.js change removed
+                // everywhere else.
+                iconEl.className = globalThis.wapyt.icons.iconClass(iconValue);
             }
             if (tooltipEl) {
                 tooltipEl.textContent = tooltipValue;
@@ -1920,7 +2040,7 @@
             const injectIcon = (artifact) => {
                 hasCompleteArtifacts = true;
                 artifacts.push(artifact);
-                return `\n\n<div class="artifact-icon" data-wapyt-artifact="${this._artifactNonce}" data-artifact-id="${escapeHtml(artifact.id)}"><span class="material-icons">code</span><span>${escapeHtml(artifact.title)}</span></div>\n\n`;
+                return `\n\n<div class="artifact-icon" data-wapyt-artifact="${this._artifactNonce}" data-artifact-id="${escapeHtml(artifact.id)}">${icon_markup("code")}<span>${escapeHtml(artifact.title)}</span></div>\n\n`;
             };
 
             const newPattern = /:{3,4}artifact\{([^}]*)\}([\s\S]*?)(?:\s*:{3,4})/gi;
@@ -2115,7 +2235,7 @@
             const trayCopyBtn = document.createElement("button");
             trayCopyBtn.className = "message-copy-btn";
             trayCopyBtn.type = "button";
-            trayCopyBtn.innerHTML = '<span class="material-icons">content_copy</span>';
+            trayCopyBtn.innerHTML = icon_markup("content_copy");
             trayCopyBtn.setAttribute("data-message-id", message.id);
             trayCopyBtn.setAttribute("aria-label", "Copy message");
             trayCopyBtn.setAttribute("title", "Copy message");
@@ -2206,7 +2326,7 @@
                     const deleteBtn = document.createElement("button");
                     deleteBtn.className = "chat-delete-btn";
                     deleteBtn.setAttribute("data-chat-id", chat.id);
-                    deleteBtn.innerHTML = '<span class="material-icons">close</span>';
+                    deleteBtn.innerHTML = icon_markup("close");
                     deleteBtn.setAttribute("aria-label", "Delete chat");
                     item.appendChild(titleSpan);
                     if (hasBadge) {
@@ -2679,6 +2799,402 @@
             this.saveState();
         }
 
+        // ---------------------------------------------------------------
+        // Push-to-talk capture
+        //
+        // This widget only RECORDS. It emits a "voice" event carrying the audio
+        // and leaves transcription to the app, which owns the backend. Keeping
+        // the split here means the widget needs no STT configuration and works
+        // with whatever engine the app wires up.
+        // ---------------------------------------------------------------
+
+        _bindVoiceInput() {
+            const btn = this.els.micButton;
+            if (!btn) return;
+
+            // getUserMedia is absent outside a secure context, and on a blocked
+            // Permissions-Policy the promise rejects instead. Fail visibly rather
+            // than leaving a button that does nothing.
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                btn.disabled = true;
+                btn.title = "Voice input needs a secure context (https or localhost)";
+                return;
+            }
+
+            const start = (event) => {
+                event.preventDefault();
+                this.startRecording();
+            };
+            const stop = (event) => {
+                event.preventDefault();
+                this.stopRecording();
+            };
+            btn.addEventListener("pointerdown", start);
+            // pointerup on the window, not the button: releasing after the cursor
+            // has slid off the button must still end the take, or the recorder
+            // runs until the cap.
+            window.addEventListener("pointerup", stop);
+            btn.addEventListener("keydown", (e) => {
+                if ((e.key === " " || e.key === "Enter") && !e.repeat) start(e);
+            });
+            btn.addEventListener("keyup", (e) => {
+                if (e.key === " " || e.key === "Enter") stop(e);
+            });
+
+            // Latching toggle, deliberately a separate control from hold-to-talk:
+            // the two modes behave differently (one submits, one does not) and a
+            // single button that means both is a trap.
+            const cont = this.els.continuousButton;
+            if (cont) {
+                cont.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    this.toggleContinuous();
+                });
+            }
+        }
+
+        async startRecording() {
+            if (this._recorder || this._recorderStarting) return;
+            this._recorderStarting = true;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                // Opus in WebM is what every browser that has MediaRecorder gives
+                // us, and faster-whisper decodes it directly through PyAV.
+                const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"]
+                    .find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
+                const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+                const chunks = [];
+                recorder.addEventListener("dataavailable", (e) => {
+                    if (e.data && e.data.size) chunks.push(e.data);
+                });
+                recorder.addEventListener("stop", () => {
+                    // Release the mic promptly; a live track keeps the browser's
+                    // recording indicator lit and holds the device open.
+                    stream.getTracks().forEach((t) => t.stop());
+                    const started = this._recordingStartedAt || Date.now();
+                    this._recorder = null;
+                    this._setMicRecording(false);
+                    const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || "audio/webm" });
+                    if (!blob.size) return;
+                    this._emitVoiceBlob(blob, Date.now() - started);
+                });
+                this._recorder = recorder;
+                this._recordingStartedAt = Date.now();
+                // A timeslice makes MediaRecorder emit periodically instead of once
+                // at stop(), which is what lets us snapshot a partial recording.
+                // Concatenating chunks from the first one yields a decodable WebM
+                // even though the file is never finalised.
+                recorder.start();
+                this._setMicRecording(true);
+                this._captureComposerBase();
+                // Hard cap: a stuck pointerup (tab switch, alt-tab) would otherwise
+                // record until the page closes and blow the BFF body limit.
+                const maxMs = Math.max(1, Number(this.options.voiceMaxSeconds) || 120) * 1000;
+                this._recorderTimeout = setTimeout(() => this.stopRecording(), maxMs);
+            } catch (err) {
+                this._setMicRecording(false);
+                this.host.emit("voice:error", {
+                    error: String((err && err.message) || err),
+                    name: (err && err.name) || "Error",
+                });
+            } finally {
+                this._recorderStarting = false;
+            }
+        }
+
+        stopRecording() {
+            if (this._recorderTimeout) {
+                clearTimeout(this._recorderTimeout);
+                this._recorderTimeout = null;
+            }
+            if (this._recorder && this._recorder.state !== "inactive") {
+                this._recorder.stop();
+            }
+        }
+
+        _setMicRecording(active) {
+            this._isRecording = !!active;
+            const btn = this.els && this.els.micButton;
+            if (!btn) return;
+            btn.classList.toggle("recording", !!active);
+            btn.setAttribute("aria-pressed", active ? "true" : "false");
+            btn.title = active ? "Release to transcribe" : "Hold to talk";
+        }
+
+        // ---- continuous (hands-free) capture ----------------------------
+        //
+        // A latching mic that keeps listening and segments speech on silence,
+        // mirroring Pantheon's hands-free mode. Each complete utterance is
+        // transcribed once and submitted -- no partial results, because
+        // re-transcribing a growing buffer makes earlier words visibly rewrite
+        // themselves as context arrives.
+        //
+        // Raw PCM via ScriptProcessorNode rather than MediaRecorder, for the
+        // reason Pantheon documents: its MediaRecorder constructs fine, reports
+        // state="recording", then never fires ondataavailable. The AudioContext
+        // is already open for the energy gate, so tapping PCM off it costs one
+        // node and removes every codec question. WAV is decoded by the same
+        // ffmpeg-via-PyAV path the WebM clips use.
+
+        async startContinuous() {
+            if (this._hfActive) return;
+            try {
+                // echoCancellation/noiseSuppression also make the energy gate far
+                // better behaved on a laptop mic.
+                this._hfStream = await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+                });
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                this._hfCtx = new Ctx();
+                // A context created outside a user gesture starts SUSPENDED, and a
+                // suspended AnalyserNode returns silence -- the gate then sees an
+                // RMS of 0 forever while the mic stream sits open looking healthy.
+                if (this._hfCtx.state === "suspended") {
+                    try { await this._hfCtx.resume(); } catch (err) { /* reported below */ }
+                }
+                if (this._hfCtx.state !== "running") {
+                    throw new Error(`audio context ${this._hfCtx.state} (needs a user gesture)`);
+                }
+
+                const source = this._hfCtx.createMediaStreamSource(this._hfStream);
+                this._hfAnalyser = this._hfCtx.createAnalyser();
+                this._hfAnalyser.fftSize = 2048;
+                source.connect(this._hfAnalyser);
+
+                // Deprecated in favour of AudioWorklet, but it needs no separate
+                // module file and this only runs while the mic is on.
+                this._hfProc = this._hfCtx.createScriptProcessor(4096, 1, 1);
+                this._hfPcm = [];
+                this._hfPre = [];
+                this._hfCapturing = false;
+                this._hfProc.onaudioprocess = (e) => {
+                    const block = new Float32Array(e.inputBuffer.getChannelData(0));
+                    if (this._hfCapturing) {
+                        this._hfPcm.push(block);
+                    } else {
+                        // Pre-roll: the gate only opens once speech is already
+                        // audible, so without this every utterance loses its first
+                        // syllable.
+                        this._hfPre.push(block);
+                        if (this._hfPre.length > HF_PRE_ROLL) this._hfPre.shift();
+                    }
+                };
+                source.connect(this._hfProc);
+                // ScriptProcessorNode only runs when connected to a destination.
+                // A zero-gain node keeps the mic from being played back.
+                const mute = this._hfCtx.createGain();
+                mute.gain.value = 0;
+                this._hfProc.connect(mute);
+                mute.connect(this._hfCtx.destination);
+
+                this._hfActive = true;
+                this._hfSpeaking = false;
+                this._hfSilenceStart = 0;
+                this._hfPeak = 0;
+                this._hfPeakAt = 0;
+                this._setContinuousActive(true);
+                this._hfTick();
+            } catch (err) {
+                this.stopContinuous();
+                this.host.emit("voice:error", {
+                    error: String((err && err.message) || err),
+                    name: (err && err.name) || "Error",
+                    mode: "continuous",
+                });
+            }
+        }
+
+        stopContinuous() {
+            this._hfActive = false;
+            if (this._hfRAF) { cancelAnimationFrame(this._hfRAF); this._hfRAF = null; }
+            if (this._hfProc) { try { this._hfProc.disconnect(); } catch (e) {} this._hfProc = null; }
+            if (this._hfCtx) { try { this._hfCtx.close(); } catch (e) {} this._hfCtx = null; }
+            if (this._hfStream) {
+                this._hfStream.getTracks().forEach((t) => t.stop());
+                this._hfStream = null;
+            }
+            this._hfPcm = [];
+            this._hfPre = [];
+            this._hfCapturing = false;
+            this._setContinuousActive(false);
+        }
+
+        toggleContinuous() {
+            if (this._hfActive) this.stopContinuous();
+            else this.startContinuous();
+        }
+
+        _hfTick() {
+            if (!this._hfActive) return;
+            const data = new Uint8Array(this._hfAnalyser.frequencyBinCount);
+            this._hfAnalyser.getByteTimeDomainData(data);
+            let sum = 0;
+            for (const v of data) { const x = (v - 128) / 128; sum += x * x; }
+            const rms = Math.sqrt(sum / data.length);
+            const now = performance.now();
+            const gate = Number(this.options.vadThreshold) || 0.015;
+
+            // Peak once a second. Without it, "nothing happens when I talk" is
+            // indistinguishable between a dead mic, a suspended context and too
+            // high a gate. Straight from Pantheon, which learned this the hard way.
+            this._hfPeak = Math.max(this._hfPeak, rms);
+            if (now - this._hfPeakAt > 1000) {
+                if (this._hfPeak > 0.002) {
+                    console.log(`[wapyt mic] peak ${this._hfPeak.toFixed(4)} / gate ${gate}` +
+                        (this._hfPeak > gate ? " OPEN" : " (below gate)"));
+                } else {
+                    console.log("[wapyt mic] silence -- analyser reading 0");
+                }
+                this._hfPeak = 0; this._hfPeakAt = now;
+            }
+
+            if (!this._hfSpeaking) {
+                if (rms > gate) {
+                    this._hfPcm = this._hfPre.slice();   // keep the pre-roll
+                    this._hfCapturing = true;
+                    this._hfSpeaking = true;
+                    this._hfSilenceStart = 0;
+                    this._setContinuousListening(true);
+                }
+            } else if (rms > gate) {
+                this._hfSilenceStart = 0;
+            } else if (!this._hfSilenceStart) {
+                this._hfSilenceStart = now;
+            } else if (now - this._hfSilenceStart > (Number(this.options.vadSilenceMs) || 800)) {
+                this._hfSpeaking = false;
+                this._hfSilenceStart = 0;
+                this._hfCapturing = false;
+                this._setContinuousListening(false);
+                this._hfFlushUtterance();
+            }
+            this._hfRAF = requestAnimationFrame(() => this._hfTick());
+        }
+
+        _hfFlushUtterance() {
+            const chunks = this._hfPcm;
+            const rate = (this._hfCtx && this._hfCtx.sampleRate) || 48000;
+            this._hfPcm = [];
+            this._hfPre = [];
+            if (!chunks || !chunks.length) return;
+            const blob = pcmToWav(chunks, rate);
+            if (!blob.size) return;
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const result = String(reader.result || "");
+                this.host.emit("voice", {
+                    audio: result.slice(result.indexOf(",") + 1),
+                    mimeType: "audio/wav",
+                    bytes: blob.size,
+                    continuous: true,
+                });
+            };
+            reader.readAsDataURL(blob);
+        }
+
+        _setContinuousActive(active) {
+            const btn = this.els && this.els.continuousButton;
+            if (!btn) return;
+            btn.classList.toggle("active", !!active);
+            btn.setAttribute("aria-pressed", active ? "true" : "false");
+            btn.title = active ? "Stop listening" : "Listen continuously";
+            if (!active) btn.classList.remove("listening");
+        }
+
+        _setContinuousListening(listening) {
+            const btn = this.els && this.els.continuousButton;
+            if (btn) btn.classList.toggle("listening", !!listening);
+        }
+
+        // ---- transcript delivery ----------------------------------------
+        _captureComposerBase() {
+            const input = this.els && this.els.queryInput;
+            // Whatever was already typed is preserved; a transcript is only ever
+            // written after it, so dictating never destroys a draft.
+            this._composerBase = input ? input.value : "";
+        }
+
+        // Called by the app once a transcription returns.
+        applyTranscript(text, options = {}) {
+            const input = this.els && this.els.queryInput;
+            if (!input) return;
+            const base = this._composerBase || "";
+            const value = String(text == null ? "" : text).trim();
+            input.value = base && value ? `${base.replace(/\s*$/, "")} ${value}` : base || value;
+            this._adjustTextareaHeight();
+            // The transcript becomes ordinary text, and the next utterance
+            // continues from it -- so continuous mode accumulates naturally.
+            this._composerBase = input.value;
+            if (options.submit && input.value.trim()) {
+                this.handleSubmit();
+                // handleSubmit clears the composer; the next utterance starts fresh.
+                this._composerBase = "";
+            } else {
+                input.focus();
+            }
+        }
+
+        _emitVoiceBlob(blob, durationMs) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                // Base64 because the BFF transport is JSON. Callers get the raw
+                // payload; size discipline is the app's call.
+                const result = String(reader.result || "");
+                const base64 = result.slice(result.indexOf(",") + 1);
+                // host.emit, not this.emit: WapytChatApp is the internal
+                // implementation, while the EventBus the Python wrapper binds to
+                // lives on the ChatWidget that owns it. This is the same route
+                // the "send" event takes.
+                this.host.emit("voice", {
+                    audio: base64,
+                    mimeType: blob.type,
+                    bytes: blob.size,
+                    durationMs,
+                });
+            };
+            reader.readAsDataURL(blob);
+        }
+
+        // Put text into the composer -- what an app calls with a transcript.
+        setComposerText(text, options = {}) {
+            const input = this.els && this.els.queryInput;
+            if (!input) return;
+            const value = text == null ? "" : String(text);
+            input.value = options.append && input.value
+                ? `${input.value.replace(/\s*$/, "")} ${value}`
+                : value;
+            this._adjustTextareaHeight();
+            input.focus();
+            if (options.submit) {
+                this.handleSubmit();
+            }
+        }
+
+        // Replace the model catalogue after construction and rebuild the
+        // selector. Without this the model dropdown is frozen at whatever
+        // providerConfig was passed to the constructor: an app that fetches its
+        // provider list asynchronously (the normal case -- it comes from a BFF)
+        // can add providers all day and they will never appear here.
+        //
+        // Accepts {providerConfig, models}; either may be omitted.
+        setExtra(extra) {
+            if (!extra || typeof extra !== "object") {
+                return;
+            }
+            if (extra.providerConfig && typeof extra.providerConfig === "object") {
+                this.options.providerConfig = extra.providerConfig;
+            }
+            if (Array.isArray(extra.models)) {
+                this.options.models = extra.models.slice();
+            }
+            // loadModels() re-reads _getModelConfigSource() and re-applies the
+            // hierarchy; it resolves synchronously for a preset config.
+            this.loadModels();
+        }
+
+        setModels(models) {
+            this.setExtra({ models });
+        }
+
         async loadModels() {
             const presetStructure = this._normalizeModelData(this._getModelConfigSource());
             if (presetStructure) {
@@ -3092,6 +3608,8 @@ def _wapyt_run_py_artifact(code_b64: str) -> str:
             this._pendingTheme = null;
             this._pendingAgent = null;
             this._pendingFocus = false;
+            this._pendingExtra = null;
+            this._pendingComposerText = null;
             this._pendingBadgeUpdates = [];
 
             this._readyPromise = this._ensureDomReady().then(() => {
@@ -3284,9 +3802,54 @@ def _wapyt_run_py_artifact(code_b64: str) -> str:
         focusComposer() {
             if (this._app) {
                 this._app.focusComposer();
+            }
+            if (this._pendingExtra) {
+                this._app.setExtra(this._pendingExtra);
+                this._pendingExtra = null;
+            }
+            if (this._pendingComposerText) {
+                this._app.setComposerText(
+                    this._pendingComposerText.text,
+                    this._pendingComposerText.options
+                );
+                this._pendingComposerText = null;
             } else {
                 this._pendingFocus = true;
             }
+        }
+
+        setExtra(extra) {
+            if (this._app) {
+                this._app.setExtra(extra);
+            } else {
+                // Merge rather than replace: several updates can land before the
+                // DOM is ready, and the last one must not drop the others.
+                this._pendingExtra = Object.assign({}, this._pendingExtra || {}, extra || {});
+            }
+        }
+
+        setModels(models) {
+            this.setExtra({ models });
+        }
+
+        setComposerText(text, options) {
+            if (this._app) {
+                this._app.setComposerText(text, options);
+            } else {
+                this._pendingComposerText = { text, options };
+            }
+        }
+
+        applyTranscript(text, options) {
+            if (this._app) this._app.applyTranscript(text, options);
+        }
+
+        startRecording() {
+            if (this._app) this._app.startRecording();
+        }
+
+        stopRecording() {
+            if (this._app) this._app.stopRecording();
         }
 
         setChatBadge(chatId, badge) {

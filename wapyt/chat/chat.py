@@ -116,6 +116,48 @@ class Chat:
         """
         self._bind_event("send", handler)
 
+    def on_voice(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """
+        Fired when a push-to-talk recording finishes.
+
+        The payload carries ``audio`` (base64 of the recorded container),
+        ``mimeType`` (normally ``audio/webm;codecs=opus``), ``bytes`` and
+        ``durationMs``. The widget does not transcribe -- hand the audio to a
+        backend and feed the result back with :meth:`set_composer_text`.
+        """
+        self._bind_event("voice", handler)
+
+    def on_voice_error(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """
+        Fired when capture could not start -- permission denied, no device, or a
+        Permissions-Policy that blocks the microphone.
+        """
+        self._bind_event("voice:error", handler)
+
+    def apply_transcript(self, text: str, *, submit: bool = False) -> None:
+        """
+        Write a transcript into the composer.
+
+        Anything already typed is preserved as a prefix, and each transcript
+        extends it -- so continuous dictation accumulates. ``submit`` sends the
+        message immediately, which is what hands-free mode does.
+        """
+        self.chat.applyTranscript(
+            "" if text is None else str(text),
+            js.JSON.parse(json.dumps({"submit": bool(submit)})),
+        )
+
+    def set_composer_text(self, text: str, *, append: bool = False, submit: bool = False) -> None:
+        """
+        Put text into the composer. Used to deliver a transcript.
+
+        ``append`` adds to what is already typed; ``submit`` sends immediately.
+        """
+        self.chat.setComposerText(
+            "" if text is None else str(text),
+            js.JSON.parse(json.dumps({"append": bool(append), "submit": bool(submit)})),
+        )
+
     def on_artifact_save(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         """
         Fired when the user requests to save/download an artifact.
@@ -207,6 +249,22 @@ class Chat:
         else:
             raise TypeError(f"Unsupported agent representation: {type(agent)!r}")
         self.chat.setAgent(js.JSON.parse(json.dumps(agent_payload)))
+
+    def set_extra(self, extra: Dict[str, Any]) -> None:
+        """
+        Replace the model catalogue after construction and rebuild the selector.
+
+        ``extra`` accepts ``providerConfig`` (a ``{"providers": {...}}`` mapping)
+        and/or ``models`` (a flat list). Apps normally load their provider list
+        from a backend after the widget already exists, so without this the model
+        dropdown stays frozen at whatever was passed to the constructor.
+        """
+        if not isinstance(extra, dict):
+            raise TypeError(f"extra must be a dict, got {type(extra)!r}")
+        self.chat.setExtra(js.JSON.parse(json.dumps(extra)))
+
+    def set_models(self, models: List[str]) -> None:
+        self.set_extra({"models": list(models)})
 
     def set_theme(self, theme: str) -> None:
         self.chat.setTheme(theme)

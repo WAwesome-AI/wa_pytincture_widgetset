@@ -15,16 +15,9 @@ function wapytEscapeHtml(value) {
 (function () {
     globalThis.wapyt = globalThis.wapyt || {};
 
-    function ensureMdiIcons() {
-        if (document.getElementById("wapyt-mdi-icons")) {
-            return;
-        }
-        const link = document.createElement("link");
-        link.id = "wapyt-mdi-icons";
-        link.rel = "stylesheet";
-        link.href = "https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css";
-        document.head.appendChild(link);
-    }
+    // No-op: pytincture serves MDI from its own origin and this CDN link was
+    // blocked by CSP anyway. See icons.js.
+    function ensureMdiIcons() {}
 
     class CardPanel {
         constructor(target, options = {}) {
@@ -303,7 +296,20 @@ function wapytEscapeHtml(value) {
 
                 if (this.options.cardColumns && Number.isFinite(this.options.cardColumns)) {
                     const cols = Math.max(1, Math.floor(this.options.cardColumns));
-                    this._grid.style.setProperty("--card-grid-template", `repeat(${cols}, minmax(0, 1fr))`);
+                    // Respect --card-min-width here as the auto-fill template does.
+                    // This used to be minmax(0, 1fr): a 0 floor lets columns shrink
+                    // without limit, so asking for N columns in a narrow container
+                    // produced cards too small for their own contents -- the footer
+                    // buttons then wrapped and were clipped by .card-card's
+                    // overflow:hidden. Setting cardColumns is a layout preference,
+                    // not a waiver of the minimum width.
+                    //
+                    // min(..., 100%) keeps a single narrow column from overflowing
+                    // its container when the viewport is under --card-min-width.
+                    this._grid.style.setProperty(
+                        "--card-grid-template",
+                        `repeat(${cols}, minmax(min(var(--card-min-width), 100%), 1fr))`
+                    );
                 } else {
                     this._grid.style.removeProperty("--card-grid-template");
                 }
