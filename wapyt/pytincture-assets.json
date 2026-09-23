@@ -36,12 +36,12 @@
     {
       "path": "wapyt/assets/datatable.js",
       "type": "javascript",
-      "sha256": "43c35e9a0604764609b59f77cefbff9e928cf4275f1b8ab0d13303df4c54d537"
+      "sha256": "a9d12fbb433b873f49e0f5876b79c4e8887692322b67f116b9afc1630c24b11d"
     },
     {
       "path": "wapyt/assets/tree.js",
       "type": "javascript",
-      "sha256": "78556ed5836de5c826d6b6a8c4e5b399af135424aa7a1e32f2806f35531d6b22"
+      "sha256": "161f7dbf16b3f66d439ea6ad1b90553ffb5fbd282aa89fc2f36e7d71e90cdb5c"
     },
     {
       "path": "wapyt/assets/form.js",

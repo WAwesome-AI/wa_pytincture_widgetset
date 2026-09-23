@@ -121,7 +121,9 @@
       this._status = document.createElement("div");
       this._status.className = "wapyt-datatable-status";
       this._status.hidden = true;
-      this._host.appendChild(this._status);
+      // Inside the scroller, not after it: as a sibling of the flex:1
+      // scroller the empty state gets pushed to the bottom of the panel.
+      this._scroller.appendChild(this._status);
 
       this._renderHead();
       this._buildContextMenu();

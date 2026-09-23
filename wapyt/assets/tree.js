@@ -85,7 +85,9 @@
       this._status = document.createElement("div");
       this._status.className = "wapyt-tree-status";
       this._status.hidden = true;
-      this._host.appendChild(this._status);
+      // Inside the scroller, not after it: as a sibling of the flex:1
+      // scroller the empty state gets pushed to the bottom of the panel.
+      this._scroller.appendChild(this._status);
 
       this._buildContextMenu();
     }
@@ -219,7 +221,9 @@
     }
 
     _renderNodes() {
+      // innerHTML drops the status node along with the rows, so re-attach it.
       this._scroller.innerHTML = "";
+      this._scroller.appendChild(this._status);
       const visible = (this._items || []).filter((node) => this._matches(node));
       if (!visible.length) {
         this._status.textContent = this.options.emptyText;
