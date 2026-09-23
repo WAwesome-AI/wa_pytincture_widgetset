@@ -281,30 +281,46 @@
       body.className = "wapyt-cell-body";
       inner.appendChild(body);
 
-      if (direction === "row" && config.width != null) {
-        cellEl.style.flexBasis = formatSize(config.width);
-      }
-      if (direction === "column" && config.height != null) {
-        cellEl.style.flexBasis = formatSize(config.height);
-      }
-      const hasFixedSize =
-        (direction === "row" && config.width != null) ||
-        (direction === "column" && config.height != null);
-      if (hasFixedSize) {
+      // Sizing must go through the `flex` shorthand in ONE statement. Assigning
+      // `flexBasis` and then `flex` resets the basis back to `auto` — the
+      // shorthand sets all three longhands — which silently discarded every
+      // declared width and left each cell sized to its content.
+      const declaredSize =
+        direction === "row" ? config.width : config.height;
+
+      // "100%" on a cell means "take what is left", the convention layouts are
+      // written with. As a literal flex-basis it would instead demand the full
+      // container and overflow any fixed sibling.
+      //
+      // "auto" keeps its CSS meaning — size to content — which is what a header
+      // strip wants. Treating it as fill-remainder makes the header grow to
+      // half the window.
+      const fillsRemainder = declaredSize === "100%";
+      const sizesToContent = declaredSize === "auto";
+
+      if (sizesToContent) {
         cellEl.style.flex = "0 0 auto";
-      } else if (config.grow != null || config.shrink != null) {
+      } else if (declaredSize != null && !fillsRemainder) {
+        const grow = config.grow != null ? config.grow : 0;
+        const shrink = config.shrink != null ? config.shrink : 0;
+        cellEl.style.flex = `${grow} ${shrink} ${formatSize(declaredSize)}`;
+      } else {
         const grow = config.grow != null ? config.grow : 1;
         const shrink = config.shrink != null ? config.shrink : 1;
         cellEl.style.flex = `${grow} ${shrink} 0`;
       }
-      if (config.grow != null) {
-        cellEl.style.flexGrow = config.grow;
-      }
-      if (config.shrink != null) {
-        cellEl.style.flexShrink = config.shrink;
-      }
+
+      // A flex item will not shrink below its content without this, which is
+      // what lets a terminal or a table scroll inside its cell instead of
+      // pushing the layout wider.
+      cellEl.style.minWidth = "0";
+      cellEl.style.minHeight = "0";
+
       if (config.minSize != null) {
-        cellEl.style.minSize = formatSize(config.minSize);
+        // `style.minSize` is not a CSS property; the declared minimum was
+        // being dropped entirely.
+        const axis = direction === "row" ? "minWidth" : "minHeight";
+        cellEl.style[axis] = formatSize(config.minSize);
       }
 
       container.appendChild(cellEl);

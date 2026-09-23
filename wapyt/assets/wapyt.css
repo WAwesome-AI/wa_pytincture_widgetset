@@ -264,3 +264,715 @@
   display: block;
   line-height: 1;
 }
+
+/* Terminal
+ * -------------------------------------------------------------------------
+ * The host is position:relative so the search bar and the status overlay can
+ * float over the xterm grid. xterm's own stylesheet is served by the consuming
+ * application (see assets/terminal.js), not from here.
+ */
+.wapyt-terminal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #1a1a2e;
+}
+
+.wapyt-terminal-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px;
+}
+
+.wapyt-terminal-screen .xterm,
+.wapyt-terminal-screen .xterm-viewport {
+  height: 100%;
+}
+
+.wapyt-terminal-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 6px 12px;
+  font: 12px/1.4 system-ui, sans-serif;
+  color: #fde68a;
+  background: rgba(15, 23, 42, 0.92);
+  border-top: 1px solid rgba(253, 230, 138, 0.35);
+}
+
+.wapyt-terminal-overlay[hidden] {
+  display: none;
+}
+
+.wapyt-terminal-search {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.wapyt-terminal-search[hidden] {
+  display: none;
+}
+
+.wapyt-terminal-search-input {
+  width: 180px;
+  padding: 4px 8px;
+  font: 12px/1.4 system-ui, sans-serif;
+  color: #e2e8f0;
+  background: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 4px;
+  outline: none;
+}
+
+.wapyt-terminal-search-input:focus {
+  border-color: #38bdf8;
+}
+
+.wapyt-terminal-search button {
+  padding: 2px 7px;
+  font: 13px/1 system-ui, sans-serif;
+  color: #cbd5f5;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.wapyt-terminal-search button:hover {
+  background: rgba(148, 163, 184, 0.18);
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+/* Form
+ * ------------------------------------------------------------------------- */
+.wapyt-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+
+.wapyt-form-body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  padding: 4px 2px;
+  align-content: start;
+}
+
+.wapyt-form-body[data-columns="2"] {
+  grid-template-columns: 1fr 1fr;
+}
+
+.wapyt-form-body[data-columns="3"] {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.wapyt-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.wapyt-form-row[hidden] {
+  display: none;
+}
+
+.wapyt-form-row[data-inline="true"] {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.wapyt-form-row[data-span="2"] {
+  grid-column: span 2;
+}
+
+.wapyt-form-row[data-span="3"] {
+  grid-column: span 3;
+}
+
+.wapyt-form-label {
+  font: 500 12px/1.3 system-ui, sans-serif;
+  letter-spacing: 0.01em;
+  color: var(--wapyt-text);
+  opacity: 0.85;
+}
+
+.wapyt-form-required {
+  margin-left: 3px;
+  color: #dc2626;
+}
+
+.wapyt-form-control {
+  width: 100%;
+  padding: 8px 10px;
+  font: 13px/1.4 system-ui, sans-serif;
+  color: var(--wapyt-text);
+  background: var(--wapyt-bg);
+  border: 1px solid var(--wapyt-border);
+  border-radius: 6px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.wapyt-form-row[data-inline="true"] .wapyt-form-control {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+/* A native select keeps its platform appearance and ignores `background`
+   unless appearance is reset, which is why it rendered light-on-light inside a
+   dark form. The caret is drawn back in as an inline SVG so no asset is needed. */
+select.wapyt-form-control {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%2394a3b8' d='M4.5 6.5 8 10l3.5-3.5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 16px 16px;
+}
+
+textarea.wapyt-form-control {
+  resize: vertical;
+  min-height: 72px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.wapyt-form-control:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+
+.wapyt-form-control:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wapyt-form-control[aria-invalid="true"] {
+  border-color: #dc2626;
+}
+
+.wapyt-form-help {
+  font: 11px/1.4 system-ui, sans-serif;
+  color: var(--wapyt-text);
+  opacity: 0.6;
+}
+
+.wapyt-form-error {
+  font: 11px/1.4 system-ui, sans-serif;
+  color: #dc2626;
+}
+
+.wapyt-form-error[hidden] {
+  display: none;
+}
+
+.wapyt-form-error-global {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.wapyt-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.wapyt-form-body[data-columns="2"] .wapyt-form-actions {
+  grid-column: span 2;
+}
+
+.wapyt-form-body[data-columns="3"] .wapyt-form-actions {
+  grid-column: span 3;
+}
+
+.wapyt-form-button {
+  padding: 8px 16px;
+  font: 500 13px/1 system-ui, sans-serif;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.wapyt-form-button:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.wapyt-form-button-primary {
+  color: #ffffff;
+  background: #2563eb;
+}
+
+.wapyt-form-button-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.wapyt-form-button-ghost {
+  color: var(--wapyt-text);
+  background: transparent;
+  border-color: var(--wapyt-border);
+}
+
+.wapyt-form-button-ghost:hover:not(:disabled) {
+  background: var(--wapyt-surface);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-control {
+  background: var(--wapyt-bg-dark);
+  color: var(--wapyt-text-dark);
+  border-color: var(--wapyt-border-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-label,
+[data-wapyt-theme="dark"] .wapyt-form-help,
+[data-wapyt-theme="dark"] .wapyt-form-button-ghost {
+  color: var(--wapyt-text-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-button-ghost {
+  border-color: var(--wapyt-border-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-button-ghost:hover:not(:disabled) {
+  background: var(--wapyt-surface-dark);
+}
+
+/* A native select ignores the inherited colour in some engines unless both are
+   set on the element itself, which is what left it rendering white-on-white. */
+[data-wapyt-theme="dark"] select.wapyt-form-control option {
+  background: var(--wapyt-bg-dark);
+  color: var(--wapyt-text-dark);
+}
+
+/* DataTable
+ * ------------------------------------------------------------------------- */
+.wapyt-datatable {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  background: var(--wapyt-bg);
+}
+
+.wapyt-datatable[data-dropping="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 2px dashed #38bdf8;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.wapyt-datatable-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--wapyt-border);
+}
+
+.wapyt-datatable-filter {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 9px;
+  font: 12px/1.4 system-ui, sans-serif;
+  color: var(--wapyt-text);
+  background: var(--wapyt-bg);
+  border: 1px solid var(--wapyt-border);
+  border-radius: 6px;
+  outline: none;
+}
+
+.wapyt-datatable-filter:focus {
+  border-color: #38bdf8;
+}
+
+.wapyt-datatable-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.wapyt-datatable-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font: 12.5px/1.5 system-ui, sans-serif;
+}
+
+.wapyt-datatable-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 7px 10px;
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--wapyt-text);
+  background: var(--wapyt-surface);
+  border-bottom: 1px solid var(--wapyt-border);
+  user-select: none;
+}
+
+.wapyt-datatable-sortable {
+  cursor: pointer;
+}
+
+.wapyt-datatable-sortable:hover {
+  color: #2563eb;
+}
+
+.wapyt-datatable-caret {
+  margin-left: 5px;
+  font-size: 9px;
+  opacity: 0.75;
+}
+
+.wapyt-datatable-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--wapyt-border);
+  vertical-align: middle;
+}
+
+.wapyt-datatable-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wapyt-datatable-check {
+  width: 34px;
+  text-align: center;
+}
+
+.wapyt-datatable-table tbody tr {
+  cursor: default;
+}
+
+.wapyt-datatable-table tbody tr:hover {
+  background: var(--wapyt-surface);
+}
+
+.wapyt-datatable-table tbody tr[data-selected="true"] {
+  background: rgba(37, 99, 235, 0.14);
+}
+
+.wapyt-datatable-status {
+  padding: 18px 12px;
+  text-align: center;
+  font: 12px/1.5 system-ui, sans-serif;
+  color: var(--wapyt-text);
+  opacity: 0.6;
+}
+
+.wapyt-datatable-status[hidden] {
+  display: none;
+}
+
+/* The menu is appended to <body> so it is never clipped by the scroller. */
+.wapyt-datatable-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 170px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--wapyt-bg);
+  border: 1px solid var(--wapyt-border);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
+}
+
+.wapyt-datatable-menu[hidden] {
+  display: none;
+}
+
+.wapyt-datatable-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  font: 12.5px/1.3 system-ui, sans-serif;
+  text-align: left;
+  color: var(--wapyt-text);
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.wapyt-datatable-menu-item:hover {
+  background: var(--wapyt-surface);
+}
+
+.wapyt-datatable-menu-item[data-danger="true"] {
+  color: #dc2626;
+}
+
+.wapyt-datatable-menu-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--wapyt-border);
+}
+
+[data-wapyt-theme="dark"] .wapyt-datatable,
+[data-wapyt-theme="dark"] .wapyt-datatable-menu {
+  background: var(--wapyt-bg-dark);
+  color: var(--wapyt-text-dark);
+  border-color: var(--wapyt-border-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-datatable-toolbar,
+[data-wapyt-theme="dark"] .wapyt-datatable-table th,
+[data-wapyt-theme="dark"] .wapyt-datatable-table td {
+  border-color: var(--wapyt-border-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-datatable-table th {
+  color: var(--wapyt-text-dark);
+  background: var(--wapyt-surface-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-datatable-filter {
+  background: var(--wapyt-bg-dark);
+  color: var(--wapyt-text-dark);
+  border-color: var(--wapyt-border-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-datatable-status,
+[data-wapyt-theme="dark"] .wapyt-datatable-menu-item {
+  color: var(--wapyt-text-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-datatable-table tbody tr:hover,
+[data-wapyt-theme="dark"] .wapyt-datatable-menu-item:hover {
+  background: var(--wapyt-surface-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-datatable-menu-sep {
+  background: var(--wapyt-border-dark);
+}
+
+/* Tree
+ * ------------------------------------------------------------------------- */
+.wapyt-tree {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  background: var(--wapyt-bg);
+}
+
+.wapyt-tree-toolbar {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--wapyt-border);
+}
+
+.wapyt-tree-filter {
+  width: 100%;
+  padding: 6px 9px;
+  font: 12px/1.4 system-ui, sans-serif;
+  color: var(--wapyt-text);
+  background: var(--wapyt-bg);
+  border: 1px solid var(--wapyt-border);
+  border-radius: 6px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.wapyt-tree-filter:focus {
+  border-color: #38bdf8;
+}
+
+.wapyt-tree-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 0;
+}
+
+.wapyt-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  padding-right: 8px;
+  font: 12.5px/1.4 system-ui, sans-serif;
+  color: var(--wapyt-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.wapyt-tree-row:hover {
+  background: var(--wapyt-surface);
+}
+
+.wapyt-tree-row[data-selected="true"] {
+  background: rgba(37, 99, 235, 0.14);
+}
+
+.wapyt-tree-twisty {
+  flex: 0 0 auto;
+  width: 12px;
+  font-size: 9px;
+  text-align: center;
+  opacity: 0.7;
+}
+
+.wapyt-tree-icon {
+  flex: 0 0 auto;
+  font-size: 15px;
+  opacity: 0.85;
+}
+
+.wapyt-tree-row[data-branch="true"] .wapyt-tree-icon {
+  color: #f59e0b;
+}
+
+.wapyt-tree-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wapyt-tree-row[data-branch="true"] .wapyt-tree-label {
+  font-weight: 600;
+}
+
+.wapyt-tree-badge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  font-size: 10.5px;
+  border-radius: 9px;
+  color: var(--wapyt-text);
+  background: var(--wapyt-surface);
+  border: 1px solid var(--wapyt-border);
+  opacity: 0.8;
+}
+
+.wapyt-tree-status {
+  padding: 18px 12px;
+  text-align: center;
+  font: 12px/1.5 system-ui, sans-serif;
+  color: var(--wapyt-text);
+  opacity: 0.6;
+}
+
+.wapyt-tree-status[hidden] {
+  display: none;
+}
+
+.wapyt-tree-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 170px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--wapyt-bg);
+  border: 1px solid var(--wapyt-border);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
+}
+
+.wapyt-tree-menu[hidden] {
+  display: none;
+}
+
+.wapyt-tree-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  font: 12.5px/1.3 system-ui, sans-serif;
+  text-align: left;
+  color: var(--wapyt-text);
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.wapyt-tree-menu-item[hidden] {
+  display: none;
+}
+
+.wapyt-tree-menu-item:hover {
+  background: var(--wapyt-surface);
+}
+
+.wapyt-tree-menu-item[data-danger="true"] {
+  color: #dc2626;
+}
+
+.wapyt-tree-menu-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--wapyt-border);
+}
+
+[data-wapyt-theme="dark"] .wapyt-tree,
+[data-wapyt-theme="dark"] .wapyt-tree-menu {
+  background: var(--wapyt-bg-dark);
+  color: var(--wapyt-text-dark);
+  border-color: var(--wapyt-border-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-tree-row,
+[data-wapyt-theme="dark"] .wapyt-tree-status,
+[data-wapyt-theme="dark"] .wapyt-tree-menu-item {
+  color: var(--wapyt-text-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-tree-toolbar {
+  border-color: var(--wapyt-border-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-tree-filter {
+  background: var(--wapyt-bg-dark);
+  color: var(--wapyt-text-dark);
+  border-color: var(--wapyt-border-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-tree-badge {
+  color: var(--wapyt-text-dark);
+  background: var(--wapyt-surface-dark);
+  border-color: var(--wapyt-border-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-tree-row:hover,
+[data-wapyt-theme="dark"] .wapyt-tree-menu-item:hover {
+  background: var(--wapyt-surface-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-tree-menu-sep {
+  background: var(--wapyt-border-dark);
+}

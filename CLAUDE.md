@@ -287,6 +287,33 @@ this codebase; `destroy()` methods clear the dict without calling `.destroy()`, 
 raising. `Chat.consume_stream` turns those into `ChatStreamError`; anything else consuming a stream
 needs the same check or failures render as an empty message.
 
+## Layout cell sizing (fixed 2026-09-23)
+
+`CellConfig(width=...)` / `height=...` were **silently discarded**. The code set
+`cellEl.style.flexBasis` and then `cellEl.style.flex = "0 0 auto"` — the
+shorthand resets all three longhands, wiping the basis it had just assigned. So
+every sized cell fell back to content width. In IguanaXterm that left the
+terminal pane 81px wide with the remote PTY negotiated to 20 columns; it looked
+like a terminal bug, not a layout one.
+
+Sizing now goes through the shorthand in one statement, with the conventions
+apps actually write:
+
+- `"100%"` → `flex: 1 1 0` (take what is left). A literal `100%` flex-basis
+  would demand the whole container and overflow any fixed sibling.
+- `"auto"` → `flex: 0 0 auto` (size to content). This is what
+  `CellConfig(id="mainwindow_header", height="auto")` in `MainWindow` needs —
+  treating it as fill-remainder grows the header to half the window.
+- anything else → `flex: 0 0 <size>`.
+
+Cells also now get `min-width: 0; min-height: 0`, without which a flex item
+refuses to shrink below its content and a terminal or table pushes the layout
+wider instead of scrolling inside it.
+
+Separately, `config.minSize` was being written to `style.minSize`, which is not
+a CSS property, so the declared minimum never applied. It now maps to
+`minWidth`/`minHeight` by axis.
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:
