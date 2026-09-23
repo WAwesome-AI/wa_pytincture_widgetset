@@ -1,6 +1,6 @@
 # wA PyTincture Widgetset (`wapyt`)
 
-`wapyt` is a lightweight widgetset for [pyTincture](https://github.com/schapman1974/pytincture) that avoids the commercial DHTMLX dependency used by the legacy package. It focuses on a DOM-driven layout engine and a set of first-class widgets that can be composed entirely from Python when running inside Pyodide.
+`wapyt` is a lightweight widgetset for [pyTincture](https://github.com/pytincture/pytincture) that avoids the commercial DHTMLX dependency used by the legacy package. It focuses on a DOM-driven layout engine and a set of first-class widgets that can be composed entirely from Python when running inside Pyodide.
 
 ## Highlights
 - **Theme-aware layout**: Flexbox-based layout manager that mirrors the familiar `LayoutConfig`/`CellConfig` API, supports nested rows/columns, and exposes helper methods such as `attach_html`, `collapse`, `toggle`, `hide`, etc.

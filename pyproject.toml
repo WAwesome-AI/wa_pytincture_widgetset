@@ -16,7 +16,7 @@ keywords = ["pytincture", "widgetset", "pyodide", "wapyt"]
 dependencies = []
 
 [project.urls]
-homepage = "https://github.com/schapman1974/wA_pytincture_widgetset"
+homepage = "https://github.com/WAwesome-AI/wa_pytincture_widgetset"
 
 [dependency-groups]
 dev = [
