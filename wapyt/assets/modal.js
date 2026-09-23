@@ -137,6 +137,15 @@
 .wapyt-modal-overlay[data-wapyt-theme="dark"] {
   background: rgba(0, 0, 0, 0.7);
 }
+/* Every box here is border-box on purpose. The chrome carries 1.5rem of side
+   padding, so under the default content-box a modal declared at width: 560px
+   laid its body out 608px wide and the content spilled ~24px past the rounded
+   corner on each side -- the declared width stopped meaning what it says. */
+.wapyt-modal,
+.wapyt-modal-header,
+.wapyt-modal-body {
+  box-sizing: border-box;
+}
 .wapyt-modal {
   background: var(--wapyt-bg, #fff);
   color: var(--wapyt-text, #0f172a);
