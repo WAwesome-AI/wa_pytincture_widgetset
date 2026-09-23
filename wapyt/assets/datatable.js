@@ -425,6 +425,10 @@
 
         columns.forEach((column) => {
           const td = document.createElement("td");
+          // Same identifier the header cell carries, so a stylesheet can reach
+          // a whole column -- hiding a secondary one in a narrow container,
+          // say. Without it a body cell can only be addressed by position.
+          td.dataset.columnId = column.id;
           if (column.align) {
             td.style.textAlign = column.align;
           }
