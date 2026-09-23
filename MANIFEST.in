@@ -1,1 +1,2 @@
+include wapyt/pytincture-assets.json
 recursive-include wapyt/assets *

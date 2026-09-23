@@ -2,19 +2,22 @@ function createUniqueId(prefix) {
     return `${prefix}_${Math.random().toString(16).slice(2)}`;
 }
 
+function wapytEscapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+    }[char]));
+}
+
 (function () {
     globalThis.wapyt = globalThis.wapyt || {};
 
-    function ensureMdiIcons() {
-        if (document.getElementById("wapyt-mdi-icons")) {
-            return;
-        }
-        const link = document.createElement("link");
-        link.id = "wapyt-mdi-icons";
-        link.rel = "stylesheet";
-        link.href = "https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css";
-        document.head.appendChild(link);
-    }
+    // No-op: pytincture serves MDI from its own origin and this CDN link was
+    // blocked by CSP anyway. See icons.js.
+    function ensureMdiIcons() {}
 
     class CardPanel {
         constructor(target, options = {}) {
@@ -293,7 +296,20 @@ function createUniqueId(prefix) {
 
                 if (this.options.cardColumns && Number.isFinite(this.options.cardColumns)) {
                     const cols = Math.max(1, Math.floor(this.options.cardColumns));
-                    this._grid.style.setProperty("--card-grid-template", `repeat(${cols}, minmax(0, 1fr))`);
+                    // Respect --card-min-width here as the auto-fill template does.
+                    // This used to be minmax(0, 1fr): a 0 floor lets columns shrink
+                    // without limit, so asking for N columns in a narrow container
+                    // produced cards too small for their own contents -- the footer
+                    // buttons then wrapped and were clipped by .card-card's
+                    // overflow:hidden. Setting cardColumns is a layout preference,
+                    // not a waiver of the minimum width.
+                    //
+                    // min(..., 100%) keeps a single narrow column from overflowing
+                    // its container when the viewport is under --card-min-width.
+                    this._grid.style.setProperty(
+                        "--card-grid-template",
+                        `repeat(${cols}, minmax(min(var(--card-min-width), 100%), 1fr))`
+                    );
                 } else {
                     this._grid.style.removeProperty("--card-grid-template");
                 }
@@ -714,13 +730,18 @@ const css = `
                 return "";
             };
 
-            const interpolate = (value, card, context) => {
+            // `escape` is set wherever the result becomes markup rather than
+            // text or an attribute value, so card data cannot inject HTML.
+            const interpolate = (value, card, context, { escape = false } = {}) => {
                 if (typeof value !== "string") {
                     return value;
                 }
                 return value.replace(/\{([^}]+)\}/g, (_, token) => {
                     const resolved = resolvePlaceholder(token.trim(), card, context);
-                    return resolved == null ? "" : String(resolved);
+                    if (resolved == null) {
+                        return "";
+                    }
+                    return escape ? wapytEscapeHtml(resolved) : String(resolved);
                 });
             };
 
@@ -751,7 +772,7 @@ const css = `
                 }
 
                 if (typeof nodeDescriptor === "string") {
-                    const html = interpolate(nodeDescriptor, card, context).trim();
+                    const html = interpolate(nodeDescriptor, card, context, { escape: true }).trim();
                     if (!html) {
                         return document.createTextNode("");
                     }
@@ -814,7 +835,7 @@ const css = `
                 if (nodeDescriptor.text !== undefined) {
                     element.textContent = interpolate(nodeDescriptor.text, card, context);
                 } else if (nodeDescriptor.html !== undefined) {
-                    element.innerHTML = interpolate(nodeDescriptor.html, card, context);
+                    element.innerHTML = interpolate(nodeDescriptor.html, card, context, { escape: true });
                 }
 
                 if (Array.isArray(nodeDescriptor.children)) {

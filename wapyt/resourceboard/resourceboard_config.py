@@ -47,7 +47,9 @@ class ResourceBoardConfig:
         selected_id: ID that should be selected on load.
         list_width: Constrains the list column (px).
         add_button_text: Label for the built-in add button.
-        detail_template: HTML template populated with item placeholders.
+        detail_template: HTML template populated with ``{placeholder}`` tokens.
+            Interpolated values are HTML-escaped; use a key ending in ``Html``
+            (e.g. ``{modelsHtml}``) to inject markup deliberately.
         empty_state: Text or markup rendered when no selection is active.
         title: Optional heading above the board.
     """

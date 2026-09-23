@@ -48,6 +48,8 @@ class CardPanelConfig:
         - ``class``/``className``/``classes``: string or list of classes
         - ``text`` or ``html``: content strings. Placeholders like ``{title}``
           or ``{card.subtitle}`` are interpolated from the card/context.
+          Values interpolated into ``html`` are HTML-escaped; use ``text``
+          or a registered template when you need to emit markup.
         - ``attrs``/``dataset``/``style``: mapping of attributes with placeholders
         - ``children``: list of nested descriptor nodes
 

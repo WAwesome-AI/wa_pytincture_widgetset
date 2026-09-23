@@ -14,6 +14,17 @@ logger.info("Chat widget wrapper loaded (%s)", WRAPPER_REVISION)
 print(f"[ChatWidget] Wrapper ready ({WRAPPER_REVISION})")
 
 
+class ChatStreamError(RuntimeError):
+    """
+    Raised when a backend stream yields an error payload instead of content.
+
+    Streaming backends report provider failures in-band (see
+    ``tests/multiaiproxy.py``), so a failed call still looks like a normal
+    stream of chunks. Surfacing it as an exception routes it through the same
+    handling as a transport error.
+    """
+
+
 class Chat:
     """
     Python wrapper around the custom Chat widget.
@@ -104,6 +115,48 @@ class Chat:
         Handler receives a payload with message text and identifiers.
         """
         self._bind_event("send", handler)
+
+    def on_voice(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """
+        Fired when a push-to-talk recording finishes.
+
+        The payload carries ``audio`` (base64 of the recorded container),
+        ``mimeType`` (normally ``audio/webm;codecs=opus``), ``bytes`` and
+        ``durationMs``. The widget does not transcribe -- hand the audio to a
+        backend and feed the result back with :meth:`set_composer_text`.
+        """
+        self._bind_event("voice", handler)
+
+    def on_voice_error(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """
+        Fired when capture could not start -- permission denied, no device, or a
+        Permissions-Policy that blocks the microphone.
+        """
+        self._bind_event("voice:error", handler)
+
+    def apply_transcript(self, text: str, *, submit: bool = False) -> None:
+        """
+        Write a transcript into the composer.
+
+        Anything already typed is preserved as a prefix, and each transcript
+        extends it -- so continuous dictation accumulates. ``submit`` sends the
+        message immediately, which is what hands-free mode does.
+        """
+        self.chat.applyTranscript(
+            "" if text is None else str(text),
+            js.JSON.parse(json.dumps({"submit": bool(submit)})),
+        )
+
+    def set_composer_text(self, text: str, *, append: bool = False, submit: bool = False) -> None:
+        """
+        Put text into the composer. Used to deliver a transcript.
+
+        ``append`` adds to what is already typed; ``submit`` sends immediately.
+        """
+        self.chat.setComposerText(
+            "" if text is None else str(text),
+            js.JSON.parse(json.dumps({"append": bool(append), "submit": bool(submit)})),
+        )
 
     def on_artifact_save(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         """
@@ -197,6 +250,22 @@ class Chat:
             raise TypeError(f"Unsupported agent representation: {type(agent)!r}")
         self.chat.setAgent(js.JSON.parse(json.dumps(agent_payload)))
 
+    def set_extra(self, extra: Dict[str, Any]) -> None:
+        """
+        Replace the model catalogue after construction and rebuild the selector.
+
+        ``extra`` accepts ``providerConfig`` (a ``{"providers": {...}}`` mapping)
+        and/or ``models`` (a flat list). Apps normally load their provider list
+        from a backend after the widget already exists, so without this the model
+        dropdown stays frozen at whatever was passed to the constructor.
+        """
+        if not isinstance(extra, dict):
+            raise TypeError(f"extra must be a dict, got {type(extra)!r}")
+        self.chat.setExtra(js.JSON.parse(json.dumps(extra)))
+
+    def set_models(self, models: List[str]) -> None:
+        self.set_extra({"models": list(models)})
+
     def set_theme(self, theme: str) -> None:
         self.chat.setTheme(theme)
 
@@ -258,6 +327,41 @@ class Chat:
         return history
 
     @staticmethod
+    def _delta_text(delta: Any) -> str:
+        """
+        Pull the text out of a provider ``delta`` field (dict or bare string).
+        """
+        if isinstance(delta, dict):
+            return str(delta.get("content") or delta.get("text") or "")
+        return str(delta) if delta else ""
+
+    @staticmethod
+    def extract_stream_error(chunk: Any) -> Optional[str]:
+        """
+        Return a human-readable message when ``chunk`` is an error payload.
+
+        Returns ``None`` for ordinary content chunks.
+        """
+        payload = chunk
+        if hasattr(payload, "model_dump"):
+            payload = payload.model_dump(exclude_none=True)
+        elif hasattr(payload, "to_dict"):
+            payload = payload.to_dict()
+
+        if not isinstance(payload, dict):
+            return None
+
+        error = payload.get("error")
+        if error is None and payload.get("type") == "error":
+            error = payload
+        if error is None:
+            return None
+        if isinstance(error, dict):
+            message = error.get("message") or error.get("detail") or error.get("code")
+            return str(message) if message else "Unknown backend error"
+        return str(error) if error else "Unknown backend error"
+
+    @staticmethod
     def extract_stream_text(chunk: Any) -> str:
         if chunk is None:
             return ""
@@ -282,13 +386,11 @@ class Chat:
         if chunk_type == "chunk":
             payload = payload.get("chunk", {})
             choices = payload.get("choices") or []
-        elif chunk_type == "content.delta":
-            return ""
-        elif chunk_type == "response.output_text.delta":
-            delta = payload.get("delta")
-            if isinstance(delta, dict):
-                return delta.get("content") or delta.get("text") or ""
-            return delta or ""
+        elif chunk_type in ("content.delta", "response.output_text.delta"):
+            # Proxies that normalize deltas into `choices` never emit these, but
+            # a proxy that forwards provider chunks verbatim does; returning ""
+            # here silently dropped the whole response.
+            return Chat._delta_text(payload.get("delta"))
         else:
             choices = payload.get("choices")
             if choices is None and "chunk" in payload:
@@ -329,7 +431,15 @@ class Chat:
                 self.append_stream(response_id, warning)
             finally:
                 self.finish_stream(response_id)
-            logging.warning("[Chat] stream failed: %s", exc)
+            logger.warning("[Chat] stream failed: %s", exc)
+
+        def text_of(chunk: Any) -> str:
+            # A backend that fails mid-stream yields an error payload rather
+            # than raising, so check for one before extracting text.
+            message = self.extract_stream_error(chunk)
+            if message:
+                raise ChatStreamError(message)
+            return tokenize(chunk)
 
         if inspect.isasyncgen(stream) or (
             hasattr(stream, "__aiter__") and not hasattr(stream, "__iter__")
@@ -338,7 +448,7 @@ class Chat:
             async def runner():
                 try:
                     async for chunk in stream:
-                        text = tokenize(chunk)
+                        text = text_of(chunk)
                         if text:
                             self.append_stream(response_id, text)
                 except Exception as exc:  # pragma: no cover - pass to handler
@@ -357,7 +467,7 @@ class Chat:
 
         try:
             for chunk in iterator:
-                text = tokenize(chunk)
+                text = text_of(chunk)
                 if not text:
                     continue
                 self.append_stream(response_id, text)
@@ -369,16 +479,33 @@ class Chat:
             self.finish_stream(response_id)
 
     @staticmethod
-    def _run_async(coro):
+    def _run_async(coro) -> None:
+        """
+        Schedule ``coro`` without blocking the caller.
+
+        `consume_stream` is normally reached from a synchronous JS event
+        handler, where `get_running_loop` fails even though Pyodide's WebLoop is
+        installed. `asyncio.run` must not be used there: it creates a *new* loop
+        and closes it on exit, which breaks the WebLoop for the rest of the
+        session, and it cannot block on a browser event loop in any case.
+        `ensure_future` schedules onto the existing loop and lets the browser
+        drive it.
+        """
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = None
 
-        if loop and loop.is_running():
+        if loop is not None:
             loop.create_task(coro)
-        else:
-            asyncio.run(coro)
+            return
+
+        if js is not None:  # Pyodide
+            asyncio.ensure_future(coro)
+            return
+
+        # CPython (tests/offline): no loop to borrow, so run one to completion.
+        asyncio.run(coro)
 
     # ------------------------------------------------------------------
     # Lifecycle
