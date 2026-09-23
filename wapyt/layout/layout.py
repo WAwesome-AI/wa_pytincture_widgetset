@@ -38,7 +38,7 @@ class Layout(object, metaclass=LoadUICaller):
     layout_config: Optional[Union[LayoutConfig, Dict[str, Any]]] = None
 
     def __init__(self, config: Optional[Union[LayoutConfig, Dict[str, Any]]] = None, *, mainwindow: bool = False, **kwargs: Any) -> None:
-        #require_js("Layout")
+        require_js("Layout")
         self.parent = kwargs.get("parent")
         base_config = config or self.layout_config
         if base_config is None:
@@ -91,6 +91,30 @@ class Layout(object, metaclass=LoadUICaller):
 
         tab_widget = TabWidget(config=tab_config or TabWidgetConfig(), container=self.layout.getCell(id))
         return tab_widget
+
+    def add_tree(self, id: str = "mainwindow", tree_config: Optional["TreeConfig"] = None) -> "Tree":
+        from ..tree import Tree, TreeConfig
+
+        tree_widget = Tree(config=tree_config or TreeConfig(), container=self.layout.getCell(id))
+        return tree_widget
+
+    def add_datatable(self, id: str = "mainwindow", datatable_config: Optional["DataTableConfig"] = None) -> "DataTable":
+        from ..datatable import DataTable, DataTableConfig
+
+        table_widget = DataTable(config=datatable_config or DataTableConfig(), container=self.layout.getCell(id))
+        return table_widget
+
+    def add_form(self, id: str = "mainwindow", form_config: Optional["FormConfig"] = None) -> "Form":
+        from ..form import Form, FormConfig
+
+        form_widget = Form(config=form_config or FormConfig(), container=self.layout.getCell(id))
+        return form_widget
+
+    def add_terminal(self, id: str = "mainwindow", terminal_config: Optional["TerminalConfig"] = None) -> "Terminal":
+        from ..terminal import Terminal, TerminalConfig
+
+        terminal_widget = Terminal(config=terminal_config or TerminalConfig(), container=self.layout.getCell(id))
+        return terminal_widget
 
     def add_sidebar(self, id: str = "mainwindow", sidebar_config: Optional["SidebarConfig"] = None) -> "Sidebar":
         sidebar_widget = Sidebar(config=sidebar_config or SidebarConfig(), container=self.layout.getCell(id))

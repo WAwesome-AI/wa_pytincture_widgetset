@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "package": "wapyt",
+  "version": "0.1.0",
+  "assets": [
+    {
+      "path": "wapyt/assets/wapyt.css",
+      "type": "css",
+      "sha256": "f4ea48e68ba3a7d23a9dbbf7b2c75349e705ea6f8fa015adeb94b8fa169838af"
+    },
+    {
+      "path": "wapyt/assets/icons.js",
+      "type": "javascript",
+      "sha256": "c6b641553933be2ebf8dfd652feb9d89338da24d1cbaf78aeef11f4e0c7b3f35"
+    },
+    {
+      "path": "wapyt/assets/layout.js",
+      "type": "javascript",
+      "sha256": "c7d621848103fedf187b4089cae2d6c277796c884b8976c58bbf47dc2349ebf4"
+    },
+    {
+      "path": "wapyt/assets/modal.js",
+      "type": "javascript",
+      "sha256": "2730b4e58cfba84d60cb7266726c944eb82613ca9cb731432ef1416aae874889"
+    },
+    {
+      "path": "wapyt/assets/sidebar.js",
+      "type": "javascript",
+      "sha256": "3e79be992fa0d30e3bced04c79657b8a945e224b0dbdc7ea5d4bace97c16c2ff"
+    },
+    {
+      "path": "wapyt/assets/datatable.js",
+      "type": "javascript",
+      "sha256": "43c35e9a0604764609b59f77cefbff9e928cf4275f1b8ab0d13303df4c54d537"
+    },
+    {
+      "path": "wapyt/assets/tree.js",
+      "type": "javascript",
+      "sha256": "78556ed5836de5c826d6b6a8c4e5b399af135424aa7a1e32f2806f35531d6b22"
+    },
+    {
+      "path": "wapyt/assets/form.js",
+      "type": "javascript",
+      "sha256": "286947cded46772a0127f1fb38ae10274c8ae61db24b99c5fe5565823c25ee1d"
+    },
+    {
+      "path": "wapyt/assets/tabwidget.js",
+      "type": "javascript",
+      "sha256": "01dd28702d9e74d3b454e461ae9cec1c767ba8807bedaec13d0a045b348b244f"
+    },
+    {
+      "path": "wapyt/assets/terminal.js",
+      "type": "javascript",
+      "sha256": "8ba58a4c553084cfa9c37f3c33b79d3b41d2262ea17834b6f4813e57ae3f79b6"
+    },
+    {
+      "path": "wapyt/assets/cardpanel.js",
+      "type": "javascript",
+      "sha256": "a018ee748810cf2177728ff6dd2d22d1843c07c14d9fa4d2f20f23743262295f"
+    },
+    {
+      "path": "wapyt/assets/resourceboard.js",
+      "type": "javascript",
+      "sha256": "778bddee4a94da539fd9843efd9be05d58721ee49c78992e05771310a9c425e1"
+    },
+    {
+      "path": "wapyt/assets/chat.js",
+      "type": "javascript",
+      "sha256": "dd0a5a7d13bec24d66eb5a2d62919e0514ce00326a5d9a531bb8c5a3d08d0f26"
+    }
+  ]
+}

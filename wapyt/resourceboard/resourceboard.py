@@ -45,7 +45,7 @@ class ResourceBoard:
         container: Any = None,
         root: Optional[Union[str, Any]] = None,
     ) -> None:
-        #require_js("ResourceBoard")
+        require_js("ResourceBoard")
         if container is None and root is None:
             raise ValueError("ResourceBoard requires either a container or a root element.")
 
