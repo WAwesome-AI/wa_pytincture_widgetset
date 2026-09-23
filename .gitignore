@@ -31,3 +31,10 @@ htmlcov/
 .idea/
 *.swp
 .DS_Store
+
+# Dev wheels built by scripts/dev_wheel.sh into a modules folder.
+# The generated wapyt/pytincture-assets.json IS committed -- a source build
+# needs it, and scripts/generate_assets_manifest.py --check guards it in CI.
+*-py3-none-any.whl
+uv.lock
+tests/uv.lock

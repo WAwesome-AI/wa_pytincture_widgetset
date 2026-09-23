@@ -113,6 +113,24 @@ class ChatConfig:
     id_prefix: Optional[str] = None
     demo_response: Optional[str] = None
     storage_key: Optional[str] = None
+    #: Model selected on a fresh session, before the user has picked one. The
+    #: widget remembers the last explicit choice in localStorage and prefers it
+    #: over this; this only covers the first visit.
+    default_model: Optional[str] = None
+    #: Show a hold-to-talk microphone button in the composer. The widget only
+    #: captures audio and emits it via ``on_voice``; transcription is the app's
+    #: job. Needs a secure context and ``Permissions-Policy: microphone=(self)``.
+    voice_input: bool = False
+    #: Hard cap on a single take, so a missed pointerup cannot record forever.
+    voice_max_seconds: int = 120
+    #: Show a second, latching microphone that keeps listening and segments
+    #: speech on silence -- Pantheon's hands-free mode. Distinct from the
+    #: hold-to-talk button, which stays on-demand.
+    voice_continuous: bool = False
+    #: RMS energy gate. Below this the mic is treated as silent.
+    vad_threshold: float = 0.015
+    #: Silence, in ms, that ends an utterance and triggers transcription.
+    vad_silence_ms: int = 800
     extra: Dict[str, Any] = field(default_factory=dict)
     layout_mode: str = "advanced"
     layout_density: str = "comfortable"
@@ -144,6 +162,12 @@ class ChatConfig:
             "idPrefix": self.id_prefix,
             "demoResponse": self.demo_response,
             "storageKey": self.storage_key,
+            "defaultModel": self.default_model,
+            "voiceInput": self.voice_input,
+            "voiceMaxSeconds": self.voice_max_seconds,
+            "voiceContinuous": self.voice_continuous,
+            "vadThreshold": self.vad_threshold,
+            "vadSilenceMs": self.vad_silence_ms,
         }
         layout_payload = {}
         if self.layout_mode:

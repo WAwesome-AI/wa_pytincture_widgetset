@@ -82,6 +82,11 @@ def _load_assets(force: bool = False) -> None:
     _assets_loaded = True
 
 
+def _component_ready(component: str) -> bool:
+    """True when ``window.wapyt.<component>`` is already registered."""
+    return bool(hasattr(js, "wapyt") and getattr(js.wapyt, component, None))
+
+
 def require_js(component: str) -> None:
     """
     Ensure the requested widget constructor is available on ``window.wapyt``.
@@ -94,10 +99,17 @@ def require_js(component: str) -> None:
         raise RuntimeError(
             f"{component} requires the browser runtime. This code should only run inside Pyodide."
         )
+    # Check before loading. When pytincture serves this widgetset it has already
+    # evaluated the assets through its own hash-verified loader, in manifest
+    # order; self-loading again would re-run all eight IIFEs and leave any widget
+    # built in between holding a superseded class object. _load_assets is the
+    # offline fallback for when nothing else has injected the bundle.
+    if _component_ready(component):
+        return
     _load_assets()
-    if not hasattr(js, "wapyt") or not getattr(js.wapyt, component, None):
+    if not _component_ready(component):
         _load_assets(force=True)
-        if not hasattr(js, "wapyt") or not getattr(js.wapyt, component, None):
+        if not _component_ready(component):
             raise RuntimeError(
                 f"wapyt assets failed to load component '{component}'. Ensure the widgetset JavaScript is included."
             )
