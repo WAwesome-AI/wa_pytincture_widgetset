@@ -119,6 +119,7 @@
       this._events = {};
       this._term = null;
       this._fit = null;
+      this._fitTimer = null;
       this._search = null;
       this._ws = null;
       this._dataDisposable = null;
@@ -236,7 +237,7 @@
       // and fitting against zero produces a 1x1 terminal that never recovers.
       // ResizeObserver fires when the panel becomes visible again, so every
       // fit is gated on a real size.
-      this._observer = new ResizeObserver(() => this.fit());
+      this._observer = new ResizeObserver(() => this._scheduleFit());
       this._observer.observe(this._host);
 
       this.fit();
@@ -248,6 +249,26 @@
     }
 
     // ── Sizing ───────────────────────────────────────────────────────────────
+
+    // A container that is being dragged fires the observer every frame, and
+    // each frame that crosses a column boundary is a fresh TIOCSWINSZ on the
+    // remote. Measured in a tiled workspace: one 1.3s resize drag sent 41 PTY
+    // resizes, all distinct, so the cols/rows dedupe in fit() never engaged.
+    // An explicit fit() stays immediate; only the observer is debounced.
+    _scheduleFit() {
+      const delay = Number(this.options.fitDebounceMs) || 0;
+      if (delay <= 0) {
+        this.fit();
+        return;
+      }
+      if (this._fitTimer) {
+        clearTimeout(this._fitTimer);
+      }
+      this._fitTimer = setTimeout(() => {
+        this._fitTimer = null;
+        this.fit();
+      }, delay);
+    }
 
     fit() {
       if (!this._term || !this._fit) return;
@@ -473,6 +494,10 @@
 
     destroy() {
       this.disconnect();
+      if (this._fitTimer) {
+        clearTimeout(this._fitTimer);
+        this._fitTimer = null;
+      }
       if (this._observer) {
         this._observer.disconnect();
         this._observer = null;
