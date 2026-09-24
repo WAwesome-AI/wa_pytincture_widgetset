@@ -53,6 +53,10 @@ class TerminalConfig:
         scrollback: Lines of scrollback retained.
         theme: Optional :class:`TerminalTheme`.
         search: Load the search addon and bind Ctrl+F to the search bar.
+        clipboard: Copy and paste the way Windows Terminal does: Ctrl+C copies
+            a selection (and interrupts without one), Ctrl+Shift+C always
+            copies, Ctrl+V and Ctrl+Shift+V paste, Cmd on a Mac; plus a
+            right-click menu. Costs the ability to send a literal Ctrl+V.
         reconnect: Reconnect automatically when the socket drops.
         reconnect_max_attempts: Give up after this many consecutive failures.
         reconnect_base_ms: First backoff delay; doubles per attempt.
@@ -74,6 +78,7 @@ class TerminalConfig:
     scrollback: Optional[int] = None
     theme: Optional[TerminalTheme] = None
     search: bool = True
+    clipboard: bool = True
     reconnect: bool = True
     reconnect_max_attempts: int = 5
     reconnect_base_ms: int = 1000
@@ -90,6 +95,7 @@ class TerminalConfig:
             "scrollback": self.scrollback,
             "theme": self.theme.to_dict() if self.theme is not None else None,
             "search": self.search,
+            "clipboard": self.clipboard,
             "reconnect": self.reconnect,
             "reconnectMaxAttempts": self.reconnect_max_attempts,
             "reconnectBaseMs": self.reconnect_base_ms,

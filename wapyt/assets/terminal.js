@@ -108,6 +108,7 @@
           scrollback: 5000,
           theme: null,
           search: true,
+          clipboard: true,
           reconnect: true,
           reconnectMaxAttempts: 5,
           reconnectBaseMs: 1000,
@@ -128,6 +129,8 @@
       this._reconnectTimer = null;
       this._closedByUser = false;
       this._lastSize = { cols: 0, rows: 0 };
+      this._menu = null;
+      this._menuCloser = null;
 
       this._host = resolveHost(target);
       if (!this._host) {
@@ -219,7 +222,9 @@
 
       this._term.open(this._screen);
 
-      // Ctrl+F opens the search bar instead of the browser's find.
+      // Ctrl+F opens the search bar instead of the browser's find; the
+      // clipboard keys are claimed next. Returning false stops xterm from
+      // sending the key to the remote.
       this._term.attachCustomKeyEventHandler((event) => {
         if (event.type === "keydown" && event.ctrlKey && !event.altKey && event.key === "f") {
           if (this.options.search) {
@@ -228,8 +233,15 @@
             return false;
           }
         }
+        if (this.options.clipboard) {
+          return this._clipboardKey(event);
+        }
         return true;
       });
+
+      if (this.options.clipboard) {
+        this._host.addEventListener("contextmenu", (event) => this._openMenu(event));
+      }
 
       this._term.onTitleChange((title) => this._emit("title", { title }));
 
@@ -492,7 +504,174 @@
       this._overlay.hidden = true;
     }
 
+    // ── Clipboard ────────────────────────────────────────────────────────────
+    //
+    // Windows Terminal's bindings, which are also what a Linux terminal user
+    // reaches for:
+    //
+    //   Ctrl+C          copies when text is selected, else interrupts (^C)
+    //   Ctrl+Shift+C    always copies        (Cmd+C on a Mac)
+    //   Ctrl+V          pastes               (Cmd+V on a Mac)
+    //   Ctrl+Shift+V    pastes
+    //   right-click     Copy / Paste / Select all
+    //
+    // Paste from the keyboard is left to the browser: returning false keeps
+    // xterm from sending ^V, and the browser then fires its own paste event,
+    // which xterm turns into input -- with bracketed paste, and without the
+    // permission prompt navigator.clipboard.readText() would raise. Only the
+    // menu's Paste has to ask for the clipboard, because a click is not a
+    // paste gesture.
+    //
+    // The cost: Ctrl+V can no longer be typed to the remote. Vim's visual
+    // block also answers to Ctrl+Q, the usual answer in Windows Terminal too.
+
+    _clipboardKey(event) {
+      if (event.type !== "keydown" || event.altKey) return true;
+      const key = event.key.toLowerCase();
+      const mac = /Mac|iPhone|iPad/.test(navigator.platform || "");
+      const primary = mac ? event.metaKey : event.ctrlKey;
+      if (!primary) return true;
+
+      if (key === "c") {
+        if (event.shiftKey || this._term.hasSelection()) {
+          event.preventDefault();
+          this.copySelection();
+          return false;
+        }
+        return true; // no selection: Ctrl+C is the interrupt, as ever
+      }
+      if (key === "v") {
+        return false; // the browser's paste event does the rest
+      }
+      return true;
+    }
+
+    /** Copy the selection. Resolves to the number of characters copied. */
+    async copySelection() {
+      const text = this._term ? this._term.getSelection() : "";
+      if (!text) return 0;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (error) {
+        // No async clipboard (a non-secure origin): the old way still works
+        // inside a user gesture.
+        const area = document.createElement("textarea");
+        area.value = text;
+        area.setAttribute("readonly", "");
+        area.style.position = "fixed";
+        area.style.opacity = "0";
+        document.body.appendChild(area);
+        area.select();
+        const ok = document.execCommand("copy");
+        area.remove();
+        if (!ok) {
+          this._emit("clipboard_error", { action: "copy", message: String(error && error.message || error) });
+          return 0;
+        }
+      }
+      this._term.clearSelection();
+      this._term.focus();
+      this._emit("copy", { chars: text.length });
+      return text.length;
+    }
+
+    /** Paste from the clipboard (used by the menu; keys use the paste event). */
+    async pasteClipboard() {
+      let text = "";
+      try {
+        text = await navigator.clipboard.readText();
+      } catch (error) {
+        this._emit("clipboard_error", {
+          action: "paste",
+          message: "The browser did not allow reading the clipboard. Use Ctrl+V instead.",
+        });
+        return 0;
+      }
+      if (text && this._term) {
+        this._term.paste(text); // honours bracketed paste, like a keyboard paste
+        this._term.focus();
+      }
+      return text.length;
+    }
+
+    _openMenu(event) {
+      event.preventDefault();
+      this._closeMenu();
+      const menu = document.createElement("div");
+      menu.className = "wapyt-terminal-menu";
+      menu.setAttribute("role", "menu");
+      const hasSelection = this._term && this._term.hasSelection();
+      const mac = /Mac|iPhone|iPad/.test(navigator.platform || "");
+      const mod = mac ? "⌘" : "Ctrl+";
+      const items = [
+        ["copy", "Copy", `${mod}${mac ? "" : "Shift+"}C`, !hasSelection],
+        ["paste", "Paste", `${mod}V`, false],
+        ["selectAll", "Select all", "", false],
+      ];
+      items.forEach(([action, label, hint, disabled]) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "wapyt-terminal-menu-item";
+        item.setAttribute("role", "menuitem");
+        item.disabled = disabled;
+        item.dataset.action = action;
+        const text = document.createElement("span");
+        text.textContent = label;
+        item.appendChild(text);
+        if (hint) {
+          const kbd = document.createElement("kbd");
+          kbd.textContent = hint;
+          item.appendChild(kbd);
+        }
+        // mousedown, not click: a click would first move xterm's selection.
+        item.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this._closeMenu();
+          if (action === "copy") this.copySelection();
+          else if (action === "paste") this.pasteClipboard();
+          else if (action === "selectAll") { this._term.selectAll(); this._term.focus(); }
+        });
+        menu.appendChild(item);
+      });
+
+      document.body.appendChild(menu);
+      const { innerWidth, innerHeight } = window;
+      const box = menu.getBoundingClientRect();
+      menu.style.left = `${Math.min(event.clientX, innerWidth - box.width - 4)}px`;
+      menu.style.top = `${Math.min(event.clientY, innerHeight - box.height - 4)}px`;
+      this._menu = menu;
+
+      this._menuCloser = (e) => {
+        if (e.type === "keydown" && e.key !== "Escape") return;
+        if (e.type === "mousedown" && menu.contains(e.target)) return;
+        this._closeMenu();
+      };
+      // Registered at once. The right-click that opened the menu cannot close
+      // it: its mousedown fired before this contextmenu event. Deferring with
+      // setTimeout looked safer and was not -- Chrome runs input ahead of timer
+      // tasks on a busy page (Pyodide), so a quick Escape could land before
+      // the listener existed and leave the menu stuck open.
+      document.addEventListener("mousedown", this._menuCloser, true);
+      document.addEventListener("keydown", this._menuCloser, true);
+      window.addEventListener("blur", this._menuCloser);
+    }
+
+    _closeMenu() {
+      if (this._menuCloser) {
+        document.removeEventListener("mousedown", this._menuCloser, true);
+        document.removeEventListener("keydown", this._menuCloser, true);
+        window.removeEventListener("blur", this._menuCloser);
+        this._menuCloser = null;
+      }
+      if (this._menu) {
+        this._menu.remove();
+        this._menu = null;
+      }
+    }
+
     destroy() {
+      this._closeMenu();
       this.disconnect();
       if (this._fitTimer) {
         clearTimeout(this._fitTimer);
