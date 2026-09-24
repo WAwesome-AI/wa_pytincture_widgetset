@@ -114,6 +114,15 @@ class Terminal:
         """Remote set the window title (OSC 0/2); payload carries ``title``."""
         self._bind_event("title", handler)
 
+    def on_copy(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """Selection copied to the clipboard; payload carries ``chars``."""
+        self._bind_event("copy", handler)
+
+    def on_clipboard_error(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """The browser refused a copy or paste; payload carries ``action`` and
+        a human-readable ``message``."""
+        self._bind_event("clipboard_error", handler)
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -139,6 +148,14 @@ class Terminal:
 
     def focus(self) -> None:
         self.terminal.focus()
+
+    def copy_selection(self) -> None:
+        """Copy the current selection (as Ctrl+Shift+C does)."""
+        self.terminal.copySelection()
+
+    def paste_clipboard(self) -> None:
+        """Paste from the clipboard. The browser may ask the user first."""
+        self.terminal.pasteClipboard()
 
     def write(self, text: str) -> None:
         """Write directly to the screen (local notices, not remote input)."""

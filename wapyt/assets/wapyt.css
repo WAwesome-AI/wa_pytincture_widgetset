@@ -327,6 +327,50 @@
   display: none;
 }
 
+/* Right-click menu. Appended to <body>, fixed, so a grid tile's overflow and
+   transforms cannot clip it. */
+.wapyt-terminal-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 190px;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font: 13px system-ui, sans-serif;
+}
+
+.wapyt-terminal-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #e2e8f0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wapyt-terminal-menu-item:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.wapyt-terminal-menu-item:disabled {
+  color: #64748b;
+  cursor: default;
+}
+
+.wapyt-terminal-menu-item kbd {
+  color: #94a3b8;
+  font: 11px ui-monospace, Menlo, Consolas, monospace;
+}
+
 .wapyt-terminal-search-input {
   width: 180px;
   padding: 4px 8px;

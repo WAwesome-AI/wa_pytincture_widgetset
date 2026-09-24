@@ -50,6 +50,12 @@ def test_terminal_theme_is_nested_and_camel_cased():
     assert payload["theme"] == {"background": "#000", "cursorAccent": "#fff"}
 
 
+def test_terminal_clipboard_is_on_by_default_and_can_be_turned_off():
+    assert roundtrip(TerminalConfig())["clipboard"] is True
+    # False must survive _clean(): dropping it would let the JS default win.
+    assert roundtrip(TerminalConfig(clipboard=False))["clipboard"] is False
+
+
 def test_terminal_extra_passes_through():
     payload = roundtrip(TerminalConfig(extra={"customFlag": 7}))
     assert payload["customFlag"] == 7
