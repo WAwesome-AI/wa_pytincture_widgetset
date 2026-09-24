@@ -255,6 +255,17 @@ async def upload(
     )
 
 
+async def exists(folder_id: str, name: str) -> bool:
+    """
+    Whether ``name`` is already taken, by a file or a folder, directly inside
+    a folder chosen with :func:`pick_folder`.
+
+    :func:`save_into` creates what it writes, and an existing file of the
+    same name is silently overwritten -- check here first to pick a free name.
+    """
+    return bool(await _api().exists(folder_id, name))
+
+
 async def resume(
     transfer_id: str,
     on_progress: Optional[Callable[[int, int], Any]] = None,

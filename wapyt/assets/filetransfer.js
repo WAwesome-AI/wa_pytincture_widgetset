@@ -316,6 +316,28 @@
     return runTransfer({ writable, url, written: 0, total: 0, etag: null, onProgress }, transferId);
   }
 
+  /**
+   * Whether ``name`` is already taken inside a picked folder, by a file or a
+   * directory. Lets a caller choose a free name instead of writing into an
+   * existing file, which getFileHandle(name, {create: true}) does without a
+   * word. The file system decides what counts as the same name, so on a
+   * case-insensitive disk "Report.txt" finds "report.txt".
+   */
+  async function exists(folderId, name) {
+    const folder = handles.get(folderId);
+    if (!folder) return false;
+    for (const lookup of ["getFileHandle", "getDirectoryHandle"]) {
+      try {
+        await folder[lookup](name);
+        return true;
+      } catch (error) {
+        // Asked for a file, found a directory (or the reverse): still taken.
+        if (error && error.name === "TypeMismatchError") return true;
+      }
+    }
+    return false;
+  }
+
   /** Carry on a paused download from where it stopped. */
   async function resume(transferId, onProgress) {
     const state = paused.get(transferId);
@@ -471,6 +493,7 @@
     saveFile,
     saveInto,
     resume,
+    exists,
     downloadViaAnchor,
     upload,
     cancel,
