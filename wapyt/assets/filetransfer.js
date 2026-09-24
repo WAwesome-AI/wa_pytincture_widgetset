@@ -5,6 +5,14 @@
   // live here and Python refers to them by id.
   const handles = new Map();
   const aborters = new Map();
+  // Downloads that ran out of retries, kept open so resume() can carry on:
+  // transferId -> { writable, url, written, total, etag, onProgress }.
+  const paused = new Map();
+
+  // A dropped connection is retried this many times, with doubling backoff,
+  // before the transfer pauses and waits for someone to press Resume.
+  const RETRIES = 4;
+  const RETRY_BASE_MS = 1000;
   let counter = 0;
 
   function register(handle) {
@@ -159,67 +167,162 @@
 
   // ── Download ───────────────────────────────────────────────────────────────
 
-  function countingStream(total, onProgress) {
-    let seen = 0;
+  // ── Resumable streaming ──────────────────────────────────────────────────
+  //
+  // A dropped connection used to throw the whole download away. Now the bytes
+  // already written stay in the writable, and the transfer asks the server for
+  // the rest (Range: bytes=N-), sending back the ETag it started with in
+  // If-Range. A 206 carries on; a 200 means the file changed on the server,
+  // so it starts again from zero rather than splicing two versions together.
+  //
+  // After RETRIES failures the transfer pauses instead of failing: the
+  // writable is left open -- the browser keeps the partial data in its swap
+  // file, never under the real name -- and resume() picks it up again. Cancel
+  // discards it. Only network failures and 5xx are retried; a 4xx is final.
+
+  class Retryable extends Error {}
+
+  async function pump(state, signal) {
+    const headers = {};
+    if (state.written > 0) {
+      headers.Range = `bytes=${state.written}-`;
+      if (state.etag) headers["If-Range"] = state.etag;
+    }
+    let response;
+    try {
+      response = await fetch(state.url, { credentials: "same-origin", signal, headers });
+    } catch (error) {
+      if (isAbort(error)) throw error;
+      throw new Retryable(String((error && error.message) || error));
+    }
+    if (response.status >= 500) {
+      throw new Retryable(`${response.status} ${response.statusText}`);
+    }
+    if (!response.ok) {
+      let detail = `${response.status} ${response.statusText}`;
+      try {
+        const body = await response.json();
+        if (body && body.detail) detail = body.detail;
+      } catch (error) {
+        /* not JSON */
+      }
+      const final = new Error(detail);
+      final.status = response.status;
+      throw final;
+    }
+
+    if (response.status === 206) {
+      const range = /\/(\d+)\s*$/.exec(response.headers.get("content-range") || "");
+      if (range) state.total = Number(range[1]);
+    } else {
+      // Whole file: the first attempt, or the server dropped our range
+      // because the file changed. Either way, from the top.
+      if (state.written > 0) {
+        await state.writable.truncate(0);
+        state.written = 0;
+        state.restarted = true;
+      }
+      state.total = Number(response.headers.get("content-length") || 0);
+      state.etag = response.headers.get("etag") || null;
+    }
+    if (state.written > 0) await state.writable.seek(state.written);
+
+    const reader = response.body.getReader();
     let lastTick = 0;
-    return new TransformStream({
-      transform(chunk, controller) {
-        seen += chunk.byteLength;
+    try {
+      for (;;) {
+        let chunk;
+        try {
+          chunk = await reader.read();
+        } catch (error) {
+          if (isAbort(error)) throw error;
+          throw new Retryable(String((error && error.message) || error));
+        }
+        if (chunk.done) break;
+        await state.writable.write(chunk.value);
+        state.written += chunk.value.byteLength;
         const now = Date.now();
-        // Throttle: a fast local transfer would otherwise cross the FFI
+        // Throttled: a fast local transfer would otherwise cross the FFI
         // hundreds of times a second for no visible benefit.
-        if (onProgress && (now - lastTick > 100 || seen === total)) {
+        if (state.onProgress && (now - lastTick > 100 || state.written === state.total)) {
           lastTick = now;
           try {
-            onProgress(seen, total);
+            state.onProgress(state.written, state.total);
           } catch (error) {
             /* a reporting failure must not abort the transfer */
           }
         }
-        controller.enqueue(chunk);
-      },
+      }
+    } finally {
+      try { reader.releaseLock(); } catch (error) { /* already released */ }
+    }
+    // A connection that closes early without an error still left a hole.
+    if (state.total && state.written < state.total) {
+      throw new Retryable(`connection closed after ${state.written} of ${state.total} bytes`);
+    }
+  }
+
+  async function runTransfer(state, transferId) {
+    const controller = new AbortController();
+    if (transferId) aborters.set(transferId, controller);
+    let attempt = 0;
+    try {
+      for (;;) {
+        try {
+          await pump(state, controller.signal);
+          await state.writable.close();
+          paused.delete(transferId);
+          return result(true, { bytes: state.written, retries: state.retries, restarted: !!state.restarted });
+        } catch (error) {
+          if (!(error instanceof Retryable)) throw error;
+          attempt += 1;
+          state.retries = (state.retries || 0) + 1;
+          if (attempt > RETRIES) {
+            // Out of retries: keep what we have and wait for Resume.
+            if (transferId) paused.set(transferId, state);
+            return result(false, {
+              resumable: !!transferId,
+              error: `Connection lost at ${state.written} of ${state.total || "?"} bytes (${error.message})`,
+              bytes: state.written,
+            });
+          }
+          await sleep(RETRY_BASE_MS * 2 ** (attempt - 1), controller.signal);
+        }
+      }
+    } catch (error) {
+      paused.delete(transferId);
+      try {
+        await state.writable.abort();
+      } catch (abortError) {
+        /* already closed */
+      }
+      return Object.assign(failure(error), error.status ? { status: error.status } : {});
+    } finally {
+      if (transferId) aborters.delete(transferId);
+    }
+  }
+
+  function sleep(ms, signal) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, ms);
+      signal.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(new DOMException("Cancelled", "AbortError"));
+      }, { once: true });
     });
   }
 
   async function streamInto(writable, url, transferId, onProgress) {
-    const controller = new AbortController();
-    if (transferId) {
-      aborters.set(transferId, controller);
-    }
-    try {
-      const response = await fetch(url, {
-        credentials: "same-origin",
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        let detail = `${response.status} ${response.statusText}`;
-        try {
-          const body = await response.json();
-          if (body && body.detail) detail = body.detail;
-        } catch (error) {
-          /* not JSON */
-        }
-        await writable.abort();
-        return result(false, { error: detail, status: response.status });
-      }
+    return runTransfer({ writable, url, written: 0, total: 0, etag: null, onProgress }, transferId);
+  }
 
-      const total = Number(response.headers.get("content-length") || 0);
-      // Streamed straight from the socket to disk: a multi-gigabyte file costs
-      // a buffer, never its own size in memory.
-      await response.body
-        .pipeThrough(countingStream(total, onProgress))
-        .pipeTo(writable);
-      return result(true, { bytes: total });
-    } catch (error) {
-      try {
-        await writable.abort();
-      } catch (abortError) {
-        /* already closed */
-      }
-      return failure(error);
-    } finally {
-      if (transferId) aborters.delete(transferId);
-    }
+  /** Carry on a paused download from where it stopped. */
+  async function resume(transferId, onProgress) {
+    const state = paused.get(transferId);
+    if (!state) return result(false, { error: "Nothing to resume" });
+    paused.delete(transferId);
+    if (onProgress) state.onProgress = onProgress;
+    return runTransfer(state, transferId);
   }
 
   async function saveFile(handleId, url, transferId, onProgress) {
@@ -334,6 +437,12 @@
   // ── Control ────────────────────────────────────────────────────────────────
 
   function cancel(transferId) {
+    const waiting = paused.get(transferId);
+    if (waiting) {
+      paused.delete(transferId);
+      waiting.writable.abort().catch(() => {});
+      return true;
+    }
     const controller = aborters.get(transferId);
     if (!controller) return false;
     try {
@@ -361,6 +470,7 @@
     pickFiles,
     saveFile,
     saveInto,
+    resume,
     downloadViaAnchor,
     upload,
     cancel,

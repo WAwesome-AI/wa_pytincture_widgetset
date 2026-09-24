@@ -208,3 +208,28 @@ def test_tree_action_scopes_round_trip(scope):
         TreeConfig(context_actions=[TreeAction("x", "X", scope=scope)])
     )["contextActions"][0]
     assert action["scope"] == scope
+
+
+# ── File transfer ─────────────────────────────────────────────────────────────
+
+
+def test_filetransfer_exports_everything_it_defines():
+    """
+    The package re-exports by hand, and resume() was once defined but not
+    exported: the app then failed with AttributeError at the moment someone
+    pressed Resume. Every public callable in the module must be reachable
+    from the package.
+    """
+    import inspect
+
+    import wapyt.filetransfer as package
+    from wapyt.filetransfer import filetransfer as module
+
+    public = {
+        name for name, value in vars(module).items()
+        if not name.startswith("_") and inspect.isfunction(value)
+        and value.__module__ == module.__name__
+    }
+    missing = sorted(name for name in public if not hasattr(package, name))
+    assert missing == [], f"defined but not exported: {missing}"
+    assert set(package.__all__) >= public

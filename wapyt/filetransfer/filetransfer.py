@@ -75,6 +75,14 @@ class TransferResult:
     bytes: int = 0
     via_anchor: bool = False
     files: List[PickedFile] = field(default_factory=list)
+    # A download that lost its connection more times than it retries: the
+    # bytes so far are kept, and resume(id) carries on from them.
+    resumable: bool = False
+    # How many times the connection dropped and the download picked back up.
+    retries: int = 0
+    # The file changed on the server mid-download, so it started over rather
+    # than splicing two versions together.
+    restarted: bool = False
 
 
 def _to_result(raw: Any) -> TransferResult:
@@ -87,6 +95,9 @@ def _to_result(raw: Any) -> TransferResult:
         name=str(data.get("name") or ""),
         bytes=int(data.get("bytes") or 0),
         via_anchor=bool(data.get("viaAnchor")),
+        resumable=bool(data.get("resumable")),
+        retries=int(data.get("retries") or 0),
+        restarted=bool(data.get("restarted")),
         files=[
             PickedFile(
                 id=str(item.get("id")),
@@ -242,6 +253,21 @@ async def upload(
             _progress_proxy(on_progress),
         )
     )
+
+
+async def resume(
+    transfer_id: str,
+    on_progress: Optional[Callable[[int, int], Any]] = None,
+) -> TransferResult:
+    """
+    Carry on a download that paused after losing its connection.
+
+    It asks the server for the rest of the file (``Range``) and checks the
+    file has not changed since (``If-Range``); a changed file starts over
+    from the beginning rather than being spliced. ``cancel(transfer_id)``
+    discards a paused download instead.
+    """
+    return _to_result(await _api().resume(transfer_id, _progress_proxy(on_progress)))
 
 
 # ── Control ───────────────────────────────────────────────────────────────────
