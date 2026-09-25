@@ -61,6 +61,11 @@
           dropUpload: false,
           contextActions: [],
           groupDirsFirst: null,
+          // Opt-in: drag a header's right edge / drag a header onto another.
+          // Either change emits "columns" with the new state.
+          resizableColumns: false,
+          reorderableColumns: false,
+          minColumnWidth: 48,
         },
         options || {}
       );
@@ -88,6 +93,9 @@
     _render() {
       this._host.classList.add("wapyt-datatable");
       this._host.innerHTML = "";
+      if (this.options.resizableColumns) {
+        this._host.dataset.resizable = "true";
+      }
 
       if (this.options.filterable) {
         const bar = document.createElement("div");
@@ -163,6 +171,9 @@
         if (column.width) {
           th.style.width = typeof column.width === "number" ? `${column.width}px` : column.width;
         }
+        if (this.options.reorderableColumns) {
+          this._wireReorder(th, column);
+        }
         if (column.align) {
           th.style.textAlign = column.align;
         }
@@ -184,10 +195,143 @@
             caret.textContent = this._sortDir === "asc" ? "▲" : "▼";
           }
         }
+        if (this.options.resizableColumns) {
+          this._wireResize(th, column);
+        }
         tr.appendChild(th);
       });
 
       this._thead.appendChild(tr);
+      this._applyTableWidth();
+    }
+
+    // ── Column resize and reorder ────────────────────────────────────────────
+
+    // With table-layout: fixed and width: 100%, the browser stretches columns
+    // to fill the table, so a dragged edge would not stay where it was
+    // dropped. Once every column has a pixel width, the table takes their sum
+    // instead (and scrolls sideways if that is wider than the panel).
+    _applyTableWidth() {
+      const columns = this.options.columns || [];
+      const fixed = columns.length && columns.every((c) => typeof c.width === "number");
+      if (!fixed || !this.options.resizableColumns) {
+        this._table.style.width = "";
+        return;
+      }
+      const check = this.options.selection === "multi" ? 34 : 0;
+      const total = columns.reduce((sum, c) => sum + c.width, check);
+      this._table.style.width = `${total}px`;
+    }
+
+    // Give every column its current rendered width in pixels.
+    _freezeWidths() {
+      (this.options.columns || []).forEach((column) => {
+        if (typeof column.width === "number") return;
+        const th = this._thead.querySelector(`th[data-column-id="${CSS.escape(column.id)}"]`);
+        if (th) column.width = Math.round(th.getBoundingClientRect().width);
+      });
+    }
+
+    _wireResize(th, column) {
+      const grip = document.createElement("span");
+      grip.className = "wapyt-datatable-resizer";
+      grip.setAttribute("aria-hidden", "true");
+      grip.title = "Drag to resize";
+      // The grip lives inside the header, whose click sorts: swallow it.
+      grip.addEventListener("click", (event) => event.stopPropagation());
+      grip.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this._freezeWidths();
+        this._applyTableWidth();
+        th.draggable = false;
+        const startX = event.clientX;
+        const startWidth = column.width;
+        const min = Number(this.options.minColumnWidth) || 48;
+        grip.setPointerCapture(event.pointerId);
+        this._host.dataset.resizing = "true";
+        const move = (moveEvent) => {
+          column.width = Math.max(min, Math.round(startWidth + moveEvent.clientX - startX));
+          th.style.width = `${column.width}px`;
+          this._applyTableWidth();
+        };
+        const up = () => {
+          grip.removeEventListener("pointermove", move);
+          grip.removeEventListener("pointerup", up);
+          grip.removeEventListener("pointercancel", up);
+          delete this._host.dataset.resizing;
+          th.draggable = Boolean(this.options.reorderableColumns);
+          if (column.width !== startWidth) {
+            this._emit("columns", { reason: "resize", column: column.id, columns: this.getColumnState() });
+          }
+        };
+        grip.addEventListener("pointermove", move);
+        grip.addEventListener("pointerup", up);
+        grip.addEventListener("pointercancel", up);
+      });
+      th.appendChild(grip);
+    }
+
+    _wireReorder(th, column) {
+      th.draggable = true;
+      th.addEventListener("dragstart", (event) => {
+        if (this._host.dataset.resizing) {
+          event.preventDefault();
+          return;
+        }
+        this._dragColumn = column.id;
+        event.dataTransfer.effectAllowed = "move";
+        // Firefox will not start a drag without data.
+        event.dataTransfer.setData("text/plain", column.id);
+        th.dataset.dragging = "true";
+      });
+      th.addEventListener("dragend", () => {
+        delete th.dataset.dragging;
+        this._dragColumn = null;
+        this._thead.querySelectorAll("th[data-drop]").forEach((cell) => delete cell.dataset.drop);
+      });
+      th.addEventListener("dragover", (event) => {
+        if (!this._dragColumn || this._dragColumn === column.id) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        const box = th.getBoundingClientRect();
+        th.dataset.drop = event.clientX < box.left + box.width / 2 ? "before" : "after";
+      });
+      th.addEventListener("dragleave", () => delete th.dataset.drop);
+      th.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const moving = this._dragColumn;
+        const side = th.dataset.drop;
+        delete th.dataset.drop;
+        if (!moving || moving === column.id) return;
+        this.moveColumn(moving, column.id, side === "after");
+      });
+    }
+
+    // Move a column before (or after) another; emits "columns".
+    moveColumn(columnId, targetId, after = false) {
+      const columns = this.options.columns || [];
+      const from = columns.findIndex((c) => c.id === columnId);
+      if (from < 0 || columnId === targetId) return;
+      const [moved] = columns.splice(from, 1);
+      let to = columns.findIndex((c) => c.id === targetId);
+      if (to < 0) {
+        columns.splice(from, 0, moved);
+        return;
+      }
+      if (after) to += 1;
+      columns.splice(to, 0, moved);
+      this._refresh();
+      this._emit("columns", { reason: "reorder", column: columnId, columns: this.getColumnState() });
+    }
+
+    // [{id, width}] in display order; width is null until the column has
+    // been given (or dragged to) a pixel width.
+    getColumnState() {
+      return (this.options.columns || []).map((c) => ({
+        id: c.id,
+        width: typeof c.width === "number" ? c.width : null,
+      }));
     }
 
     _buildContextMenu() {

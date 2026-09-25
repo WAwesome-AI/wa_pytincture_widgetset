@@ -342,6 +342,31 @@ branches are different things (a server, a database) needing different menus —
 hidden groups (or first/last) are hidden too, so per-kind groups need no
 bookkeeping. Kinds travel to the DOM joined with U+001F.
 
+## DataTable column resize and reorder (added 2026-09-25)
+
+Opt-in: `DataTableConfig(resizable_columns=True, reorderable_columns=True,
+min_column_width=48)`. A drag on a header's right edge resizes; dragging a
+header (HTML5 drag and drop) onto another moves it before or after, by which
+half it is dropped on. Both emit `columns` →
+`{reason: "resize"|"reorder", column, columns: [{id, width}]}`
+(`DataTable.on_columns`); `get_column_state()` and `move_column()` exist too.
+The table keeps the widths in `options.columns`, so `set_columns` with widths
+restores a layout. Added for Monguana, which saves layouts per collection.
+
+- **Once any column is resized every column gets a pixel width** (the
+  current rendered ones) and the table takes their sum instead of stretching
+  to 100%, which is what keeps a dropped edge where it was dropped; a table
+  wider than its panel scrolls sideways.
+- **Resizable tables are `box-sizing: border-box`** (`[data-resizable]`), so
+  a measured header width can be written back unchanged. Content-box added
+  the 20 px of padding to every column on each freeze. Scoped, so column
+  widths in tables that do not opt in keep their old meaning.
+- **The grip sits inside its header.** It used to overhang by 4 px, and each
+  sticky header is its own stacking context, so the next header painted over
+  the overhang and a press there started a column drag.
+- A resize swallows the grip's click so it does not sort, and a column drag
+  cannot start while a resize is in progress.
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:

@@ -224,6 +224,20 @@ def test_tree_action_kinds_round_trip():
     assert action["kinds"] == ["database", "server"]
 
 
+def test_datatable_column_features_are_off_by_default():
+    payload = roundtrip(DataTableConfig())
+    assert payload["resizableColumns"] is False
+    assert payload["reorderableColumns"] is False
+    assert payload["minColumnWidth"] == 48
+
+
+def test_datatable_column_features_round_trip():
+    payload = roundtrip(DataTableConfig(resizable_columns=True, reorderable_columns=True,
+                                        min_column_width=60))
+    assert (payload["resizableColumns"], payload["reorderableColumns"], payload["minColumnWidth"]) \
+        == (True, True, 60)
+
+
 # ── File transfer ─────────────────────────────────────────────────────────────
 
 
