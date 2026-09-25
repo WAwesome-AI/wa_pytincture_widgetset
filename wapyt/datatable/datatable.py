@@ -117,6 +117,15 @@ class DataTable:
     def on_filter(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         self._bind_event("filter", handler)
 
+    def on_columns(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """
+        A column was resized or moved (``resizable_columns`` /
+        ``reorderable_columns``). Payload: ``{reason: "resize"|"reorder",
+        column, columns: [{id, width}]}`` in display order; ``width`` is None
+        for a column that has no pixel width yet.
+        """
+        self._bind_event("columns", handler)
+
     def on_drop(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         """
         Files dropped onto the table: ``{"files": [{"name", "size", "type"}]}``.
@@ -147,6 +156,14 @@ class DataTable:
             for column in columns
         ]
         self.datatable.setColumns(js.JSON.parse(json.dumps(payload)))
+
+    def get_column_state(self) -> List[Dict[str, Any]]:
+        """``[{id, width}]`` in display order (see :meth:`on_columns`)."""
+        return list(self._to_py(self.datatable.getColumnState()) or [])
+
+    def move_column(self, column_id: str, target_id: str, after: bool = False) -> None:
+        """Move a column before (or ``after``) another. Emits ``columns``."""
+        self.datatable.moveColumn(column_id, target_id, after)
 
     def get_dropped_files(self) -> Any:
         """The raw JS ``File`` handles from the most recent drop."""

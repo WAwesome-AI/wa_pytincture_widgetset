@@ -210,6 +210,34 @@ def test_tree_action_scopes_round_trip(scope):
     assert action["scope"] == scope
 
 
+def test_tree_action_kinds_are_omitted_unless_given():
+    action = roundtrip(
+        TreeConfig(context_actions=[TreeAction("x", "X")])
+    )["contextActions"][0]
+    assert "kinds" not in action
+
+
+def test_tree_action_kinds_round_trip():
+    action = roundtrip(
+        TreeConfig(context_actions=[TreeAction("x", "X", kinds=("database", "server"))])
+    )["contextActions"][0]
+    assert action["kinds"] == ["database", "server"]
+
+
+def test_datatable_column_features_are_off_by_default():
+    payload = roundtrip(DataTableConfig())
+    assert payload["resizableColumns"] is False
+    assert payload["reorderableColumns"] is False
+    assert payload["minColumnWidth"] == 48
+
+
+def test_datatable_column_features_round_trip():
+    payload = roundtrip(DataTableConfig(resizable_columns=True, reorderable_columns=True,
+                                        min_column_width=60))
+    assert (payload["resizableColumns"], payload["reorderableColumns"], payload["minColumnWidth"]) \
+        == (True, True, 60)
+
+
 # ── File transfer ─────────────────────────────────────────────────────────────
 
 

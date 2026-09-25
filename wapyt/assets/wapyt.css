@@ -683,6 +683,65 @@ textarea.wapyt-form-control {
   user-select: none;
 }
 
+/* A resizable table's widths are what you see: border-box, so a measured
+   header width can be written back unchanged. Scoped to tables that opt in,
+   so existing column widths elsewhere keep their meaning. */
+.wapyt-datatable[data-resizable] th,
+.wapyt-datatable[data-resizable] td {
+  box-sizing: border-box;
+}
+
+.wapyt-datatable[data-resizable] .wapyt-datatable-check {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Inside its own header, not straddling the border: each sticky header is a
+   stacking context, so the next header paints over any overhang and a press
+   there started a column drag instead of a resize. */
+.wapyt-datatable-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
+  touch-action: none;
+}
+
+.wapyt-datatable-resizer::after {
+  content: "";
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  right: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+}
+
+.wapyt-datatable-table th:hover .wapyt-datatable-resizer::after,
+.wapyt-datatable[data-resizing] .wapyt-datatable-resizer::after {
+  background: var(--wapyt-border);
+}
+
+.wapyt-datatable-table th[draggable="true"] {
+  cursor: grab;
+}
+
+.wapyt-datatable-table th[data-dragging] {
+  opacity: 0.45;
+}
+
+.wapyt-datatable-table th[data-drop="before"] {
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.wapyt-datatable-table th[data-drop="after"] {
+  box-shadow: inset -3px 0 0 #2563eb;
+}
+
 .wapyt-datatable-sortable {
   cursor: pointer;
 }
@@ -965,7 +1024,8 @@ textarea.wapyt-form-control {
   cursor: pointer;
 }
 
-.wapyt-tree-menu-item[hidden] {
+.wapyt-tree-menu-item[hidden],
+.wapyt-tree-menu-sep[hidden] {
   display: none;
 }
 

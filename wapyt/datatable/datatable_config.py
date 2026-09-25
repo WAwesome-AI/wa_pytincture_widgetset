@@ -108,6 +108,12 @@ class DataTableConfig:
         context_actions: Right-click menu entries.
         group_dirs_first: Row key (typically ``is_dir``) whose truthy rows are
             kept above the rest whatever the active sort is.
+        resizable_columns: Drag a header's right edge to resize its column.
+            Once any column is resized every column gets a pixel width, and
+            the table takes their sum (scrolling sideways when wider than
+            its panel) instead of stretching them to fill it.
+        reorderable_columns: Drag a header onto another to move its column.
+        min_column_width: Narrowest a resize may make a column, in pixels.
         extra: Additional properties forwarded to JS verbatim.
     """
 
@@ -125,6 +131,9 @@ class DataTableConfig:
     drop_upload: bool = False
     context_actions: List[TableAction] = field(default_factory=list)
     group_dirs_first: Optional[str] = None
+    resizable_columns: bool = False
+    reorderable_columns: bool = False
+    min_column_width: int = 48
     extra: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -149,6 +158,9 @@ class DataTableConfig:
                 for item in self.context_actions
             ],
             "groupDirsFirst": self.group_dirs_first,
+            "resizableColumns": self.resizable_columns,
+            "reorderableColumns": self.reorderable_columns,
+            "minColumnWidth": self.min_column_width,
         }
         payload.update(self.extra or {})
         return _clean(payload)
