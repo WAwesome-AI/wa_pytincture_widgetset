@@ -127,8 +127,12 @@
             node: this.getNode(nodeId),
           });
         });
-        // A folder-only or leaf-only action is filtered when the menu opens.
+        // A folder-only or leaf-only action is filtered when the menu opens,
+        // and so is one limited to certain node kinds (node.data.kind).
         item.dataset.scope = action.scope || "any";
+        if (Array.isArray(action.kinds) && action.kinds.length) {
+          item.dataset.kinds = action.kinds.join("\u001f");
+        }
         menu.appendChild(item);
       });
 
@@ -150,16 +154,31 @@
       if (!this._menu) return;
       const node = this.getNode(nodeId);
       const isBranch = Boolean(node && node.items && node.items.length);
+      const kind = node && node.data && node.data.kind != null ? String(node.data.kind) : null;
       let visible = 0;
       this._menu.querySelectorAll(".wapyt-tree-menu-item").forEach((item) => {
         const scope = item.dataset.scope || "any";
+        const kinds = item.dataset.kinds ? item.dataset.kinds.split("\u001f") : null;
         const show =
-          scope === "any" ||
-          (scope === "branch" && isBranch) ||
-          (scope === "leaf" && !isBranch);
+          (scope === "any" ||
+            (scope === "branch" && isBranch) ||
+            (scope === "leaf" && !isBranch)) &&
+          (!kinds || (kind !== null && kinds.includes(kind)));
         item.hidden = !show;
         if (show) visible += 1;
       });
+      // Separators between groups that are all hidden would stack up.
+      let previousVisible = null;
+      this._menu.childNodes.forEach((child) => {
+        if (child.classList.contains("wapyt-tree-menu-sep")) {
+          child.hidden = previousVisible !== "item";
+          if (!child.hidden) previousVisible = "sep";
+        } else if (!child.hidden) {
+          previousVisible = "item";
+        }
+      });
+      const lastShown = [...this._menu.childNodes].reverse().find((child) => !child.hidden);
+      if (lastShown && lastShown.classList.contains("wapyt-tree-menu-sep")) lastShown.hidden = true;
       if (!visible) return;
 
       this._menu.dataset.nodeId = nodeId;

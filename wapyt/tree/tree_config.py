@@ -66,6 +66,9 @@ class TreeAction:
         label: Visible text.
         icon: MDI class or ligature name.
         scope: ``any`` (default), ``branch`` (folders only) or ``leaf``.
+        kinds: Show only on nodes whose ``data["kind"]`` is one of these —
+            for trees whose branches are different things (a server, a
+            database) that need different menus. Combines with ``scope``.
         danger: Render in the destructive style.
         separator: When True, renders a divider and ignores every other field.
     """
@@ -74,6 +77,7 @@ class TreeAction:
     label: Optional[str] = None
     icon: Optional[str] = None
     scope: str = "any"
+    kinds: Optional[List[str]] = None
     danger: bool = False
     separator: bool = False
 
@@ -86,6 +90,7 @@ class TreeAction:
                 "label": self.label or self.id,
                 "icon": self.icon,
                 "scope": self.scope,
+                "kinds": list(self.kinds) if self.kinds else None,
                 "danger": self.danger or None,
             }
         )

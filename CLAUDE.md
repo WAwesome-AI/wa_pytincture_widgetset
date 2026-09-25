@@ -333,6 +333,15 @@ content taller than it scrolls inside the body rather than the modal growing.
 The session editor needed 740px for nine fields plus the action row — at 640 the
 Save button sat below the fold.
 
+## Tree context menus by node kind (added 2026-09-25)
+
+`TreeAction(kinds=["server", "database"])` shows an entry only on nodes whose
+`data["kind"]` is listed; it combines with `scope`. Added for Monguana, whose
+branches are different things (a server, a database) needing different menus —
+`scope` alone only knows branch vs leaf. Separators that end up between two
+hidden groups (or first/last) are hidden too, so per-kind groups need no
+bookkeeping. Kinds travel to the DOM joined with U+001F.
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:
@@ -348,5 +357,9 @@ Not bugs to fix blindly — context for when they surface:
   define their own private variable sets. No file uses `prefers-color-scheme`.
 - **Debug prints at import**: `chat.py:14` and `cardpanel.py:12` write to stdout on `import wapyt`,
   with stale `WRAPPER_REVISION` cache-busters.
+- **`ModalWindow` sets no font**, so its title and body fall back to the
+  browser's serif default unless the app styles `.wapyt-modal`.
+- **The modal's × button calls `hide()`, not `close()`**: the overlay stays in
+  the DOM. Apps that create a modal per dialog accumulate hidden overlays.
 - `CardPanelConfig` defaults to `title="Data Sources"` with a description about lineage tracking —
   app-specific copy baked into a generic widget.

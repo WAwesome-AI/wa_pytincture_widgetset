@@ -965,7 +965,8 @@ textarea.wapyt-form-control {
   cursor: pointer;
 }
 
-.wapyt-tree-menu-item[hidden] {
+.wapyt-tree-menu-item[hidden],
+.wapyt-tree-menu-sep[hidden] {
   display: none;
 }
 
