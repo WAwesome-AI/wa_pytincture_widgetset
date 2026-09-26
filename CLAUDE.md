@@ -384,7 +384,11 @@ Not bugs to fix blindly — context for when they surface:
   with stale `WRAPPER_REVISION` cache-busters.
 - **`ModalWindow` sets no font**, so its title and body fall back to the
   browser's serif default unless the app styles `.wapyt-modal`.
-- **The modal's × button calls `hide()`, not `close()`**: the overlay stays in
-  the DOM. Apps that create a modal per dialog accumulate hidden overlays.
+- **The modal's × button calls `hide()` unless `ModalConfig(dispose_on_close=True)`**
+  (added 2026-09-25), which makes ×, Escape and a backdrop click `close()` —
+  remove — the dialog. Off by default because wAwesomeChat builds its modals
+  once and reopens them; Monguana, which builds one per use, turns it on.
+  `close()` also removes the modal's document-level Escape listener, which
+  used to outlive every dialog.
 - `CardPanelConfig` defaults to `title="Data Sources"` with a description about lineage tracking —
   app-specific copy baked into a generic widget.

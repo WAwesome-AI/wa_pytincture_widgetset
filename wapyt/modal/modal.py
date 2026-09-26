@@ -17,12 +17,17 @@ class ModalConfig:
         width: Pixel value or CSS size for the modal; defaults to ``520``.
         height: Pixel value or CSS size for the modal; defaults to ``360``.
         closable: When ``False`` the chrome hides the close affordance.
+        dispose_on_close: The close button, Escape and a backdrop click remove
+            the dialog (as :meth:`ModalWindow.close` does) instead of hiding
+            it. For a modal built per use; leave it off for one that is built
+            once and shown again.
     """
 
     title: str = ""
     width: Union[int, str] = 520
     height: Union[int, str] = 360
     closable: bool = True
+    dispose_on_close: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -30,6 +35,7 @@ class ModalConfig:
             "width": self.width,
             "height": self.height,
             "closable": self.closable,
+            "disposeOnClose": self.dispose_on_close,
         }
 
 
