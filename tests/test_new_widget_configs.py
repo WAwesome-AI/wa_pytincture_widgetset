@@ -238,6 +238,13 @@ def test_datatable_column_features_round_trip():
         == (True, True, 60)
 
 
+def test_modal_dispose_on_close_is_off_by_default():
+    from wapyt.modal.modal import ModalConfig
+
+    assert ModalConfig().to_dict()["disposeOnClose"] is False
+    assert ModalConfig(dispose_on_close=True).to_dict()["disposeOnClose"] is True
+
+
 # ── File transfer ─────────────────────────────────────────────────────────────
 
 

@@ -19,6 +19,10 @@
           width: 520,
           height: 360,
           closable: true,
+          // × , Escape and a backdrop click remove the dialog (close())
+          // instead of hiding it. For apps that build a modal per use; off by
+          // default because apps that build one and reopen it need hide().
+          disposeOnClose: false,
         },
         options || {}
       );
@@ -32,7 +36,7 @@
       this.overlay.style.display = "none";
       this.overlay.addEventListener("click", (event) => {
         if (event.target === this.overlay) {
-          this.hide();
+          this._dismiss();
         }
       });
 
@@ -53,7 +57,7 @@
         closeBtn.type = "button";
         closeBtn.className = "wapyt-modal-close";
         closeBtn.innerHTML = "&times;";
-        closeBtn.addEventListener("click", () => this.hide());
+        closeBtn.addEventListener("click", () => this._dismiss());
         header.appendChild(closeBtn);
       }
 
@@ -65,11 +69,22 @@
       this.overlay.appendChild(this.modal);
       document.body.appendChild(this.overlay);
 
-      document.addEventListener("keydown", (event) => {
+      // Kept so close() can remove it: a document-level listener would
+      // otherwise outlive the dialog it belongs to.
+      this._onKeydown = (event) => {
         if (event.key === "Escape" && this._visible) {
-          this.hide();
+          this._dismiss();
         }
-      });
+      };
+      document.addEventListener("keydown", this._onKeydown);
+    }
+
+    _dismiss() {
+      if (this.options.disposeOnClose) {
+        this.close();
+      } else {
+        this.hide();
+      }
     }
 
     setTitle(title) {
@@ -118,6 +133,7 @@
     close() {
       this.hide();
       this.overlay.remove();
+      document.removeEventListener("keydown", this._onKeydown);
     }
   }
 
