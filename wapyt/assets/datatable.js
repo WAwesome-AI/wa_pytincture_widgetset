@@ -586,7 +586,19 @@
             }
             td.appendChild(icon);
           } else {
-            td.textContent = value == null ? "" : String(value);
+            const text = value == null ? "" : String(value);
+            const marker = column.iconBy ? row[column.iconBy] : null;
+            if (marker) {
+              const icon = document.createElement("span");
+              icon.className = `${iconClass(marker)} wapyt-datatable-cell-icon`;
+              if (row[`${column.iconBy}_title`]) {
+                icon.title = String(row[`${column.iconBy}_title`]);
+              }
+              td.appendChild(icon);
+              td.appendChild(document.createTextNode(text));
+            } else {
+              td.textContent = text;
+            }
             if (column.ellipsis !== false) {
               td.className = "wapyt-datatable-ellipsis";
               td.title = value == null ? "" : String(value);
