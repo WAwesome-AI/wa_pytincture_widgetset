@@ -140,6 +140,14 @@ def test_column_sort_by_is_camel_cased():
     assert column["sortBy"] == "size_bytes"
 
 
+def test_column_icon_by_is_camel_cased_and_omitted_by_default():
+    columns = roundtrip(
+        DataTableConfig(columns=[ColumnConfig(id="v", icon_by="v_type"), ColumnConfig(id="w")])
+    )["columns"]
+    assert columns[0]["iconBy"] == "v_type"
+    assert "iconBy" not in columns[1]
+
+
 def test_empty_header_is_preserved():
     """An icon column wants a blank header, which must not fall back to the id."""
     column = roundtrip(

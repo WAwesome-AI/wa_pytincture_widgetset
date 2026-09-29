@@ -768,6 +768,14 @@ textarea.wapyt-form-control {
   white-space: nowrap;
 }
 
+/* A column's icon_by marker, ahead of the value. */
+.wapyt-datatable-cell-icon {
+  margin-right: 5px;
+  font-size: 14px;
+  opacity: 0.75;
+  vertical-align: -1px;
+}
+
 .wapyt-datatable-check {
   width: 34px;
   text-align: center;

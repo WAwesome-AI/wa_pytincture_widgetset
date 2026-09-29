@@ -28,6 +28,9 @@ class ColumnConfig:
             class name as its value and renders it as a glyph.
         ellipsis: Truncate with an ellipsis and set a title tooltip
             (default True for text columns).
+        icon_by: Row key holding an MDI class name drawn as a small glyph
+            before a text cell's value -- a per-cell type or status marker.
+            ``<icon_by>_title``, when the row has it, is the glyph's tooltip.
     """
 
     id: str
@@ -38,6 +41,7 @@ class ColumnConfig:
     sort_by: Optional[str] = None
     type: str = "text"
     ellipsis: bool = True
+    icon_by: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return _clean(
@@ -50,6 +54,7 @@ class ColumnConfig:
                 "sortBy": self.sort_by,
                 "type": self.type,
                 "ellipsis": self.ellipsis,
+                "iconBy": self.icon_by,
             }
         )
 

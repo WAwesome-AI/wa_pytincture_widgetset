@@ -367,6 +367,14 @@ restores a layout. Added for Monguana, which saves layouts per collection.
 - A resize swallows the grip's click so it does not sort, and a column drag
   cannot start while a resize is in progress.
 
+## DataTable per-cell icons (added 2026-09-29)
+
+`ColumnConfig(icon_by="<row key>")` draws the MDI class in that row key as a
+small glyph (`.wapyt-datatable-cell-icon`) before a text cell's value;
+`<row key>_title` is its tooltip, the same convention as `type="icon"`
+columns. A row without the key renders plain text. Added for Monguana's BSON
+type markers; style per icon by targeting the MDI class.
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:
