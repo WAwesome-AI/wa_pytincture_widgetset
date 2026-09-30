@@ -232,6 +232,33 @@ def test_tree_action_kinds_round_trip():
     assert action["kinds"] == ["database", "server"]
 
 
+def test_tree_action_requires_is_omitted_unless_given():
+    action = roundtrip(
+        TreeConfig(context_actions=[TreeAction("x", "X")])
+    )["contextActions"][0]
+    assert "requires" not in action
+
+
+def test_tree_action_requires_round_trips():
+    action = roundtrip(
+        TreeConfig(context_actions=[TreeAction("x", "X", kinds=["collection"],
+                                               requires=("rename",))])
+    )["contextActions"][0]
+    assert action["kinds"] == ["collection"]
+    assert action["requires"] == ["rename"]
+
+
+def test_tree_menu_filters_on_node_flags():
+    """The filter itself is JS; pin that it reads node.data.flags and needs all of them."""
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "wapyt" / "assets" / "tree.js").read_text(
+        encoding="utf-8")
+    assert "item.dataset.requires" in source
+    assert "requires.every((flag) => flags.includes(flag))" in source
+    assert "node.data.flags" in source
+
+
 def test_datatable_column_features_are_off_by_default():
     payload = roundtrip(DataTableConfig())
     assert payload["resizableColumns"] is False

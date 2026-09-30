@@ -69,6 +69,10 @@ class TreeAction:
         kinds: Show only on nodes whose ``data["kind"]`` is one of these —
             for trees whose branches are different things (a server, a
             database) that need different menus. Combines with ``scope``.
+        requires: Show only on nodes whose ``data["flags"]`` list contains
+            every one of these — for per-node features (what a node's backend
+            supports, say) that ``kinds`` cannot express. Combines with the
+            others.
         danger: Render in the destructive style.
         separator: When True, renders a divider and ignores every other field.
     """
@@ -78,6 +82,7 @@ class TreeAction:
     icon: Optional[str] = None
     scope: str = "any"
     kinds: Optional[List[str]] = None
+    requires: Optional[List[str]] = None
     danger: bool = False
     separator: bool = False
 
@@ -91,6 +96,7 @@ class TreeAction:
                 "icon": self.icon,
                 "scope": self.scope,
                 "kinds": list(self.kinds) if self.kinds else None,
+                "requires": list(self.requires) if self.requires else None,
                 "danger": self.danger or None,
             }
         )
