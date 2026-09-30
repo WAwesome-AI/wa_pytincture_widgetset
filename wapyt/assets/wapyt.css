@@ -482,12 +482,15 @@
 
 /* A native select keeps its platform appearance and ignores `background`
    unless appearance is reset, which is why it rendered light-on-light inside a
-   dark form. The caret is drawn back in as an inline SVG so no asset is needed. */
+   dark form. The caret is drawn back in as an inline SVG so no asset is needed.
+   Its quotes are percent-encoded (%27): pytincture rewrites every url(...) in
+   widget CSS as url('...'), and a raw ' inside ended the URL early, so the
+   browser dropped the caret and a select looked like a text box. */
 select.wapyt-form-control {
   appearance: none;
   -webkit-appearance: none;
   padding-right: 30px;
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%2394a3b8' d='M4.5 6.5 8 10l3.5-3.5z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Cpath fill=%27%2394a3b8%27 d=%27M4.5 6.5 8 10l3.5-3.5z%27/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 9px center;
   background-size: 16px 16px;
@@ -583,8 +586,11 @@ textarea.wapyt-form-control {
   background: var(--wapyt-surface);
 }
 
+/* background-color, not the `background` shorthand: this rule outranks
+   `select.wapyt-form-control`, and the shorthand reset its caret image, so a
+   dark select looked like a read-only text box. */
 [data-wapyt-theme="dark"] .wapyt-form-control {
-  background: var(--wapyt-bg-dark);
+  background-color: var(--wapyt-bg-dark);
   color: var(--wapyt-text-dark);
   border-color: var(--wapyt-border-dark);
 }

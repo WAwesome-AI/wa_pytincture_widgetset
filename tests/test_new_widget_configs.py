@@ -303,3 +303,32 @@ def test_filetransfer_exports_everything_it_defines():
     missing = sorted(name for name in public if not hasattr(package, name))
     assert missing == [], f"defined but not exported: {missing}"
     assert set(package.__all__) >= public
+
+
+def test_dark_theme_keeps_the_select_caret():
+    """The dark form-control rule outranks the select rule; it must not reset its caret."""
+    import re
+    from pathlib import Path
+
+    css = (Path(__file__).resolve().parents[1] / "wapyt" / "assets" / "wapyt.css").read_text(
+        encoding="utf-8")
+    dark = re.search(r'\[data-wapyt-theme="dark"\] \.wapyt-form-control \{([^}]*)\}', css)
+    assert dark, "dark form-control rule not found"
+    assert re.search(r"(^|[;\s])background:", dark.group(1)) is None
+    assert "background-image" in css.split("select.wapyt-form-control {", 1)[1].split("}", 1)[0]
+
+
+def test_css_urls_survive_pytinctures_quote_rewrite():
+    """
+    pytincture rewrites every url(...) in widget CSS as url('...'). A quote
+    inside the URL would end it early and the browser drops the declaration
+    (the select caret went missing this way), so none may contain one.
+    """
+    import re
+    from pathlib import Path
+
+    assets = Path(__file__).resolve().parents[1] / "wapyt" / "assets"
+    for sheet in assets.glob("*.css"):
+        for url in re.findall(r"url\(([^)]+)\)", sheet.read_text(encoding="utf-8")):
+            inner = url.strip().strip("'").strip('"')
+            assert "'" not in inner and '"' not in inner, f"{sheet.name}: {url[:60]}"
