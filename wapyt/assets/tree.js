@@ -128,10 +128,14 @@
           });
         });
         // A folder-only or leaf-only action is filtered when the menu opens,
-        // and so is one limited to certain node kinds (node.data.kind).
+        // and so is one limited to certain node kinds (node.data.kind) or
+        // needing flags the node carries (node.data.flags).
         item.dataset.scope = action.scope || "any";
         if (Array.isArray(action.kinds) && action.kinds.length) {
           item.dataset.kinds = action.kinds.join("\u001f");
+        }
+        if (Array.isArray(action.requires) && action.requires.length) {
+          item.dataset.requires = action.requires.join("\u001f");
         }
         menu.appendChild(item);
       });
@@ -155,15 +159,19 @@
       const node = this.getNode(nodeId);
       const isBranch = Boolean(node && node.items && node.items.length);
       const kind = node && node.data && node.data.kind != null ? String(node.data.kind) : null;
+      const flags = node && node.data && Array.isArray(node.data.flags)
+        ? node.data.flags.map(String) : [];
       let visible = 0;
       this._menu.querySelectorAll(".wapyt-tree-menu-item").forEach((item) => {
         const scope = item.dataset.scope || "any";
         const kinds = item.dataset.kinds ? item.dataset.kinds.split("\u001f") : null;
+        const requires = item.dataset.requires ? item.dataset.requires.split("\u001f") : [];
         const show =
           (scope === "any" ||
             (scope === "branch" && isBranch) ||
             (scope === "leaf" && !isBranch)) &&
-          (!kinds || (kind !== null && kinds.includes(kind)));
+          (!kinds || (kind !== null && kinds.includes(kind))) &&
+          requires.every((flag) => flags.includes(flag));
         item.hidden = !show;
         if (show) visible += 1;
       });

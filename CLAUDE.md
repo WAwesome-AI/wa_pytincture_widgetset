@@ -342,6 +342,13 @@ branches are different things (a server, a database) needing different menus —
 hidden groups (or first/last) are hidden too, so per-kind groups need no
 bookkeeping. Kinds travel to the DOM joined with U+001F.
 
+`TreeAction(requires=["rename"])` (2026-09-30, Monguana phase 39) shows an
+entry only on nodes whose `data["flags"]` list holds **every** name given; it
+combines with `kinds` and `scope`. For per-node features `kinds` cannot
+express: Monguana puts what a connection's backend supports into each node's
+flags, so a tinymongo collection has no *Rename*. A node without `flags` shows
+no entry that has `requires`.
+
 ## DataTable column resize and reorder (added 2026-09-25)
 
 Opt-in: `DataTableConfig(resizable_columns=True, reorderable_columns=True,
