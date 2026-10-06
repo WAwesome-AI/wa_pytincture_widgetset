@@ -421,6 +421,32 @@ Promise of `{ok, value}`, which the Python side awaits.
 (results, keys, focus trap/restore, escaping, toast cap/timers, dark theme)
 passed.
 
+## Toolbar (added 2026-10-06)
+
+`Toolbar` (`assets/toolbar.js`, `Layout.add_toolbar(id="mainwindow_header", ...)`)
+replaces the toolbars Monguana and IguanaXterm built from HTML. Items:
+`ToolbarButton`, `ToolbarText`, `ToolbarSeparator`, `ToolbarSpacer`.
+
+- Buttons take `variant` (`primary` / `accent` / `danger`), `toggle=True`, or
+  `group="..."` for one-of-several choices (IguanaXterm's tabbed/tiled switch);
+  pressed state is `aria-pressed`. `on_click` → `{id, group, active}`.
+- `hidden=` plus `set_hidden` / `set_text` / `set_badge` cover the buttons the
+  apps show and relabel at runtime ("Reconnect 3", "Update 2.4.0"); a
+  `ToolbarText` holds the signed-in user's name.
+- **Compact mode** (`compact="auto"`): a ResizeObserver drops labels to icons
+  once the labelled toolbar overflows, remembering the labelled width so it
+  expands again only when that fits. Labels stay as `title` and the
+  accessible name. `keep_label=True` exempts a button; a button with no icon
+  always keeps its text.
+- WAI-ARIA toolbar keyboard model: one tab stop, arrows/Home/End move.
+- **`JsNull` in payloads.** `to_py()` turns JS `null` into `JsNull`, which is
+  not `None`; Toolbar's `_plain()` maps it, so `payload["group"] is None`
+  holds. Tree's `on_select` (`id: null` when the selection clears) and other
+  wrappers still pass `JsNull` through.
+
+`tests/toolbar_demo.py` reproduces IguanaXterm's toolbar; a 26-check
+Playwright run against it passed.
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:

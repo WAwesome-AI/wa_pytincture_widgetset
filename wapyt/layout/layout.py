@@ -116,6 +116,12 @@ class Layout(object, metaclass=LoadUICaller):
         terminal_widget = Terminal(config=terminal_config or TerminalConfig(), container=self.layout.getCell(id))
         return terminal_widget
 
+    def add_toolbar(self, id: str = "mainwindow_header", toolbar_config: Optional["ToolbarConfig"] = None) -> "Toolbar":
+        from ..toolbar import Toolbar, ToolbarConfig
+
+        toolbar_widget = Toolbar(config=toolbar_config or ToolbarConfig(), container=self.layout.getCell(id))
+        return toolbar_widget
+
     def add_sidebar(self, id: str = "mainwindow", sidebar_config: Optional["SidebarConfig"] = None) -> "Sidebar":
         sidebar_widget = Sidebar(config=sidebar_config or SidebarConfig(), container=self.layout.getCell(id))
         return sidebar_widget

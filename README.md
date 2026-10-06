@@ -18,6 +18,7 @@
 - `ModalWindow`: Simple modal shell that can host arbitrary Layout instances or HTML snippets.
 - `ResourceBoard`: Master/detail resource explorer with selectable rows, action hooks, and optional add button wiring.
 - `message`: Toasts plus awaitable `alert` / `confirm` / `prompt` dialogs, styled and themed, in place of `window.confirm()`.
+- `Toolbar`: Buttons, toggles, one-of-several groups, text, separators and spacers, dropping to icons when space runs out.
 
 ## Runtime Architecture
 - Layouts and widgets are declared in Python but render as DOM nodes through the JavaScript bundles under `wapyt/assets/`. Each helper (e.g., `Layout.add_chat`) forwards config dictionaries directly to the matching JS constructor.
