@@ -527,6 +527,17 @@ passes dicts (`{"id", "cell"}`, `cell` still a JS object, `None` for the root).
 again. Verified in Chromium: the same page reports `JsNull` on the old wheel
 and `None` on this one for all seven values.
 
+## File-transfer CSRF cookie (fixed 2026-10-06)
+
+`filetransfer.js` used to send `X-CSRF-Token` only for cookies matching
+`pytincture…csrf`, so an app using pytincture's `cookie_namespace` (#376) got
+403 on every upload. It now reads the exact cookie pytincture names in
+`globalThis.__pytinctureCsrfCookieName`, and never another app's on the same
+host; without that hint (older runtime, standalone page) it accepts
+pytincture's shapes, `__Host-<ns>-csrf` / `<ns>-dev-csrf`, preferring the
+default namespace. `tests/test_filetransfer_csrf.py` runs the real function
+under Node.
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:
