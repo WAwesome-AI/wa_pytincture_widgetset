@@ -33,7 +33,7 @@ class Chat:
 
         layout = Layout(LayoutConfig(rows=[CellConfig(id="chat", grow=1)]))
         chat = layout.add_chat("chat", ChatConfig())
-        chat.on_send(lambda payload: print("User sent:", payload["content"]))
+        chat.on_send(lambda payload: print("User sent:", payload["text"]))
 
     The widget exposes helpers for streaming updates (`start_stream`,
     `append_stream`, `finish_stream`) so LLM-driven agents can incrementally
@@ -112,7 +112,13 @@ class Chat:
     def on_send(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         """
         Fired when the user submits a prompt from the composer.
-        Handler receives a payload with message text and identifiers.
+
+        The payload is ``{"id", "text", "message"}``: ``id`` is a fresh
+        ``prompt-*`` identifier, ``text`` the trimmed prompt, and ``message``
+        the user message dict (``role``, ``content``, ``name``, ``avatar``)
+        that the widget appends to the transcript when
+        ``auto_append_user_messages`` is on. Read the prompt from ``text``;
+        there is no top-level ``content`` key.
         """
         self._bind_event("send", handler)
 
