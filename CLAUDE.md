@@ -470,6 +470,10 @@ submenus via `items`. Not mounted in a cell.
 
 `tests/contextmenu_demo.py` drives it; a 30-check Playwright run passed.
 
+Toolbar and ContextMenu separators use `--wapyt-divider` / `--wapyt-divider-dark`
+(#cbd5e1 / #475569). The border tokens they first used were invisible as a
+line in dark mode: `--wapyt-border-dark` on `--wapyt-surface-dark` is 1.00:1.
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:
