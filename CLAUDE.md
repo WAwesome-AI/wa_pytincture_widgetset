@@ -447,6 +447,29 @@ replaces the toolbars Monguana and IguanaXterm built from HTML. Items:
 `tests/toolbar_demo.py` reproduces IguanaXterm's toolbar; a 26-check
 Playwright run against it passed.
 
+## ContextMenu (added 2026-10-06)
+
+`ContextMenu` (`assets/contextmenu.js`) is a standalone right-click menu:
+`MenuItem(id, label, icon, shortcut, danger, disabled, items, separator)`,
+submenus via `items`. Not mounted in a cell.
+
+- `attach(target, context)` opens it on right-click, Shift+F10 or the Menu
+  key; the payload's `target` is the `data-context` of the nearest such
+  ancestor of the click (a row id). `show_at(x, y, context=, hide=[], disable=[])`
+  is the per-opening form; `hide`/`disable` replace what Tree does with
+  `kinds`/`requires`. `on_select` → `{id, context, target}`.
+- WAI-ARIA menu: focus moves in, arrows/Home/End/Enter/Escape, ArrowRight
+  opens and ArrowLeft closes a submenu, focus returns to the opener. Disabled
+  items stay focusable but cannot be chosen.
+- Separators that would lead, trail or double up after hiding are dropped.
+- One menu open per page; document listeners are added on open and removed
+  on close (Tree/DataTable add a `keydown` listener per instance and never
+  remove it). Positions clamp to the viewport; submenus flip left at the edge.
+- Tree, DataTable and Terminal still build their own menus. Moving them onto
+  this, keeping `TreeAction`/`TableAction` as the public API, is the next step.
+
+`tests/contextmenu_demo.py` drives it; a 30-check Playwright run passed.
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:
