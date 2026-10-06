@@ -165,6 +165,9 @@
 .wapyt-modal {
   background: var(--wapyt-bg, #fff);
   color: var(--wapyt-text, #0f172a);
+  /* Mounted on <body>, outside any layout, so it does not inherit the
+     layout's font. The fallback covers a page without wapyt.css. */
+  font-family: var(--wapyt-font-family, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
   border-radius: 16px;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.35);
   max-width: calc(100vw - 40px);

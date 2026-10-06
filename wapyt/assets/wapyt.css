@@ -1,4 +1,8 @@
 :root {
+  /* Base typeface for layouts and modals. wapyt sets it itself rather than
+     inheriting from the page, whose default is the browser's serif; restyle
+     the whole widgetset by overriding this one property. */
+  --wapyt-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --wapyt-gap: 0px;
   --wapyt-border: #e2e8f0;
   --wapyt-border-dark: #1f2937;
@@ -22,6 +26,7 @@
   flex-direction: column;
   background: var(--wapyt-bg);
   color: var(--wapyt-text);
+  font-family: var(--wapyt-font-family);
   position: relative;
 }
 
