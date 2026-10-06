@@ -26,6 +26,14 @@ from .tree.tree_config import TreeConfig, TreeItem, TreeAction
 from .datatable.datatable_config import DataTableConfig, ColumnConfig, TableAction
 from .form.form_config import FormConfig, FieldConfig, SelectOption
 from .terminal.terminal import Terminal
+from .toolbar.toolbar import Toolbar
+from .toolbar.toolbar_config import (
+    ToolbarButton,
+    ToolbarConfig,
+    ToolbarSeparator,
+    ToolbarSpacer,
+    ToolbarText,
+)
 from .terminal.terminal_config import TerminalConfig, TerminalTheme
 from .resourceboard.resourceboard import ResourceBoard
 from .resourceboard.resourceboard_config import ResourceBoardConfig, ResourceItem
@@ -71,6 +79,12 @@ __all__ = [
     "Terminal",
     "TerminalConfig",
     "TerminalTheme",
+    "Toolbar",
+    "ToolbarConfig",
+    "ToolbarButton",
+    "ToolbarText",
+    "ToolbarSeparator",
+    "ToolbarSpacer",
     "ResourceBoard",
     "ResourceBoardConfig",
     "ResourceItem",

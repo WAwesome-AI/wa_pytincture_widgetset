@@ -1228,3 +1228,76 @@ textarea.wapyt-form-control {
 @media (prefers-reduced-motion: reduce) {
   .wapyt-toast { transition: none; }
 }
+
+/* ── Toolbar ──────────────────────────────────────────────────────────────── */
+.wapyt-toolbar {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  overflow: hidden;
+  background: var(--wapyt-surface);
+  color: var(--wapyt-text);
+  border-bottom: 1px solid var(--wapyt-border);
+  font: 13px/1.2 var(--wapyt-font-family);
+}
+.wapyt-toolbar-btn {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.wapyt-toolbar-btn[hidden], .wapyt-toolbar-text[hidden] { display: none; }
+.wapyt-toolbar-btn:hover:not(:disabled) { background: rgba(15, 23, 42, 0.06); border-color: var(--wapyt-border); }
+.wapyt-toolbar-btn:focus-visible { outline: 2px solid #3b82f6; outline-offset: 1px; }
+.wapyt-toolbar-btn:disabled { opacity: 0.45; cursor: default; }
+.wapyt-toolbar-btn[aria-pressed="true"] { background: rgba(37, 99, 235, 0.12); border-color: rgba(37, 99, 235, 0.45); color: #1d4ed8; }
+.wapyt-toolbar-btn[data-variant="primary"] { background: #2563eb; border-color: #2563eb; color: #fff; }
+.wapyt-toolbar-btn[data-variant="primary"]:hover:not(:disabled) { background: #1d4ed8; }
+.wapyt-toolbar-btn[data-variant="accent"] { background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.45); color: #047857; }
+.wapyt-toolbar-btn[data-variant="danger"] { color: #dc2626; }
+.wapyt-toolbar-btn[data-variant="danger"]:hover:not(:disabled) { background: rgba(220, 38, 38, 0.08); border-color: rgba(220, 38, 38, 0.35); }
+.wapyt-toolbar-icon { font-size: 16px; }
+.wapyt-toolbar-badge {
+  min-width: 16px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+}
+.wapyt-toolbar-badge[hidden] { display: none; }
+.wapyt-toolbar-sep { flex: none; width: 1px; height: 20px; margin: 0 6px; background: var(--wapyt-border); }
+.wapyt-toolbar-spacer { flex: 1 1 auto; min-width: 8px; }
+.wapyt-toolbar-text { flex: 0 1 auto; min-width: 0; padding: 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.7; font-size: 12px; }
+/* Icon-only when the labelled toolbar no longer fits; the label stays as the
+   tooltip and accessible name. keep_label buttons, and buttons with no icon,
+   keep their text. */
+.wapyt-toolbar[data-compact="true"] .wapyt-toolbar-btn:not([data-keep-label]) .wapyt-toolbar-icon ~ .wapyt-toolbar-label { display: none; }
+.wapyt-toolbar[data-compact="true"] .wapyt-toolbar-btn { padding: 6px 8px; }
+[data-wapyt-theme="dark"] .wapyt-toolbar {
+  background: var(--wapyt-surface-dark);
+  color: var(--wapyt-text-dark);
+  border-bottom-color: var(--wapyt-border-dark);
+}
+[data-wapyt-theme="dark"] .wapyt-toolbar-btn:hover:not(:disabled) { background: rgba(148, 163, 184, 0.12); border-color: #334155; }
+[data-wapyt-theme="dark"] .wapyt-toolbar-btn[aria-pressed="true"] { background: rgba(59, 130, 246, 0.2); border-color: rgba(96, 165, 250, 0.5); color: #bfdbfe; }
+[data-wapyt-theme="dark"] .wapyt-toolbar-btn[data-variant="accent"] { background: rgba(16, 185, 129, 0.15); border-color: rgba(52, 211, 153, 0.45); color: #6ee7b7; }
+[data-wapyt-theme="dark"] .wapyt-toolbar-btn[data-variant="danger"] { color: #f87171; }
+[data-wapyt-theme="dark"] .wapyt-toolbar-sep { background: var(--wapyt-border-dark); }
