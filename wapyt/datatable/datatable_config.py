@@ -142,6 +142,10 @@ class DataTableConfig:
             its panel) instead of stretching them to fill it.
         reorderable_columns: Drag a header onto another to move its column.
         min_column_width: Narrowest a resize may make a column, in pixels.
+        frozen_columns: How many leading columns stay in place while the
+            table scrolls sideways (dhxpyt's ``leftSplit``); the multi-select
+            checkbox column goes with them. The table scrolls sideways once
+            its column widths add up to more than the panel.
         extra: Additional properties forwarded to JS verbatim.
     """
 
@@ -162,6 +166,7 @@ class DataTableConfig:
     resizable_columns: bool = False
     reorderable_columns: bool = False
     min_column_width: int = 48
+    frozen_columns: int = 0
     extra: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -189,6 +194,7 @@ class DataTableConfig:
             "resizableColumns": self.resizable_columns,
             "reorderableColumns": self.reorderable_columns,
             "minColumnWidth": self.min_column_width,
+            "frozenColumns": self.frozen_columns or None,
         }
         payload.update(self.extra or {})
         return _clean(payload)

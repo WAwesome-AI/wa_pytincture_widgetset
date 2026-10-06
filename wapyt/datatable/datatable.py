@@ -180,6 +180,12 @@ class DataTable:
         """Close an open editor without saving."""
         self.datatable.cancelEdit()
 
+    def set_frozen_columns(self, count: int) -> None:
+        """Freeze the first ``count`` columns (0 unfreezes)."""
+        if count < 0:
+            raise ValueError("count must not be negative")
+        self.datatable.setFrozenColumns(int(count))
+
     def set_columns(self, columns: List[ColumnConfig]) -> None:
         payload = [
             column.to_dict() if hasattr(column, "to_dict") else column

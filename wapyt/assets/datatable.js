@@ -66,6 +66,8 @@
           resizableColumns: false,
           reorderableColumns: false,
           minColumnWidth: 48,
+          // Leading columns that stay put while the table scrolls sideways.
+          frozenColumns: 0,
         },
         options || {}
       );
@@ -135,6 +137,12 @@
       });
       this._scroller.appendChild(this._table);
       this._host.appendChild(this._scroller);
+      // The frozen edge casts a shadow only once something is underneath it.
+      this._scroller.addEventListener("scroll", () => {
+        const scrolled = this._scroller.scrollLeft > 0;
+        if (scrolled) this._host.dataset.scrolledX = "true";
+        else delete this._host.dataset.scrolledX;
+      }, { passive: true });
 
       this._status = document.createElement("div");
       this._status.className = "wapyt-datatable-status";
@@ -213,6 +221,73 @@
 
       this._thead.appendChild(tr);
       this._applyTableWidth();
+      this._observeFrozen();
+    }
+
+    // ── Frozen columns ───────────────────────────────────────────────────────
+
+    // How many leading cells per row are frozen: the multi-select checkbox
+    // column always goes with them.
+    _frozenCount() {
+      const n = Math.max(0, Math.trunc(Number(this.options.frozenColumns) || 0));
+      if (!n) return 0;
+      const columns = (this.options.columns || []).length;
+      return Math.min(n, columns) + (this.options.selection === "multi" ? 1 : 0);
+    }
+
+    // Sticky cells with `left` set to the widths of the header cells before
+    // them. Header widths are the truth (table-layout: fixed), so body rows
+    // just copy the offsets.
+    _applyFrozen() {
+      const headRow = this._thead.firstElementChild;
+      if (!headRow) return;
+      const count = this._frozenCount();
+      const heads = Array.from(headRow.children);
+      const offsets = [];
+      let left = 0;
+      heads.forEach((th, i) => {
+        offsets.push(i < count ? left : null);
+        if (i < count) left += th.getBoundingClientRect().width;
+      });
+      const mark = (cell, i) => {
+        if (offsets[i] == null) {
+          if (cell.dataset.frozen) {
+            delete cell.dataset.frozen;
+            cell.style.left = "";
+          }
+          return;
+        }
+        cell.dataset.frozen = i === count - 1 ? "last" : "true";
+        cell.style.left = `${offsets[i]}px`;
+      };
+      heads.forEach(mark);
+      Array.from(this._tbody.children).forEach((tr) => Array.from(tr.children).forEach(mark));
+      if (count) this._host.dataset.frozen = String(count);
+      else delete this._host.dataset.frozen;
+    }
+
+    // Column resizes (dragged, or the panel changing size) move the offsets.
+    _observeFrozen() {
+      if (this._frozenObserver) this._frozenObserver.disconnect();
+      const count = this._frozenCount();
+      if (!count || typeof ResizeObserver === "undefined") return;
+      const headRow = this._thead.firstElementChild;
+      if (!headRow) return;
+      let frame = 0;
+      this._frozenObserver = new ResizeObserver(() => {
+        if (frame) return;
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          this._applyFrozen();
+        });
+      });
+      Array.from(headRow.children).slice(0, count).forEach((th) => this._frozenObserver.observe(th));
+    }
+
+    setFrozenColumns(count) {
+      this.options.frozenColumns = Math.max(0, Math.trunc(Number(count) || 0));
+      this._observeFrozen();
+      this._applyFrozen();
     }
 
     // ── Column resize and reorder ────────────────────────────────────────────
@@ -593,6 +668,7 @@
 
       this._tbody.appendChild(fragment);
       this._syncTabStop();
+      this._applyFrozen();
     }
 
     // Draw one body cell's content. Also used after an edit, which redraws
@@ -1094,6 +1170,7 @@
     }
 
     destroy() {
+      if (this._frozenObserver) this._frozenObserver.disconnect();
       if (this._menu) {
         this._menu.destroy();
         this._menu = null;

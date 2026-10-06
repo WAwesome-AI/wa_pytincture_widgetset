@@ -1158,6 +1158,43 @@ input[type="color"].wapyt-form-control {
   background: rgba(37, 99, 235, 0.14);
 }
 
+/* Frozen columns: sticky on both axes. Sticky cells need an opaque
+   background or the scrolled cells show through, so the row's hover and
+   selected tints are repeated on them as solid layers over the base colour. */
+.wapyt-datatable-table td[data-frozen] {
+  position: sticky;
+  z-index: 1;
+  background: var(--wapyt-bg);
+}
+.wapyt-datatable-table th[data-frozen] { z-index: 3; }
+.wapyt-datatable-table tbody tr:hover td[data-frozen] { background: var(--wapyt-surface); }
+.wapyt-datatable-table tbody tr[data-selected="true"] td[data-frozen] {
+  background: linear-gradient(rgba(37, 99, 235, 0.14), rgba(37, 99, 235, 0.14)), var(--wapyt-bg);
+}
+.wapyt-datatable-table td[data-frozen="last"],
+.wapyt-datatable-table th[data-frozen="last"] {
+  box-shadow: inset -1px 0 0 var(--wapyt-border);
+}
+.wapyt-datatable[data-scrolled-x] td[data-frozen="last"],
+.wapyt-datatable[data-scrolled-x] th[data-frozen="last"] {
+  box-shadow: inset -1px 0 0 var(--wapyt-border), 6px 0 8px -6px rgba(15, 23, 42, 0.35);
+}
+/* An error or edit outline on a frozen cell still wins. */
+.wapyt-datatable-table td[data-frozen][data-error="true"] { box-shadow: inset 0 0 0 2px #dc2626; }
+[data-wapyt-theme="dark"] .wapyt-datatable-table td[data-frozen] { background: var(--wapyt-bg-dark); }
+[data-wapyt-theme="dark"] .wapyt-datatable-table tbody tr:hover td[data-frozen] { background: var(--wapyt-surface-dark); }
+[data-wapyt-theme="dark"] .wapyt-datatable-table tbody tr[data-selected="true"] td[data-frozen] {
+  background: linear-gradient(rgba(37, 99, 235, 0.14), rgba(37, 99, 235, 0.14)), var(--wapyt-bg-dark);
+}
+[data-wapyt-theme="dark"] .wapyt-datatable-table td[data-frozen="last"],
+[data-wapyt-theme="dark"] .wapyt-datatable-table th[data-frozen="last"] {
+  box-shadow: inset -1px 0 0 var(--wapyt-divider-dark);
+}
+[data-wapyt-theme="dark"] .wapyt-datatable[data-scrolled-x] td[data-frozen="last"],
+[data-wapyt-theme="dark"] .wapyt-datatable[data-scrolled-x] th[data-frozen="last"] {
+  box-shadow: inset -1px 0 0 var(--wapyt-divider-dark), 6px 0 8px -6px rgba(0, 0, 0, 0.6);
+}
+
 .wapyt-datatable-status {
   padding: 18px 12px;
   text-align: center;

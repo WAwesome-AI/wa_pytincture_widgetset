@@ -458,6 +458,34 @@ keyboard, tab stop, validation, refusal round-trip, no jump, mid-edit
 re-render, edit_cell on a new row, modal Escape, dark) plus 7 selection
 regression checks passed.
 
+## DataTable frozen columns (added 2026-10-06)
+
+`DataTableConfig(frozen_columns=N)` / `set_frozen_columns(n)`, dhxpyt's
+`leftSplit`. The multi-select checkbox column freezes with them.
+
+- `_applyFrozen` gives the first N header and body cells `data-frozen`
+  (`"last"` on the edge) and `left` = the summed header widths before them.
+  Header widths are authoritative under `table-layout: fixed`; body cells copy
+  the offsets. It runs after every body render, so sorts, `set_rows` and
+  edits keep it.
+- A ResizeObserver on the frozen header cells (`_observeFrozen`, re-armed per
+  head render) recomputes offsets when a column is dragged wider or the
+  panel resizes; rAF-throttled.
+- **Sticky cells must be opaque** or scrolled cells show through, so frozen
+  cells carry `--wapyt-bg` and repeat the row's hover and selected tints as
+  solid layers (`linear-gradient(tint, tint), var(--wapyt-bg)`), in both
+  themes. Frozen headers sit at z-index 3 so the top-left corner stays on top
+  when scrolling both ways.
+- `data-scrolled-x` on the host (scroll listener) adds the edge shadow only
+  once something is underneath; the 1px edge line is always there.
+- The table only scrolls sideways once column widths add up to more than the
+  panel (fixed widths or `resizable_columns`).
+
+`tests/datatable_frozen_demo.py` (12 columns at 720px, multi-select,
+resizable); a 15-check Playwright run (offsets, scroll in both axes,
+paint order, opaque selected/dark cells, resize moving offsets, sort,
+editing a frozen cell while scrolled, set_frozen_columns 0/3) passed.
+
 ## Base font (added 2026-10-06)
 
 `--wapyt-font-family` (in `wapyt.css` `:root`, a system-UI stack) is applied to
