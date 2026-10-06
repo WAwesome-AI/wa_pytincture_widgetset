@@ -33,6 +33,8 @@ from .progressbar.progressbar_config import ProgressBarConfig, progress_html
 from .pagination.pagination import Pagination, page_slice
 from .pagination.pagination_config import PaginationConfig
 from .contextmenu.contextmenu_config import ContextMenuConfig, MenuItem
+from .popup.popup import Popup, set_tooltips_enabled, tooltip
+from .popup.popup_config import PopupConfig, tooltip_attr
 from .toolbar.toolbar_config import (
     ToolbarButton,
     ToolbarConfig,
@@ -95,6 +97,11 @@ __all__ = [
     "page_slice",
     "ContextMenuConfig",
     "MenuItem",
+    "Popup",
+    "PopupConfig",
+    "tooltip",
+    "tooltip_attr",
+    "set_tooltips_enabled",
     "ToolbarConfig",
     "ToolbarButton",
     "ToolbarText",

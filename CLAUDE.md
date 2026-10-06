@@ -521,6 +521,55 @@ Toolbar and ContextMenu separators use `--wapyt-divider` / `--wapyt-divider-dark
 (#cbd5e1 / #475569). The border tokens they first used were invisible as a
 line in dark mode: `--wapyt-border-dark` on `--wapyt-surface-dark` is 1.00:1.
 
+## Popup and tooltips (added 2026-10-06)
+
+**Tooltips** (`assets/tooltip.js`, loaded right after `icons.js`) are one
+shared `role="tooltip"` element driven by delegated document listeners, not a
+per-widget feature:
+
+- Any element with `data-wapyt-tooltip` gets one (`tooltip(el, text)` and
+  `tooltip_attr(text)` for string-built markup set it).
+- **Any wapyt-built element with a native `title`** (a class starting
+  `wapyt-`) is upgraded the first time it is pointed at or focused: the title
+  moves into `data-wapyt-tooltip`, so the browser's own tooltip never doubles
+  ours. That is how Toolbar, DataTable, Tree and Sidebar got styled tooltips
+  without changing. An icon-only control whose title was its only name keeps
+  it as `aria-label`. An app's own markup keeps native titles unless it opts in.
+- `data-wapyt-tooltip-overflow` shows it only when the text is cut off. The
+  upgrade sets it on `*-ellipsis` elements (DataTable cells), and tree.js sets
+  it on labels without an explicit `node.tooltip`, so neither repeats text
+  that is already fully visible.
+- Hover shows after 450ms, then instantly for 400ms after one hides
+  (moving along a toolbar); keyboard focus (`:focus-visible`) shows at once,
+  a mouse-click focus does not. Escape, a press, scroll or blur hides it.
+  `aria-describedby` points at the tooltip only while it is shown.
+  `set_tooltips_enabled(False)` turns them all off.
+
+**Popup** (`assets/popup.js`) is an anchored `role="dialog"` popover: content
+goes in `popup.body` (mount a Form there) or `set_text`. It lives in `<body>`
+while open (`position: fixed`, z-index 10030: above modals, below menus,
+combo lists and tooltips), placed by `placement` (`bottom`/`top`/`left`/`right`,
+`-start`/`-end` align an edge), flipping to the opposite side, or whichever has
+more room, then clamped to the viewport. Anchors: element, selector or
+`(x, y)`.
+
+- Escape closes it and returns focus to the anchor; it stops propagation, so
+  an enclosing ModalWindow stays open. A combo inside handles its own Escape
+  first.
+- An outside press closes it without stealing focus back. Presses on the
+  anchor (so `toggle` works from its click) and on `.wapyt-form-combo-list` /
+  `.wapyt-cmenu` (opened from inside, but living in `<body>`) do not count.
+- The anchor gets `aria-expanded`, `aria-controls` and `aria-haspopup`.
+- It follows the anchor on scroll/resize and closes if the anchor leaves the
+  page.
+
+`tests/popup_demo.py`; a 29-check Playwright run (delay, warm hand-off,
+literal text, aria-describedby, app titles untouched, tooltip_attr and
+tooltip() placements, truncated vs fitting cells, keyboard, Escape; popup
+placement, focus in and back, combo inside, toggle, outside press, form
+submit, point anchor, viewport clamp, flip, detached anchor, inside a modal,
+dark) passed, plus 3 tree-label checks.
+
 ## ProgressBar (added 2026-10-06)
 
 `ProgressBar` (`assets/progressbar.js`, `Layout.add_progressbar`) and
