@@ -25,6 +25,14 @@ Size = Union[int, float, str]
 class CellConfig:
     """
     Declarative configuration for a single layout cell.
+
+    ``resizable=True`` puts a drag handle between this cell and the next one
+    (or the previous one, for the last cell). Dragging gives a sized cell a new
+    pixel size; two fill cells trade their share instead. ``min_size`` /
+    ``max_size`` bound the drag (48px minimum otherwise). Arrow keys move a
+    focused handle, Shift for bigger steps, and Enter or a double-click puts
+    both cells back. Listen with ``Layout.on_resize`` to persist sizes, and
+    restore them with ``Layout.set_size``.
     """
 
     id: Optional[str] = None
@@ -41,6 +49,8 @@ class CellConfig:
     grow: Optional[float] = None
     shrink: Optional[float] = None
     min_size: Optional[Size] = None
+    max_size: Optional[Size] = None
+    resizable: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         data: Dict[str, Any] = {
@@ -56,6 +66,8 @@ class CellConfig:
             "grow": self.grow,
             "shrink": self.shrink,
             "minSize": self.min_size,
+            "maxSize": self.max_size,
+            "resizable": self.resizable or None,
         }
 
         if self.rows is not None:
