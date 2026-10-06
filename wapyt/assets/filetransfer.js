@@ -451,10 +451,40 @@
     });
   }
 
-  function csrfToken() {
-    const match = document.cookie.match(/(?:^|;\s*)pytincture[^=]*csrf=([^;]+)/i);
-    return match ? decodeURIComponent(match[1]) : "";
+  // pytincture's CSRF cookie is "__Host-<namespace>-csrf" over HTTPS and
+  // "<namespace>-dev-csrf" over local HTTP, where the namespace is the
+  // server's AUTH_COOKIE_NAMESPACE (default "pytincture"). Several pytincture
+  // apps on one host each set their own, so use the exact name the runtime
+  // was configured with; only without it (an older runtime, a standalone
+  // page) fall back to pytincture's shapes, preferring the default namespace.
+  const CSRF_COOKIE = /^(?:__Host-([a-z](?:[a-z0-9-]{0,30}[a-z0-9])?)-csrf|([a-z](?:[a-z0-9-]{0,30}[a-z0-9])?)-dev-csrf)$/;
+
+  function readCookies() {
+    return String(document.cookie || "")
+      .split(";")
+      .map((part) => {
+        const index = part.indexOf("=");
+        return index < 0 ? null : [part.slice(0, index).trim(), part.slice(index + 1).trim()];
+      })
+      .filter(Boolean);
   }
+
+  function csrfToken() {
+    const cookies = readCookies();
+    const configured = globalThis.__pytinctureCsrfCookieName;
+    if (configured) {
+      const hit = cookies.find(([name]) => name === configured);
+      return hit ? decodeURIComponent(hit[1]) : "";
+    }
+    const candidates = cookies.filter(([name]) => {
+      const match = CSRF_COOKIE.exec(name);
+      return match && !(match[1] || match[2]).includes("--");
+    });
+    const preferred = candidates.find(([name]) => /^(?:__Host-)?pytincture-(?:dev-)?csrf$/.test(name));
+    const chosen = preferred || candidates[0];
+    return chosen ? decodeURIComponent(chosen[1]) : "";
+  }
+
 
   // ── Control ────────────────────────────────────────────────────────────────
 
@@ -499,5 +529,7 @@
     cancel,
     release,
     releaseAll,
+    // Internal; exported for tests only.
+    _csrfToken: csrfToken,
   };
 })();
