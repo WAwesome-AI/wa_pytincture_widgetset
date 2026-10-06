@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
+EDITORS = ("text", "number", "select", "checkbox", "date")
+
 
 def _clean(mapping: Dict[str, Any]) -> Dict[str, Any]:
     """Drop ``None`` values so the JS defaults win for anything unset."""
@@ -31,6 +33,14 @@ class ColumnConfig:
         icon_by: Row key holding an MDI class name drawn as a small glyph
             before a text cell's value -- a per-cell type or status marker.
             ``<icon_by>_title``, when the row has it, is the glyph's tooltip.
+        editable: Let the person edit this column's cells in place
+            (double-click, Enter/F2, or start typing on a focused cell).
+        editor: ``text`` (default) · ``number`` · ``select`` · ``checkbox`` ·
+            ``date``. A ``checkbox`` column shows checkboxes that toggle on a
+            click or Space; a ``select`` column shows each value's label.
+        options: Choices for a ``select`` editor; strings or
+            ``{"value": ..., "label": ...}`` dicts.
+        required: An emptied cell is refused instead of saved.
     """
 
     id: str
@@ -42,8 +52,16 @@ class ColumnConfig:
     type: str = "text"
     ellipsis: bool = True
     icon_by: Optional[str] = None
+    editable: bool = False
+    editor: Optional[str] = None
+    options: Optional[List[Any]] = None
+    required: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
+        if self.editor is not None and self.editor not in EDITORS:
+            raise ValueError(f"ColumnConfig {self.id!r}: editor must be one of {', '.join(EDITORS)}; got {self.editor!r}")
+        if self.editor == "select" and not self.options:
+            raise ValueError(f"ColumnConfig {self.id!r}: a select editor needs options")
         return _clean(
             {
                 "id": self.id,
@@ -55,6 +73,11 @@ class ColumnConfig:
                 "type": self.type,
                 "ellipsis": self.ellipsis,
                 "iconBy": self.icon_by,
+                "editable": self.editable or None,
+                "editor": self.editor,
+                "options": [o.to_dict() if hasattr(o, "to_dict") else o for o in self.options]
+                if self.options is not None else None,
+                "required": self.required or None,
             }
         )
 

@@ -104,8 +104,20 @@ class DataTable:
         self._bind_event("select", handler)
 
     def on_activate(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
-        """Row double-clicked: ``{"id": ..., "row": {...}}``."""
+        """Row double-clicked: ``{"id": ..., "row": {...}}``. A double-click
+        on an editable cell edits it instead."""
         self._bind_event("activate", handler)
+
+    def on_edit(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """
+        A cell was edited and saved locally: ``{"id", "column", "value",
+        "old_value", "row"}``. ``value`` is typed by the editor: a number for
+        ``number`` (``None`` when emptied), a bool for ``checkbox``, otherwise
+        a string (``date`` as ``YYYY-MM-DD``). Persist it; if the server
+        refuses, put the old value back with :meth:`set_cell` and say why with
+        :meth:`set_cell_error`.
+        """
+        self._bind_event("edit", handler)
 
     def on_action(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         """Context-menu entry chosen: ``{"action", "id", "row", "selected"}``."""
@@ -149,6 +161,24 @@ class DataTable:
 
     def get_row(self, row_id: str) -> Optional[Dict[str, Any]]:
         return self._to_py(self.datatable.getRow(row_id))
+
+    def set_cell(self, row_id: str, column_id: str, value: Any) -> None:
+        """Set one cell's value and redraw just that cell; does not fire
+        ``on_edit``."""
+        self.datatable.setCell(str(row_id), column_id, js.JSON.parse(json.dumps(value)))
+
+    def set_cell_error(self, row_id: str, column_id: str, message: Optional[str]) -> None:
+        """Mark a cell invalid with ``message`` as its tooltip; ``None`` clears
+        it. The mark survives re-renders and clears when the cell is edited."""
+        self.datatable.setCellError(str(row_id), column_id, js.JSON.parse(json.dumps(message)))
+
+    def edit_cell(self, row_id: str, column_id: str) -> bool:
+        """Open the editor on a cell, e.g. the name of a row just added."""
+        return bool(self.datatable.editCell(str(row_id), column_id))
+
+    def cancel_edit(self) -> None:
+        """Close an open editor without saving."""
+        self.datatable.cancelEdit()
 
     def set_columns(self, columns: List[ColumnConfig]) -> None:
         payload = [
