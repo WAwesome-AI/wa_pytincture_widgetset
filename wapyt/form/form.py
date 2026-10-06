@@ -121,6 +121,26 @@ class Form:
         """Set any subset of fields; date/time fields also take date objects."""
         self.form.setValues(js.JSON.parse(json.dumps(values, default=json_default)))
 
+    def clear(self, *, values: bool = True, errors: bool = True) -> None:
+        """
+        Empty every field (``values``) and/or remove error messages
+        (``errors``), without firing ``on_change``. Checkboxes and toggles
+        uncheck, groups and combos empty, a select ends with nothing chosen.
+        Native range and colour inputs cannot be blank, so a range goes to its
+        ``min`` (or 0) and a colour to ``#000000``. To go back to the values
+        the form was built with instead, use :meth:`reset`.
+        """
+        self.form.clear(js.JSON.parse(json.dumps({"values": bool(values), "errors": bool(errors)})))
+
+    def reset(self) -> None:
+        """
+        Put back each field's configured ``value`` (or, for a field without
+        one, how a fresh form shows it: a range at its midpoint, a select with
+        nothing chosen) and remove error messages, without firing
+        ``on_change``.
+        """
+        self.form.reset()
+
     def set_field_options(
         self, field_id: str, options: List[Union[str, SelectOption]]
     ) -> None:

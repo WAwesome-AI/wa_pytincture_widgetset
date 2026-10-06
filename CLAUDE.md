@@ -782,7 +782,7 @@ raises `ValueError` in `to_dict()` instead of silently rendering a text box.
 - Dark theme sets `color-scheme: dark` on the form so native picker icons and
   popups are not black on dark.
 
-`tests/form_demo.py` has every type; a 25-check Playwright run (values and
+`tests/form_demo.py` has every type; a 23-check Playwright run (values and
 types, ARIA, escaping, range readout, keyboard, required groups, number and
 date bounds, set_values with date objects, set_field_options, dark scheme)
 passed.
@@ -817,8 +817,28 @@ as a list; `allow_custom=True` keeps typed text that is not an option.
 The same demo has combos inline and in a modal; a 30-check Playwright run
 (ARIA, filtering, keyboard, blur rules, chips, custom values, escaping,
 required, set_values / set_field_options, overflow past the modal, Escape not
-closing the modal, both themes inside a modal) passed alongside the 25
-field-type checks.
+closing the modal, both themes inside a modal) passed alongside the 23
+field-type checks. (Both PRs, #31 and #32, said 25; the suite has 23.)
+
+### clear and reset (added 2026-10-06)
+
+`Form.clear(values=True, errors=True)` empties every field and/or removes
+errors; `Form.reset()` puts back each field's configured `value`. Both are
+silent (no `change`), like `set_values`. "Empty" per control
+(`_emptyValue`): checkboxes and toggles off, groups and combos empty, radio
+and date-likes `None`, a select with nothing chosen (reads `""`); native range
+and colour inputs cannot be blank, so a range goes to its `min` (or 0) and a
+colour to `#000000`. `reset()` gives a field without a configured value what a
+fresh form shows (`_defaultValue`): a range at its midpoint, a select with
+nothing chosen.
+
+**Fixed with it: an unset range started at its max.** The browser gives a new
+range input 50 (the 0–100 midpoint) before `min` / `max` are set, and setting
+`max=20` then clamped it to 20. `_writeControl` now puts an unset range at the
+midpoint of its own min and max.
+
+`tests/form_clear_demo.py` (every type); a 10-check Playwright run passed, and
+the field-type and combo suites still pass (23 + 30).
 
 ## Pagination (added 2026-10-06)
 
