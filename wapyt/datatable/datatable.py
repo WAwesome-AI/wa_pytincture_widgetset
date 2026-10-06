@@ -180,6 +180,62 @@ class DataTable:
         """Close an open editor without saving."""
         self.datatable.cancelEdit()
 
+    def to_csv(
+        self,
+        *,
+        selected_only: bool = False,
+        columns: Optional[List[str]] = None,
+        raw: bool = False,
+        header: bool = True,
+        safe: bool = True,
+        delimiter: str = ",",
+    ) -> str:
+        """
+        The table as CSV text: the rows it shows (filtered and sorted), columns
+        in display order. ``selected_only`` exports the selection; ``columns``
+        picks and orders columns by id (icon columns are skipped otherwise).
+        Values are what the cells show (a select column's label) unless
+        ``raw``. With ``safe`` (default), text a spreadsheet would run as a
+        formula (starting ``= + - @``) gets a leading ``'``; numbers are left
+        alone.
+        """
+        return str(self.datatable.toCSV(js.JSON.parse(json.dumps(self._csv_opts(
+            selected_only, columns, raw, header, safe, delimiter)))))
+
+    def export_csv(
+        self,
+        filename: str = "export.csv",
+        *,
+        selected_only: bool = False,
+        columns: Optional[List[str]] = None,
+        raw: bool = False,
+        header: bool = True,
+        safe: bool = True,
+        delimiter: str = ",",
+        bom: bool = True,
+    ) -> int:
+        """
+        Download :meth:`to_csv` as ``filename`` (the browser's download, no
+        server round trip). ``bom`` adds a UTF-8 byte-order mark so Excel reads
+        accented text correctly. Returns the number of rows exported.
+        """
+        opts = self._csv_opts(selected_only, columns, raw, header, safe, delimiter)
+        opts["bom"] = bool(bom)
+        return int(self.datatable.exportCSV(str(filename), js.JSON.parse(json.dumps(opts))))
+
+    @staticmethod
+    def _csv_opts(selected_only, columns, raw, header, safe, delimiter) -> Dict[str, Any]:
+        if len(delimiter) != 1 or delimiter in '"\r\n':
+            raise ValueError("delimiter must be one character, not a quote or newline")
+        return {
+            "selectedOnly": bool(selected_only),
+            "columns": list(columns) if columns else None,
+            "raw": bool(raw),
+            "header": bool(header),
+            "safe": bool(safe),
+            "delimiter": delimiter,
+        }
+
     def set_frozen_columns(self, count: int) -> None:
         """Freeze the first ``count`` columns (0 unfreezes)."""
         if count < 0:

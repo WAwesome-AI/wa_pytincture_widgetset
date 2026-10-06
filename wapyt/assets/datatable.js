@@ -290,6 +290,72 @@
       this._applyFrozen();
     }
 
+    // ── CSV export ───────────────────────────────────────────────────────────
+
+    // What the table shows: filtered and sorted rows, columns in display
+    // order. Icon columns (their values are MDI class names) are left out
+    // unless named in `columns`.
+    toCSV(opts = {}) {
+      const {
+        selectedOnly = false,
+        columns = null,
+        raw = false,
+        header = true,
+        safe = true,
+        delimiter = ",",
+      } = opts || {};
+      const all = this.options.columns || [];
+      const cols = Array.isArray(columns) && columns.length
+        ? columns.map((id) => all.find((c) => c.id === id)).filter(Boolean)
+        : all.filter((c) => c.type !== "icon");
+      const rows = selectedOnly
+        ? this._view.filter((row) => this._selected.has(this._rowId(row)))
+        : this._view;
+
+      const cell = (value, column) => {
+        let text;
+        if (value == null) text = "";
+        else if (typeof value === "object") text = JSON.stringify(value);
+        else if (raw || !column) text = String(value);
+        else text = this._displayValue(column, value);
+        // CSV injection: a spreadsheet runs text starting with = + - @ (or a
+        // tab / CR) as a formula. Prefix it with ' so it stays text. Real
+        // numbers, including negative ones, are left alone.
+        const numeric = typeof value === "number" || /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test(text);
+        if (safe && !numeric && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+        if (text.includes(delimiter) || /["\r\n]/.test(text) || /^\s|\s$/.test(text)) {
+          text = `"${text.replace(/"/g, '""')}"`;
+        }
+        return text;
+      };
+
+      const lines = [];
+      if (header) lines.push(cols.map((c) => cell(c.header != null ? c.header : c.id, null)).join(delimiter));
+      rows.forEach((row) => lines.push(cols.map((c) => cell(row[c.id], c)).join(delimiter)));
+      return lines.join("\r\n");
+    }
+
+    // Download toCSV() as a file. A UTF-8 BOM by default, so Excel reads
+    // accented text instead of guessing a code page. Returns the row count.
+    exportCSV(filename = "export.csv", opts = {}) {
+      const csv = this.toCSV(opts);
+      const bom = (opts || {}).bom === false ? "" : "\ufeff";
+      const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = String(filename || "export.csv");
+      anchor.hidden = true;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      // Counted from the rows, not the text: a quoted cell may hold newlines.
+      return (opts || {}).selectedOnly
+        ? this._view.filter((row) => this._selected.has(this._rowId(row))).length
+        : this._view.length;
+    }
+
     // ── Column resize and reorder ────────────────────────────────────────────
 
     // With table-layout: fixed and width: 100%, the browser stretches columns
