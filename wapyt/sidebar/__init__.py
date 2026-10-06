@@ -1,4 +1,4 @@
 from .sidebar import Sidebar
-from .sidebar_config import SidebarConfig, SidebarItem
+from .sidebar_config import SidebarConfig, SidebarHeading, SidebarItem, SidebarSeparator, SidebarSpacer
 
-__all__ = ["Sidebar", "SidebarConfig", "SidebarItem"]
+__all__ = ["Sidebar", "SidebarConfig", "SidebarItem", "SidebarHeading", "SidebarSeparator", "SidebarSpacer"]
