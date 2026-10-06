@@ -27,6 +27,8 @@ from .datatable.datatable_config import DataTableConfig, ColumnConfig, TableActi
 from .form.form_config import FormConfig, FieldConfig, SelectOption
 from .terminal.terminal import Terminal
 from .toolbar.toolbar import Toolbar
+from .contextmenu.contextmenu import ContextMenu
+from .contextmenu.contextmenu_config import ContextMenuConfig, MenuItem
 from .toolbar.toolbar_config import (
     ToolbarButton,
     ToolbarConfig,
@@ -80,6 +82,9 @@ __all__ = [
     "TerminalConfig",
     "TerminalTheme",
     "Toolbar",
+    "ContextMenu",
+    "ContextMenuConfig",
+    "MenuItem",
     "ToolbarConfig",
     "ToolbarButton",
     "ToolbarText",

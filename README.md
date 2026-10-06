@@ -19,6 +19,7 @@
 - `ResourceBoard`: Master/detail resource explorer with selectable rows, action hooks, and optional add button wiring.
 - `message`: Toasts plus awaitable `alert` / `confirm` / `prompt` dialogs, styled and themed, in place of `window.confirm()`.
 - `Toolbar`: Buttons, toggles, one-of-several groups, text, separators and spacers, dropping to icons when space runs out.
+- `ContextMenu`: Right-click menus with icons, shortcut hints, danger and disabled items, separators and submenus; keyboard accessible.
 
 ## Runtime Architecture
 - Layouts and widgets are declared in Python but render as DOM nodes through the JavaScript bundles under `wapyt/assets/`. Each helper (e.g., `Layout.add_chat`) forwards config dictionaries directly to the matching JS constructor.
