@@ -418,6 +418,31 @@ small glyph (`.wapyt-datatable-cell-icon`) before a text cell's value;
 columns. A row without the key renders plain text. Added for Monguana's BSON
 type markers; style per icon by targeting the MDI class.
 
+## DataTable row/cell classes and hidden columns (added 2026-10-06)
+
+**Classes.** `DataTableConfig(row_class_by="key")` adds the class names in
+`row[key]` (a space-separated string or a list) to each `<tr>`;
+`ColumnConfig(css=...)` adds static classes to a column's `<th>` and cells;
+`ColumnConfig(cell_class_by="key")` adds per-row classes to that column's
+cell. The older, undocumented `row["_class"]` still works. Every token goes
+through `classTokens()`: only `/^-?[A-Za-z_][\w-]*$/` tokens are added, one at
+a time, so a value from data can never throw in `classList.add` or reach an
+attribute. `_fillCell` re-applies column and cell classes on every redraw
+(edits, `set_cell`), so its old `td.className = "...ellipsis"` became a
+`classList.add`.
+
+**Hidden columns.** `ColumnConfig(hidden=True)`, `hide_column`,
+`show_column`, `set_column_hidden`, `is_column_hidden`. Hidden columns stay in
+`options.columns` (place, width, settings), so showing one puts it back where
+it was; `_visibleColumns()` is what renders, filters, freezes, edits, sums
+widths and exports by default (`to_csv(columns=[...])` can still name a
+hidden one). The filter ignores hidden columns because their text cannot be
+seen. `get_column_state()` and the `columns` event now carry `hidden`, and
+hide/show emit `columns` with `reason: "hide" | "show"`, so a saved layout
+restores visibility too.
+
+`tests/datatable_classes_demo.py`; a 14-check Playwright run passed.
+
 ## DataTable inline editing (added 2026-10-06)
 
 `ColumnConfig(editable=True, editor=..., options=..., required=...)`; editors
