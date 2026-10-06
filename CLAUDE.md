@@ -486,6 +486,31 @@ resizable); a 15-check Playwright run (offsets, scroll in both axes,
 paint order, opaque selected/dark cells, resize moving offsets, sort,
 editing a frozen cell while scrolled, set_frozen_columns 0/3) passed.
 
+## DataTable CSV export (added 2026-10-06)
+
+`to_csv(...)` returns the text; `export_csv(filename, ...)` downloads it
+through a Blob and an `<a download>` (pytincture's CSP allows it; the same
+pattern as `filetransfer.downloadViaAnchor`) and returns the row count.
+
+- **What is exported is what is shown:** `_view` (filtered, sorted) and
+  `options.columns` order, which reordering updates. `selected_only`,
+  `columns=[ids]` (picks and orders; icon columns are skipped unless named),
+  `raw` (stored values instead of a select column's labels), `header`,
+  `delimiter`.
+- RFC 4180 quoting (delimiter, quotes, CR/LF, leading/trailing space), CRLF
+  line ends, objects as JSON, booleans as `true`/`false`, None empty.
+- **`safe=True` (default) guards CSV injection:** text starting `= + - @`, tab
+  or CR gets a leading `'` so Excel/Sheets keep it as text. Numbers, and
+  strings that are plain numbers (`-5`, `1e3`), are left alone; `-2+3` is not.
+- `export_csv` prepends a UTF-8 BOM (`bom=False` to drop it) so Excel reads
+  accents; the count comes from the rows, not by splitting the text, since a
+  quoted cell can hold newlines.
+
+`tests/datatable_csv_demo.py`; a 16-check Playwright run (parsed back with
+Python's `csv`: order, quoting, newlines, accents, injection guard, raw/safe,
+columns, delimiter, filter, reordered column, real downloads with BOM and
+filename, selected-only, counts, no CSP errors) passed.
+
 ## Base font (added 2026-10-06)
 
 `--wapyt-font-family` (in `wapyt.css` `:root`, a system-UI stack) is applied to
