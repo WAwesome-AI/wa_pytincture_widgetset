@@ -7,7 +7,7 @@ import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from .._runtime import create_proxy, require_js, to_plain
-from .form_config import FieldConfig, FormConfig, SelectOption
+from .form_config import FieldConfig, FormConfig, SelectOption, json_default
 
 try:  # pragma: no cover - only available inside Pyodide
     import js  # type: ignore
@@ -100,7 +100,9 @@ class Form:
         self._bind_event("cancel", handler)
 
     def on_change(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
-        """Fires per edit with ``{"id": ..., "value": ...}``."""
+        """Fires per edit with ``{"id": ..., "value": ...}``. Selects,
+        checkboxes, toggles and groups fire when a choice is made; every other
+        field fires as you type, pick or drag."""
         self._bind_event("change", handler)
 
     def on_invalid(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
@@ -116,11 +118,14 @@ class Form:
         return to_plain(result) or {}
 
     def set_values(self, values: Dict[str, Any]) -> None:
-        self.form.setValues(js.JSON.parse(json.dumps(values)))
+        """Set any subset of fields; date/time fields also take date objects."""
+        self.form.setValues(js.JSON.parse(json.dumps(values, default=json_default)))
 
     def set_field_options(
         self, field_id: str, options: List[Union[str, SelectOption]]
     ) -> None:
+        """Replace a select, radio or checkbox_group field's choices; selected
+        values that are still offered stay selected."""
         payload = [
             option.to_dict() if hasattr(option, "to_dict") else option
             for option in options

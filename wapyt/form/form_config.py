@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+import datetime as _dt
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
+
+FIELD_TYPES = frozenset({
+    "text", "password", "email", "number", "url", "search", "tel", "textarea",
+    "select", "checkbox", "hidden",
+    "date", "time", "datetime-local", "color", "range",
+    "radio", "toggle", "checkbox_group",
+})
 
 
 def _clean(mapping: Dict[str, Any]) -> Dict[str, Any]:
@@ -9,9 +17,34 @@ def _clean(mapping: Dict[str, Any]) -> Dict[str, Any]:
     return {key: value for key, value in mapping.items() if value is not None}
 
 
+def iso_value(value: Any) -> Any:
+    """
+    Render a ``date`` / ``time`` / ``datetime`` the way the native pickers
+    expect it (``2026-10-06``, ``14:30``, ``2026-10-06T14:30``); anything else
+    passes through. Seconds are kept only when set, since a value with seconds
+    makes the time picker show a seconds column.
+    """
+    if isinstance(value, (_dt.datetime, _dt.time)):
+        if value.tzinfo is not None:
+            raise ValueError("form date/time values must be naive (the pickers have no time zone)")
+        spec = "minutes" if not value.second and not value.microsecond else "seconds"
+        return value.isoformat(timespec=spec)
+    if isinstance(value, _dt.date):
+        return value.isoformat()
+    return value
+
+
+def json_default(value: Any) -> Any:
+    """``json.dumps(default=...)`` hook so set_values accepts date objects."""
+    converted = iso_value(value)
+    if converted is value:
+        raise TypeError(f"{type(value).__name__} is not JSON serializable")
+    return converted
+
+
 @dataclass
 class SelectOption:
-    """One entry in a ``select`` field."""
+    """One entry in a ``select``, ``radio`` or ``checkbox_group`` field."""
 
     value: str
     label: Optional[str] = None
@@ -29,8 +62,16 @@ class FieldConfig:
         id: Key this field contributes to the submitted values dict.
         label: Visible label text.
         type: ``text`` · ``password`` · ``email`` · ``number`` · ``url``
-            · ``textarea`` · ``select`` · ``checkbox`` · ``hidden``.
-        value: Initial value. For ``checkbox`` it is coerced to a bool.
+            · ``search`` · ``tel`` · ``textarea`` · ``select`` · ``checkbox``
+            · ``hidden``; the native pickers ``date`` · ``time`` ·
+            ``datetime-local`` · ``color`` · ``range``; and ``radio`` ·
+            ``toggle`` (a switch) · ``checkbox_group``.
+        value: Initial value. ``checkbox`` and ``toggle`` coerce it to a
+            bool; ``checkbox_group`` takes a list of option values; ``date``,
+            ``time`` and ``datetime-local`` take an ISO string or a
+            ``datetime.date`` / ``time`` / ``datetime``. Values read back as
+            ISO strings (``None`` when empty), numbers for ``number`` and
+            ``range``, and a list for ``checkbox_group``.
         placeholder: Placeholder text for textual controls.
         help: Hint rendered under the control.
         required: Fails validation when empty.
@@ -38,14 +79,19 @@ class FieldConfig:
         pattern: JavaScript regular expression source the value must match.
         matches: Another field's id whose value this one must equal — for
             "confirm password" pairs.
-        options: Choices for ``select``; strings or :class:`SelectOption`.
+        options: Choices for ``select``, ``radio`` and ``checkbox_group``;
+            strings or :class:`SelectOption`.
+        inline: Lay ``radio`` / ``checkbox_group`` options out in a row.
+        show_value: Show a ``range`` field's current value beside it.
         rows: Row count for ``textarea``.
-        min / max / step: Bounds for ``number``.
+        min / max / step: Bounds for ``number``, ``range``, ``date``,
+            ``time`` and ``datetime-local`` (dates as ISO strings or date
+            objects). Out-of-range values fail validation.
         span: Column span when the form is laid out in more than one column.
         disabled / readonly: Control state.
         autocomplete: Forwarded to the control's ``autocomplete`` attribute.
         required_message / min_length_message / pattern_message /
-        matches_message: Override the default validation copy.
+        matches_message / range_message: Override the default validation copy.
 
     Client-side validation is a convenience, never a control: the BFF revalidates.
     """
@@ -61,9 +107,11 @@ class FieldConfig:
     pattern: Optional[str] = None
     matches: Optional[str] = None
     options: Optional[List[Union[str, SelectOption]]] = None
+    inline: bool = False
+    show_value: bool = True
     rows: Optional[int] = None
-    min: Optional[Union[int, float]] = None
-    max: Optional[Union[int, float]] = None
+    min: Optional[Union[int, float, str, _dt.date, _dt.time]] = None
+    max: Optional[Union[int, float, str, _dt.date, _dt.time]] = None
     step: Optional[Union[int, float]] = None
     span: Optional[int] = None
     disabled: bool = False
@@ -73,8 +121,14 @@ class FieldConfig:
     min_length_message: Optional[str] = None
     pattern_message: Optional[str] = None
     matches_message: Optional[str] = None
+    range_message: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
+        if self.type not in FIELD_TYPES:
+            raise ValueError(
+                f"FieldConfig {self.id!r}: unknown type {self.type!r}; "
+                f"expected one of {', '.join(sorted(FIELD_TYPES))}"
+            )
         options: Optional[List[Any]] = None
         if self.options is not None:
             options = [
@@ -85,7 +139,7 @@ class FieldConfig:
             "id": self.id,
             "label": self.label,
             "type": self.type,
-            "value": self.value,
+            "value": iso_value(self.value),
             "placeholder": self.placeholder,
             "help": self.help,
             "required": self.required or None,
@@ -93,9 +147,11 @@ class FieldConfig:
             "pattern": self.pattern,
             "matches": self.matches,
             "options": options,
+            "inline": self.inline or None,
+            "showValue": None if self.show_value else False,
             "rows": self.rows,
-            "min": self.min,
-            "max": self.max,
+            "min": iso_value(self.min),
+            "max": iso_value(self.max),
             "step": self.step,
             "span": self.span,
             "disabled": self.disabled or None,
@@ -105,6 +161,7 @@ class FieldConfig:
             "minLengthMessage": self.min_length_message,
             "patternMessage": self.pattern_message,
             "matchesMessage": self.matches_message,
+            "rangeMessage": self.range_message,
         }
         return _clean(payload)
 

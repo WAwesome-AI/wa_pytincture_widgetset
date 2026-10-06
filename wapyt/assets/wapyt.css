@@ -485,6 +485,130 @@ textarea.wapyt-form-control {
   border-color: #dc2626;
 }
 
+/* Radio and checkbox groups: a borderless fieldset of labelled options,
+   stacked unless the field asks for `inline`. */
+.wapyt-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.wapyt-form-group[data-inline="true"] {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.wapyt-form-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: 13px/1.4 system-ui, sans-serif;
+  color: var(--wapyt-text);
+  cursor: pointer;
+}
+
+.wapyt-form-group:disabled .wapyt-form-option {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wapyt-form-option input,
+.wapyt-form-range-input,
+.wapyt-form-row[data-inline="true"] input[type="checkbox"] {
+  accent-color: #2563eb;
+}
+
+.wapyt-form-option input {
+  margin: 0;
+}
+
+.wapyt-form-group[aria-invalid="true"] .wapyt-form-option input {
+  outline: 1px solid #dc2626;
+  outline-offset: 1px;
+}
+
+/* Toggle: the checkbox itself, redrawn as a switch. role="switch" carries the
+   semantics; ::before is the knob. */
+.wapyt-form-row .wapyt-form-control.wapyt-form-toggle {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  border-radius: 10px;
+  background: #cbd5e1;
+  border: 0;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.wapyt-form-row .wapyt-form-control.wapyt-form-toggle::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.wapyt-form-row .wapyt-form-control.wapyt-form-toggle:checked {
+  background: #2563eb;
+}
+
+.wapyt-form-row .wapyt-form-control.wapyt-form-toggle:checked::before {
+  transform: translateX(14px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wapyt-form-row .wapyt-form-control.wapyt-form-toggle,
+  .wapyt-form-row .wapyt-form-control.wapyt-form-toggle::before {
+    transition: none;
+  }
+}
+
+/* Range: the slider with its live value beside it. */
+.wapyt-form-range {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wapyt-form-range-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.wapyt-form-range-value {
+  min-width: 3ch;
+  text-align: right;
+  font: 12px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--wapyt-text);
+}
+
+.wapyt-form-range-value[hidden] {
+  display: none;
+}
+
+input[type="color"].wapyt-form-control {
+  width: 56px;
+  height: 34px;
+  padding: 3px;
+  cursor: pointer;
+}
+
 .wapyt-form-help {
   font: 11px/1.4 system-ui, sans-serif;
   color: var(--wapyt-text);
@@ -575,6 +699,25 @@ textarea.wapyt-form-control {
 
 [data-wapyt-theme="dark"] .wapyt-form-button-ghost:hover:not(:disabled) {
   background: var(--wapyt-surface-dark);
+}
+
+/* Native date, time and colour pickers draw their own icons and popups; without
+   a dark colour-scheme the calendar icon is black on the dark control. */
+[data-wapyt-theme="dark"] .wapyt-form {
+  color-scheme: dark;
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-option,
+[data-wapyt-theme="dark"] .wapyt-form-range-value {
+  color: var(--wapyt-text-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-row .wapyt-form-control.wapyt-form-toggle {
+  background-color: #475569;
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-row .wapyt-form-control.wapyt-form-toggle:checked {
+  background-color: #2563eb;
 }
 
 /* A native select ignores the inherited colour in some engines unless both are
