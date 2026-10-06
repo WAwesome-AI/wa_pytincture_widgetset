@@ -19,6 +19,7 @@ from .modal.modal import ModalWindow, ModalConfig
 from .form.form import Form
 from .datatable.datatable import DataTable
 from . import filetransfer
+from . import message
 from .filetransfer.filetransfer import Capabilities, PickedFile, TransferResult
 from .tree.tree import Tree
 from .tree.tree_config import TreeConfig, TreeItem, TreeAction
@@ -53,6 +54,7 @@ __all__ = [
     "Form",
     "DataTable",
     "filetransfer",
+    "message",
     "Capabilities",
     "PickedFile",
     "TransferResult",

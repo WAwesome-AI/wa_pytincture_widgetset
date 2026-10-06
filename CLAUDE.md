@@ -393,6 +393,32 @@ declaration because it is mounted on `<body>`, outside any layout. Restyle by
 overriding the property, not by styling `body` — the layout no longer
 inherits from it.
 
+## Message: toasts and dialogs (added 2026-10-06)
+
+`wapyt.message` (`assets/message.js`, `globalThis.wapyt.Message`) replaces the
+`_toast()` helpers Monguana and IguanaXterm each wrote and their
+`window.confirm()` calls. Module functions, like `filetransfer`: `toast(text,
+kind, timeout_ms)`, `dismiss`, `dismiss_all`, and the coroutines `alert`,
+`confirm` (→ bool) and `prompt` (→ str | None). The JS `dialog()` returns a
+Promise of `{ok, value}`, which the Python side awaits.
+
+- Everything goes in through `textContent`; `white-space: pre-line` keeps the
+  "Question?\n\nConsequence." shape the apps' confirms already use.
+- Cancel, Escape and a backdrop click never confirm. `danger=True` starts focus
+  on Cancel so Enter cannot destroy anything. Tab is trapped in the dialog and
+  focus returns to the trigger on close. Only the topmost of stacked dialogs
+  handles keys.
+- Toasts: bottom-centre stack, at most four (oldest goes), `timeout_ms=0` is
+  sticky, hover pauses the timer. Errors get `role="alert"`, the rest
+  `role="status"`.
+- Theming uses the `<html>` `data-wapyt-theme` ancestor selector rather than
+  stamping the attribute on the overlay as `modal.js` does, so a theme change
+  applies to an open dialog too.
+
+`tests/message_demo.py` drives every path; a 29-check Playwright run against it
+(results, keys, focus trap/restore, escaping, toast cap/timers, dark theme)
+passed.
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:

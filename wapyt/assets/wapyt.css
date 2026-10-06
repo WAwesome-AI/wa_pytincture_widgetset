@@ -1099,3 +1099,132 @@ textarea.wapyt-form-control {
 [data-wapyt-theme="dark"] .wapyt-tree-menu-sep {
   background: var(--wapyt-border-dark);
 }
+
+/* ── Message: toasts and alert / confirm / prompt dialogs ─────────────────
+   Mounted on <body>, outside any layout, so these set their own font and
+   follow the theme through the <html> attribute. */
+.wapyt-toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 10050;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  width: min(480px, calc(100vw - 32px));
+}
+.wapyt-toast {
+  pointer-events: auto;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--wapyt-border);
+  border-left: 4px solid var(--wapyt-toast-accent, #3b82f6);
+  background: var(--wapyt-bg);
+  color: var(--wapyt-text);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+  font: 13px/1.45 var(--wapyt-font-family);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.wapyt-toast[data-visible] { opacity: 1; transform: translateY(0); }
+.wapyt-toast[data-kind="success"] { --wapyt-toast-accent: #10b981; }
+.wapyt-toast[data-kind="warning"] { --wapyt-toast-accent: #f59e0b; }
+.wapyt-toast[data-kind="error"]   { --wapyt-toast-accent: #ef4444; }
+.wapyt-toast-icon { font-size: 18px; line-height: 1.2; color: var(--wapyt-toast-accent, #3b82f6); flex: none; }
+.wapyt-toast-text { flex: 1 1 auto; min-width: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.wapyt-toast-close {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.55;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 16px;
+  line-height: 1.2;
+}
+.wapyt-toast-close:hover, .wapyt-toast-close:focus-visible { opacity: 1; }
+[data-wapyt-theme="dark"] .wapyt-toast {
+  background: var(--wapyt-surface-dark);
+  color: var(--wapyt-text-dark);
+  border-color: var(--wapyt-border-dark);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.wapyt-msg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.45);
+}
+.wapyt-msg-dialog {
+  box-sizing: border-box;
+  width: min(440px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 20px 22px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--wapyt-border);
+  background: var(--wapyt-bg);
+  color: var(--wapyt-text);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.35);
+  font: 14px/1.5 var(--wapyt-font-family);
+}
+.wapyt-msg-title { margin: 0 0 8px; font-size: 16px; font-weight: 600; line-height: 1.35; }
+.wapyt-msg-text { white-space: pre-line; overflow-wrap: anywhere; }
+.wapyt-msg-input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--wapyt-border);
+  background: var(--wapyt-surface);
+  color: inherit;
+  font: inherit;
+}
+.wapyt-msg-input:focus { outline: 2px solid #3b82f6; outline-offset: 1px; }
+.wapyt-msg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.wapyt-msg-btn {
+  min-width: 80px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--wapyt-border);
+  background: var(--wapyt-surface);
+  color: inherit;
+  font: 500 13px/1.2 var(--wapyt-font-family);
+  cursor: pointer;
+}
+.wapyt-msg-btn:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+.wapyt-msg-btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.wapyt-msg-btn-primary:hover { background: #1d4ed8; }
+.wapyt-msg-btn-danger { background: #dc2626; border-color: #dc2626; }
+.wapyt-msg-btn-danger:hover { background: #b91c1c; }
+[data-wapyt-theme="dark"] .wapyt-msg-overlay { background: rgba(0, 0, 0, 0.6); }
+[data-wapyt-theme="dark"] .wapyt-msg-dialog {
+  background: var(--wapyt-bg-dark);
+  color: var(--wapyt-text-dark);
+  border-color: var(--wapyt-border-dark);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+[data-wapyt-theme="dark"] .wapyt-msg-input,
+[data-wapyt-theme="dark"] .wapyt-msg-btn:not(.wapyt-msg-btn-primary) {
+  background: var(--wapyt-surface-dark);
+  border-color: var(--wapyt-border-dark);
+}
+@media (prefers-reduced-motion: reduce) {
+  .wapyt-toast { transition: none; }
+}
