@@ -180,6 +180,12 @@ class Layout(object, metaclass=LoadUICaller):
 
     # Convenience wrappers ------------------------------------------------
 
+    def on_resize(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """Fires when a splitter is dragged, nudged or reset, with
+        ``{"id", "size", "sibling", "sibling_size"}`` in px: the cells before
+        and after the handle."""
+        self.add_event_handler("afterResize", handler)
+
     def after_add(self, handler: Callable) -> None:
         self.add_event_handler("afterAdd", handler)
 
@@ -204,6 +210,16 @@ class Layout(object, metaclass=LoadUICaller):
         if not cell:
             raise KeyError(f"Unknown layout cell '{id}'")
         return getattr(cell, method)(*args)
+
+    def get_size(self, id: str) -> int:
+        """A cell's size in px along its parent's axis (width among columns,
+        height among rows)."""
+        return int(self._cell_call(id, "getSize"))
+
+    def set_size(self, id: str, size: Union[int, str]) -> None:
+        """Fix a cell's size (px, or any CSS size), e.g. one saved from
+        :meth:`on_resize`."""
+        self._cell_call(id, "setSize", size)
 
     def collapse(self, id: str) -> None:
         self._cell_call(id, "collapse")

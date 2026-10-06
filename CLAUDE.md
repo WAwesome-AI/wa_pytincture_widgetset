@@ -314,6 +314,42 @@ Separately, `config.minSize` was being written to `style.minSize`, which is not
 a CSS property, so the declared minimum never applied. It now maps to
 `minWidth`/`minHeight` by axis.
 
+## Resizable cells / splitters (added 2026-10-06)
+
+`CellConfig(resizable=True)` puts a `Splitter` (`layout.js`) between that cell
+and its next sibling (its previous one when it is last). One handle per
+adjacent pair, made in `_buildCollection` after the siblings exist.
+
+- **Placement costs nothing.** The handle is a flex item with negative margins
+  of `(gap + 8px) / -2`, so it sits centred in the gap and the cells do not
+  move. Its hairline (`::after`) shows on hover, keyboard focus and drag.
+- **What a drag changes:** a cell with a declared size (or `"auto"`) gets
+  `flex: 0 0 <px>`; a fill cell stays filling. Two fill cells split their
+  *combined* flex-grow by the new sizes; writing raw px as grow made them
+  swallow every other fill sibling. That keeps the ratio across a window
+  resize. Bounds come from the computed `min-`/`max-width|height`
+  (`min_size` / `max_size`, at least 48px).
+- **Cells are `box-sizing: border-box` now.** As content-box, a 240px cell
+  measured 242 with its border, so every drag grew it 2px; it also makes
+  `width=` exact. Existing sized cells are 2px smaller than before.
+- While dragging, the layout root gets `.wapyt-resizing`, which turns off
+  `pointer-events` in cell bodies: an iframe (Chat artifacts) or xterm would
+  otherwise swallow the pointer mid-drag. pointermove is rAF-throttled;
+  Terminal's own ResizeObserver refits it.
+- Keyboard: `role="separator"` with `aria-orientation` / `aria-valuenow` (the
+  first cell's share), arrows ±10px (Shift ±50), Home/End to the limits,
+  Enter or double-click resets both cells to their configured flex (and
+  un-pins a cell `set_size` pinned).
+- A hidden neighbour hides the handle (`_syncSplitters` on hide/show/setSize).
+- Python: `Layout.on_resize` → `{id, size, sibling, sibling_size}` in px (the
+  cells before and after the handle) for persisting; `set_size(id, size)` to
+  restore; `get_size(id)` along the parent's axis.
+
+`tests/splitters_demo.py` (sidebar, editor/console rows with an iframe, two
+fill halves, gap 6); a 21-check Playwright run (no layout shift, drag across an
+iframe, payload, min/max clamps, keyboard, reset, row direction, fill ratio
+across a window resize, hide/show, set_size/get_size) passed.
+
 ## Modal sizing (fixed 2026-09-23)
 
 `.wapyt-modal` and its header/body never declared `box-sizing`, so they were

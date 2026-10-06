@@ -144,6 +144,7 @@
       }
       this.element.classList.add("wapyt-cell-hidden");
       this.layout._emit("afterHide", { id: this.id, cell: this });
+      this.layout._syncSplitters();
     }
 
     show() {
@@ -153,10 +154,191 @@
       this.layout._emit("beforeShow", { id: this.id, cell: this });
       this.element.classList.remove("wapyt-cell-hidden");
       this.layout._emit("afterShow", { id: this.id, cell: this });
+      this.layout._syncSplitters();
     }
 
     isVisible() {
       return !this.element.classList.contains("wapyt-cell-hidden");
+    }
+
+    // Size along the parent's axis: width in a row of columns, height in a
+    // column of rows.
+    getSize() {
+      const box = this.element.getBoundingClientRect();
+      return Math.round(this.direction === "row" ? box.width : box.height);
+    }
+
+    setSize(size) {
+      if (size == null) return;
+      this.element.style.flex = `0 0 ${formatSize(size)}`;
+      this._fill = false;
+      this.layout._syncSplitters();
+    }
+
+    fills() {
+      return Boolean(this._fill);
+    }
+  }
+
+  const SPLIT_STEP = 10;
+  const SPLIT_STEP_LARGE = 50;
+  const SPLIT_MIN = 48;
+
+  // A drag handle between two sibling cells, made when either sets
+  // `resizable`. It sits inside the gap with negative margins, so adding one
+  // does not move anything. Cells with a declared size get a new pixel size;
+  // two fill cells instead trade flex-grow, so their ratio survives a window
+  // resize.
+  class Splitter {
+    constructor(layout, before, after, direction) {
+      this.layout = layout;
+      this.before = before;
+      this.after = after;
+      this.direction = direction;
+      this.initial = [before, after].map((cell) => [cell.element.style.flex, cell._fill]);
+
+      const handle = document.createElement("div");
+      handle.className = "wapyt-splitter";
+      handle.dataset.direction = direction;
+      handle.tabIndex = 0;
+      handle.setAttribute("role", "separator");
+      // A separator between columns is vertical.
+      handle.setAttribute("aria-orientation", direction === "row" ? "vertical" : "horizontal");
+      handle.setAttribute("aria-controls", before.element.id);
+      const name = before.config.header || before.id;
+      handle.setAttribute("aria-label", `Resize ${name}`);
+      handle.title = "Drag to resize · double-click to reset";
+      this.handle = handle;
+      before.element.after(handle);
+
+      handle.addEventListener("pointerdown", (event) => this._start(event));
+      handle.addEventListener("keydown", (event) => this._key(event));
+      handle.addEventListener("dblclick", () => this.reset());
+    }
+
+    _limits(cell) {
+      const style = getComputedStyle(cell.element);
+      const min = parseFloat(this.direction === "row" ? style.minWidth : style.minHeight);
+      const max = parseFloat(this.direction === "row" ? style.maxWidth : style.maxHeight);
+      return [Math.max(SPLIT_MIN, Number.isFinite(min) ? min : 0), Number.isFinite(max) ? max : Infinity];
+    }
+
+    // Move the boundary by `delta` px from the sizes measured at `from`.
+    _apply(from, delta) {
+      const [aMin, aMax] = this._limits(this.before);
+      const [bMin, bMax] = this._limits(this.after);
+      const total = from[0] + from[1];
+      let a = from[0] + delta;
+      a = Math.min(a, aMax, total - bMin);
+      a = Math.max(a, aMin, total - bMax);
+      const b = total - a;
+      const aFill = this.before.fills();
+      const bFill = this.after.fills();
+      if (aFill && bFill) {
+        // Split the pair's combined flex-grow by the new sizes. Raw pixel
+        // values would swamp any other fill sibling's grow of 1.
+        const grow = (cell) => parseFloat(cell.element.style.flex) || 1;
+        const share = grow(this.before) + grow(this.after);
+        const ga = (share * a) / total;
+        const gb = share - ga;
+        this.before.element.style.flex = `${ga} ${ga} 0`;
+        this.after.element.style.flex = `${gb} ${gb} 0`;
+      } else {
+        if (!aFill) this.before.element.style.flex = `0 0 ${Math.round(a)}px`;
+        if (!bFill) this.after.element.style.flex = `0 0 ${Math.round(b)}px`;
+      }
+      this.sync();
+    }
+
+    _sizes() {
+      return [this.before.getSize(), this.after.getSize()];
+    }
+
+    _start(event) {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      this.handle.focus();
+      this.handle.setPointerCapture(event.pointerId);
+      const from = this._sizes();
+      const origin = this.direction === "row" ? event.clientX : event.clientY;
+      const root = this.layout.root;
+      // Iframes (chat artifacts) and terminals would swallow the pointer.
+      root.classList.add("wapyt-resizing");
+      root.dataset.resizing = this.direction;
+      this.handle.dataset.active = "true";
+      let frame = 0;
+      let last = event;
+      const move = (e) => {
+        last = e;
+        if (frame) return;
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          const pos = this.direction === "row" ? last.clientX : last.clientY;
+          this._apply(from, pos - origin);
+        });
+      };
+      const end = () => {
+        if (frame) cancelAnimationFrame(frame);
+        const pos = this.direction === "row" ? last.clientX : last.clientY;
+        this._apply(from, pos - origin);
+        root.classList.remove("wapyt-resizing");
+        delete root.dataset.resizing;
+        delete this.handle.dataset.active;
+        this.handle.removeEventListener("pointermove", move);
+        this.handle.removeEventListener("pointerup", end);
+        this.handle.removeEventListener("pointercancel", end);
+        this._emit();
+      };
+      this.handle.addEventListener("pointermove", move);
+      this.handle.addEventListener("pointerup", end);
+      this.handle.addEventListener("pointercancel", end);
+    }
+
+    _key(event) {
+      const back = this.direction === "row" ? "ArrowLeft" : "ArrowUp";
+      const forward = this.direction === "row" ? "ArrowRight" : "ArrowDown";
+      const step = event.shiftKey ? SPLIT_STEP_LARGE : SPLIT_STEP;
+      let delta = null;
+      if (event.key === back) delta = -step;
+      else if (event.key === forward) delta = step;
+      else if (event.key === "Home") delta = -Infinity;
+      else if (event.key === "End") delta = Infinity;
+      else if (event.key === "Enter") {
+        event.preventDefault();
+        this.reset();
+        return;
+      }
+      if (delta == null) return;
+      event.preventDefault();
+      const from = this._sizes();
+      this._apply(from, Number.isFinite(delta) ? delta : delta > 0 ? from[1] : -from[0]);
+      this._emit();
+    }
+
+    reset() {
+      [this.before, this.after].forEach((cell, i) => {
+        [cell.element.style.flex, cell._fill] = this.initial[i];
+      });
+      this.sync();
+      this._emit();
+    }
+
+    _emit() {
+      const [size, siblingSize] = this._sizes();
+      this.layout._emit("afterResize", {
+        id: this.before.id, size, sibling: this.after.id, sibling_size: siblingSize,
+      });
+    }
+
+    // Hidden when either side is; aria-valuenow is the first cell's share.
+    sync() {
+      const visible = this.before.isVisible() && this.after.isVisible();
+      this.handle.hidden = !visible;
+      if (!visible) return;
+      const [a, b] = this._sizes();
+      this.handle.setAttribute("aria-valuemin", "0");
+      this.handle.setAttribute("aria-valuemax", "100");
+      this.handle.setAttribute("aria-valuenow", String(a + b ? Math.round((a * 100) / (a + b)) : 50));
     }
   }
 
@@ -165,6 +347,7 @@
       this._events = {};
       this._progress = new Map();
       this.cells = new Map();
+      this._splitters = [];
       this.options = Object.assign({ type: "line", gap: null }, options || {});
       const resolved = Layout._resolveRoot(rootTarget);
       this.root = resolved.element || document.createElement("div");
@@ -227,11 +410,13 @@
       container.classList.add(
         direction === "row" ? "wapyt-flex-row" : "wapyt-flex-column"
       );
+      const siblings = [];
       cells.forEach((config) => {
         const normalized = Object.assign({}, config);
         normalized.id = normalized.id || makeId();
         const cell = this._createCell(container, normalized, direction, parentCell);
         this.cells.set(cell.id, cell);
+        siblings.push(cell);
         if (Array.isArray(normalized.rows)) {
           const nested = document.createElement("div");
           nested.className = "wapyt-nested";
@@ -248,6 +433,17 @@
         }
         this._emit("afterAdd", { id: cell.id, cell });
       });
+      for (let i = 0; i + 1 < siblings.length; i += 1) {
+        const [before, after] = [siblings[i], siblings[i + 1]];
+        if (before.config.resizable || after.config.resizable) {
+          this._splitters.push(new Splitter(this, before, after, direction));
+        }
+      }
+      if (this._splitters.length) requestAnimationFrame(() => this._syncSplitters());
+    }
+
+    _syncSplitters() {
+      this._splitters.forEach((splitter) => splitter.sync());
     }
 
     _createCell(container, config, direction, parentCell) {
@@ -322,9 +518,17 @@
         const axis = direction === "row" ? "minWidth" : "minHeight";
         cellEl.style[axis] = formatSize(config.minSize);
       }
+      if (config.maxSize != null) {
+        cellEl.style[direction === "row" ? "maxWidth" : "maxHeight"] = formatSize(config.maxSize);
+      }
 
       container.appendChild(cellEl);
       const cell = new LayoutCell(this, config, cellEl, body, parentCell);
+      cell.direction = direction;
+      cellEl.id = cellEl.id || `wapyt-cell-el-${cell.id}`;
+      // Whether this cell takes the space left over rather than a size of its
+      // own. Dragging keeps a fill cell filling; setSize() pins it.
+      cell._fill = !sizesToContent && (declaredSize == null || fillsRemainder);
       if (toggleButton) {
         toggleButton.addEventListener("click", () => {
           if (cell.isCollapsed()) {

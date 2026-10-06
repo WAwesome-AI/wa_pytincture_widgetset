@@ -57,7 +57,11 @@
   flex-direction: column;
 }
 
+/* border-box, so a cell's width / height (and a splitter's measurement)
+   include its 1px border; content-box made every sized cell 2px larger than
+   declared and every drag grow it by 2px. */
 .wapyt-cell {
+  box-sizing: border-box;
   display: flex;
   flex: 1 1 0;
   border: 1px solid var(--wapyt-border);
@@ -112,6 +116,60 @@
 
 .wapyt-cell-hidden {
   display: none;
+}
+
+/* Splitters: a handle centred in the gap between two cells. The negative
+   margins give back its own width and the extra gap it creates, so adding a
+   splitter moves nothing. The hairline shows on hover, focus and drag. */
+.wapyt-splitter {
+  --wapyt-splitter-size: 8px;
+  position: relative;
+  z-index: 3;
+  flex: 0 0 var(--wapyt-splitter-size);
+  touch-action: none;
+  outline: none;
+}
+
+.wapyt-splitter[hidden] { display: none; }
+
+.wapyt-splitter[data-direction="row"] {
+  margin: 0 calc((var(--wapyt-gap, 0px) + var(--wapyt-splitter-size)) / -2);
+  cursor: col-resize;
+}
+
+.wapyt-splitter[data-direction="column"] {
+  margin: calc((var(--wapyt-gap, 0px) + var(--wapyt-splitter-size)) / -2) 0;
+  cursor: row-resize;
+}
+
+.wapyt-splitter::after {
+  content: "";
+  position: absolute;
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.wapyt-splitter[data-direction="row"]::after { top: 0; bottom: 0; left: 50%; width: 3px; transform: translateX(-50%); }
+.wapyt-splitter[data-direction="column"]::after { left: 0; right: 0; top: 50%; height: 3px; transform: translateY(-50%); }
+
+.wapyt-splitter:hover::after { background: var(--wapyt-divider); }
+.wapyt-splitter:focus-visible::after,
+.wapyt-splitter[data-active]::after { background: #38bdf8; }
+
+[data-wapyt-theme="dark"] .wapyt-splitter:hover::after { background: var(--wapyt-divider-dark); }
+
+/* While dragging: keep the cursor, stop text selection, and stop iframes and
+   terminals from swallowing the pointer. */
+.wapyt-resizing { user-select: none; }
+.wapyt-resizing[data-resizing="row"],
+.wapyt-resizing[data-resizing="row"] * { cursor: col-resize !important; }
+.wapyt-resizing[data-resizing="column"],
+.wapyt-resizing[data-resizing="column"] * { cursor: row-resize !important; }
+.wapyt-resizing .wapyt-cell-body { pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wapyt-splitter::after { transition: none; }
 }
 
 .wapyt-cell-collapsed .wapyt-cell-body {
