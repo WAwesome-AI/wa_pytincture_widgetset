@@ -100,7 +100,7 @@ class Form:
         self._bind_event("cancel", handler)
 
     def on_change(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
-        """Fires per edit with ``{"id": ..., "value": ...}``. Selects,
+        """Fires per edit with ``{"id": ..., "value": ...}``. Selects, combos,
         checkboxes, toggles and groups fire when a choice is made; every other
         field fires as you type, pick or drag."""
         self._bind_event("change", handler)
@@ -124,8 +124,8 @@ class Form:
     def set_field_options(
         self, field_id: str, options: List[Union[str, SelectOption]]
     ) -> None:
-        """Replace a select, radio or checkbox_group field's choices; selected
-        values that are still offered stay selected."""
+        """Replace a select, combo, radio or checkbox_group field's choices;
+        selected values that are still offered stay selected."""
         payload = [
             option.to_dict() if hasattr(option, "to_dict") else option
             for option in options

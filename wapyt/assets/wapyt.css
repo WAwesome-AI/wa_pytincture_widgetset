@@ -602,6 +602,140 @@ textarea.wapyt-form-control {
   display: none;
 }
 
+/* Combo: looks like a control; the input inside is borderless. The listbox is
+   appended to <body> while open, so it is styled on its own, above modals. */
+.wapyt-form-combo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 35px;
+  padding: 3px 30px 3px 8px;
+  box-sizing: border-box;
+  background-color: var(--wapyt-bg);
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Cpath fill=%27%2394a3b8%27 d=%27M4.5 6.5 8 10l3.5-3.5z%27/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 16px 16px;
+  border: 1px solid var(--wapyt-border);
+  border-radius: 6px;
+  cursor: text;
+}
+
+.wapyt-form-combo:focus-within {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+
+.wapyt-form-combo:has(input[aria-invalid="true"]) {
+  border-color: #dc2626;
+}
+
+.wapyt-form-combo:has(input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wapyt-form-combo-chips {
+  display: contents;
+}
+
+/* Four classes so this outranks modal.js's `.wapyt-modal-body input` rules
+   (0,3,1 in the dark theme), which would box the input inside the combo. */
+.wapyt-form .wapyt-form-row .wapyt-form-combo input.wapyt-form-combo-input {
+  flex: 1 1 60px;
+  min-width: 60px;
+  padding: 4px 2px;
+  font: 13px/1.4 system-ui, sans-serif;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+}
+
+.wapyt-form-combo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 2px 2px 2px 8px;
+  font: 12px/1.4 system-ui, sans-serif;
+  color: #1e40af;
+  background: rgba(37, 99, 235, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 999px;
+}
+
+.wapyt-form-combo-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wapyt-form-combo-chip-remove {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  font: 14px/1 system-ui, sans-serif;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.wapyt-form-combo-chip-remove:hover {
+  background: rgba(37, 99, 235, 0.18);
+}
+
+.wapyt-form-combo-list {
+  position: fixed;
+  z-index: 10045;
+  box-sizing: border-box;
+  max-height: 240px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--wapyt-bg);
+  border: 1px solid var(--wapyt-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+  font: 13px/1.4 system-ui, sans-serif;
+  color: var(--wapyt-text);
+}
+
+.wapyt-form-combo-option,
+.wapyt-form-combo-empty {
+  padding: 6px 8px 6px 26px;
+  border-radius: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wapyt-form-combo-option {
+  position: relative;
+  cursor: pointer;
+}
+
+.wapyt-form-combo-option[data-active] {
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.wapyt-form-combo-option[aria-selected="true"]::before {
+  content: "✓";
+  position: absolute;
+  left: 9px;
+  color: #2563eb;
+}
+
+.wapyt-form-combo-empty {
+  opacity: 0.6;
+  font-style: italic;
+}
+
 input[type="color"].wapyt-form-control {
   width: 56px;
   height: 34px;
@@ -707,6 +841,31 @@ input[type="color"].wapyt-form-control {
   color-scheme: dark;
 }
 
+[data-wapyt-theme="dark"] .wapyt-form-combo,
+[data-wapyt-theme="dark"] .wapyt-form-combo-list {
+  background-color: var(--wapyt-bg-dark);
+  border-color: var(--wapyt-border-dark);
+  color: var(--wapyt-text-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-combo-list {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-combo-chip {
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(96, 165, 250, 0.4);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-combo-option[data-active] {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-combo-option[aria-selected="true"]::before {
+  color: #60a5fa;
+}
+
 [data-wapyt-theme="dark"] .wapyt-form-option,
 [data-wapyt-theme="dark"] .wapyt-form-range-value {
   color: var(--wapyt-text-dark);
@@ -714,6 +873,7 @@ input[type="color"].wapyt-form-control {
 
 [data-wapyt-theme="dark"] .wapyt-form-row .wapyt-form-control.wapyt-form-toggle {
   background-color: #475569;
+  border: 0;
 }
 
 [data-wapyt-theme="dark"] .wapyt-form-row .wapyt-form-control.wapyt-form-toggle:checked {
