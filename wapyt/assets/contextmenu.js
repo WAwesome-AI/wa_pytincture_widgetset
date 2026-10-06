@@ -27,7 +27,13 @@
 
   class ContextMenu {
     constructor(options = {}) {
-      this.options = Object.assign({ items: [], label: "Context menu" }, options || {});
+      // menuClass / itemClass add class names alongside the wapyt-cmenu ones,
+      // so a widget can keep its own selectors (tests, app CSS) when it moves
+      // onto this menu.
+      this.options = Object.assign(
+        { items: [], label: "Context menu", menuClass: "", itemClass: "" },
+        options || {}
+      );
       this._events = {};
       this._items = this.options.items || [];
       this._attachments = []; // {el, listener, keyListener}
@@ -130,6 +136,7 @@
       document.addEventListener("keydown", this._onDocKey, true);
       window.addEventListener("resize", this._onViewportChange);
       window.addEventListener("scroll", this._onViewportChange, true);
+      window.addEventListener("blur", this._onViewportChange);
       this._focusFirst(panel);
       this._emit("show", { context: this._context, target: this._target });
     }
@@ -146,6 +153,7 @@
       document.removeEventListener("keydown", this._onDocKey, true);
       window.removeEventListener("resize", this._onViewportChange);
       window.removeEventListener("scroll", this._onViewportChange, true);
+      window.removeEventListener("blur", this._onViewportChange);
       if (openMenu === this) openMenu = null;
       const focusTarget = this._returnFocus;
       this._returnFocus = null;
@@ -177,6 +185,7 @@
       if (!visible.some((item) => !item.separator)) return null;
       const panel = document.createElement("div");
       panel.className = "wapyt-cmenu";
+      if (this.options.menuClass) panel.classList.add(...String(this.options.menuClass).split(/\s+/).filter(Boolean));
       panel.setAttribute("role", "menu");
       panel.setAttribute("aria-label", String(this.options.label || "Context menu"));
       panel.tabIndex = -1;
@@ -192,6 +201,13 @@
         const el = document.createElement("button");
         el.type = "button";
         el.className = "wapyt-cmenu-item";
+        if (this.options.itemClass) el.classList.add(...String(this.options.itemClass).split(/\s+/).filter(Boolean));
+        // Extra data-* attributes, e.g. data-action for a widget's own tests.
+        if (item.data && typeof item.data === "object") {
+          Object.keys(item.data).forEach((key) => {
+            if (/^[a-z][A-Za-z0-9]*$/.test(key)) el.dataset[key] = String(item.data[key]);
+          });
+        }
         el.setAttribute("role", "menuitem");
         el.tabIndex = -1;
         el.dataset.id = String(item.id);

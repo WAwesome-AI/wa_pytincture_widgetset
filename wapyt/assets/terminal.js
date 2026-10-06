@@ -130,7 +130,6 @@
       this._closedByUser = false;
       this._lastSize = { cols: 0, rows: 0 };
       this._menu = null;
-      this._menuCloser = null;
 
       this._host = resolveHost(target);
       if (!this._host) {
@@ -594,84 +593,51 @@
       return text.length;
     }
 
+    // Copy / Paste / Select all, as a wapyt.ContextMenu. The menu sits on
+    // <body> above the terminal, so choosing an item never reaches xterm and
+    // cannot disturb its selection; Escape is consumed by the menu, not sent
+    // to the remote shell.
     _openMenu(event) {
       event.preventDefault();
-      this._closeMenu();
-      const menu = document.createElement("div");
-      menu.className = "wapyt-terminal-menu";
-      menu.setAttribute("role", "menu");
-      const hasSelection = this._term && this._term.hasSelection();
-      const mac = /Mac|iPhone|iPad/.test(navigator.platform || "");
-      const mod = mac ? "⌘" : "Ctrl+";
-      const items = [
-        ["copy", "Copy", `${mod}${mac ? "" : "Shift+"}C`, !hasSelection],
-        ["paste", "Paste", `${mod}V`, false],
-        ["selectAll", "Select all", "", false],
-      ];
-      items.forEach(([action, label, hint, disabled]) => {
-        const item = document.createElement("button");
-        item.type = "button";
-        item.className = "wapyt-terminal-menu-item";
-        item.setAttribute("role", "menuitem");
-        item.disabled = disabled;
-        item.dataset.action = action;
-        const text = document.createElement("span");
-        text.textContent = label;
-        item.appendChild(text);
-        if (hint) {
-          const kbd = document.createElement("kbd");
-          kbd.textContent = hint;
-          item.appendChild(kbd);
-        }
-        // mousedown, not click: a click would first move xterm's selection.
-        item.addEventListener("mousedown", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          this._closeMenu();
-          if (action === "copy") this.copySelection();
-          else if (action === "paste") this.pasteClipboard();
-          else if (action === "selectAll") { this._term.selectAll(); this._term.focus(); }
+      const ContextMenu = globalThis.wapyt && globalThis.wapyt.ContextMenu;
+      if (!ContextMenu) return;
+      if (!this._menu) {
+        const mac = /Mac|iPhone|iPad/.test(navigator.platform || "");
+        const mod = mac ? "⌘" : "Ctrl+";
+        this._menu = new ContextMenu({
+          label: "Terminal",
+          menuClass: "wapyt-terminal-menu",
+          itemClass: "wapyt-terminal-menu-item",
+          items: [
+            { id: "copy", label: "Copy", icon: "mdi-content-copy",
+              shortcut: `${mod}${mac ? "" : "Shift+"}C`, data: { action: "copy" } },
+            { id: "paste", label: "Paste", icon: "mdi-content-paste",
+              shortcut: `${mod}V`, data: { action: "paste" } },
+            { id: "selectAll", label: "Select all", icon: "mdi-select-all", data: { action: "selectAll" } },
+          ],
         });
-        menu.appendChild(item);
-      });
-
-      document.body.appendChild(menu);
-      const { innerWidth, innerHeight } = window;
-      const box = menu.getBoundingClientRect();
-      menu.style.left = `${Math.min(event.clientX, innerWidth - box.width - 4)}px`;
-      menu.style.top = `${Math.min(event.clientY, innerHeight - box.height - 4)}px`;
-      this._menu = menu;
-
-      this._menuCloser = (e) => {
-        if (e.type === "keydown" && e.key !== "Escape") return;
-        if (e.type === "mousedown" && menu.contains(e.target)) return;
-        this._closeMenu();
-      };
-      // Registered at once. The right-click that opened the menu cannot close
-      // it: its mousedown fired before this contextmenu event. Deferring with
-      // setTimeout looked safer and was not -- Chrome runs input ahead of timer
-      // tasks on a busy page (Pyodide), so a quick Escape could land before
-      // the listener existed and leave the menu stuck open.
-      document.addEventListener("mousedown", this._menuCloser, true);
-      document.addEventListener("keydown", this._menuCloser, true);
-      window.addEventListener("blur", this._menuCloser);
+        this._menu.on("select", ({ id }) => {
+          if (id === "copy") this.copySelection();
+          else if (id === "paste") this.pasteClipboard();
+          else if (id === "selectAll" && this._term) {
+            this._term.selectAll();
+            this._term.focus();
+          }
+        });
+      }
+      const hasSelection = Boolean(this._term && this._term.hasSelection());
+      this._menu.showAt(event.clientX, event.clientY, { disable: hasSelection ? [] : ["copy"] });
     }
 
     _closeMenu() {
-      if (this._menuCloser) {
-        document.removeEventListener("mousedown", this._menuCloser, true);
-        document.removeEventListener("keydown", this._menuCloser, true);
-        window.removeEventListener("blur", this._menuCloser);
-        this._menuCloser = null;
-      }
-      if (this._menu) {
-        this._menu.remove();
-        this._menu = null;
-      }
+      if (this._menu) this._menu.hide(false);
     }
 
     destroy() {
-      this._closeMenu();
+      if (this._menu) {
+        this._menu.destroy();
+        this._menu = null;
+      }
       this.disconnect();
       if (this._fitTimer) {
         clearTimeout(this._fitTimer);

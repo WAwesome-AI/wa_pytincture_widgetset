@@ -338,47 +338,6 @@
 
 /* Right-click menu. Appended to <body>, fixed, so a grid tile's overflow and
    transforms cannot clip it. */
-.wapyt-terminal-menu {
-  position: fixed;
-  z-index: 10000;
-  min-width: 190px;
-  padding: 4px;
-  border-radius: 8px;
-  background: rgba(15, 23, 42, 0.98);
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  font: 13px system-ui, sans-serif;
-}
-
-.wapyt-terminal-menu-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  width: 100%;
-  padding: 6px 10px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: #e2e8f0;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.wapyt-terminal-menu-item:hover:not(:disabled) {
-  background: #1e293b;
-}
-
-.wapyt-terminal-menu-item:disabled {
-  color: #64748b;
-  cursor: default;
-}
-
-.wapyt-terminal-menu-item kbd {
-  color: #94a3b8;
-  font: 11px ui-monospace, Menlo, Consolas, monospace;
-}
 
 .wapyt-terminal-search-input {
   width: 180px;
@@ -821,52 +780,8 @@ textarea.wapyt-form-control {
 }
 
 /* The menu is appended to <body> so it is never clipped by the scroller. */
-.wapyt-datatable-menu {
-  position: fixed;
-  z-index: 9999;
-  min-width: 170px;
-  padding: 4px;
-  border-radius: 8px;
-  background: var(--wapyt-bg);
-  border: 1px solid var(--wapyt-border);
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
-}
 
-.wapyt-datatable-menu[hidden] {
-  display: none;
-}
-
-.wapyt-datatable-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 10px;
-  font: 12.5px/1.3 system-ui, sans-serif;
-  text-align: left;
-  color: var(--wapyt-text);
-  background: transparent;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
-.wapyt-datatable-menu-item:hover {
-  background: var(--wapyt-surface);
-}
-
-.wapyt-datatable-menu-item[data-danger="true"] {
-  color: #dc2626;
-}
-
-.wapyt-datatable-menu-sep {
-  height: 1px;
-  margin: 4px 2px;
-  background: var(--wapyt-border);
-}
-
-[data-wapyt-theme="dark"] .wapyt-datatable,
-[data-wapyt-theme="dark"] .wapyt-datatable-menu {
+[data-wapyt-theme="dark"] .wapyt-datatable {
   background: var(--wapyt-bg-dark);
   color: var(--wapyt-text-dark);
   border-color: var(--wapyt-border-dark);
@@ -889,18 +804,12 @@ textarea.wapyt-form-control {
   border-color: var(--wapyt-border-dark);
 }
 
-[data-wapyt-theme="dark"] .wapyt-datatable-status,
-[data-wapyt-theme="dark"] .wapyt-datatable-menu-item {
+[data-wapyt-theme="dark"] .wapyt-datatable-status {
   color: var(--wapyt-text-dark);
 }
 
-[data-wapyt-theme="dark"] .wapyt-datatable-table tbody tr:hover,
-[data-wapyt-theme="dark"] .wapyt-datatable-menu-item:hover {
+[data-wapyt-theme="dark"] .wapyt-datatable-table tbody tr:hover {
   background: var(--wapyt-surface-dark);
-}
-
-[data-wapyt-theme="dark"] .wapyt-datatable-menu-sep {
-  background: var(--wapyt-border-dark);
 }
 
 /* Tree
@@ -1017,65 +926,14 @@ textarea.wapyt-form-control {
   display: none;
 }
 
-.wapyt-tree-menu {
-  position: fixed;
-  z-index: 9999;
-  min-width: 170px;
-  padding: 4px;
-  border-radius: 8px;
-  background: var(--wapyt-bg);
-  border: 1px solid var(--wapyt-border);
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
-}
-
-.wapyt-tree-menu[hidden] {
-  display: none;
-}
-
-.wapyt-tree-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 10px;
-  font: 12.5px/1.3 system-ui, sans-serif;
-  text-align: left;
-  color: var(--wapyt-text);
-  background: transparent;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
-.wapyt-tree-menu-item[hidden],
-.wapyt-tree-menu-sep[hidden] {
-  display: none;
-}
-
-.wapyt-tree-menu-item:hover {
-  background: var(--wapyt-surface);
-}
-
-.wapyt-tree-menu-item[data-danger="true"] {
-  color: #dc2626;
-}
-
-.wapyt-tree-menu-sep {
-  height: 1px;
-  margin: 4px 2px;
-  background: var(--wapyt-border);
-}
-
-[data-wapyt-theme="dark"] .wapyt-tree,
-[data-wapyt-theme="dark"] .wapyt-tree-menu {
+[data-wapyt-theme="dark"] .wapyt-tree {
   background: var(--wapyt-bg-dark);
   color: var(--wapyt-text-dark);
   border-color: var(--wapyt-border-dark);
 }
 
 [data-wapyt-theme="dark"] .wapyt-tree-row,
-[data-wapyt-theme="dark"] .wapyt-tree-status,
-[data-wapyt-theme="dark"] .wapyt-tree-menu-item {
+[data-wapyt-theme="dark"] .wapyt-tree-status {
   color: var(--wapyt-text-dark);
 }
 
@@ -1095,13 +953,8 @@ textarea.wapyt-form-control {
   border-color: var(--wapyt-border-dark);
 }
 
-[data-wapyt-theme="dark"] .wapyt-tree-row:hover,
-[data-wapyt-theme="dark"] .wapyt-tree-menu-item:hover {
+[data-wapyt-theme="dark"] .wapyt-tree-row:hover {
   background: var(--wapyt-surface-dark);
-}
-
-[data-wapyt-theme="dark"] .wapyt-tree-menu-sep {
-  background: var(--wapyt-border-dark);
 }
 
 /* ── Message: toasts and alert / confirm / prompt dialogs ─────────────────
