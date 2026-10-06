@@ -332,3 +332,15 @@ def test_css_urls_survive_pytinctures_quote_rewrite():
         for url in re.findall(r"url\(([^)]+)\)", sheet.read_text(encoding="utf-8")):
             inner = url.strip().strip("'").strip('"')
             assert "'" not in inner and '"' not in inner, f"{sheet.name}: {url[:60]}"
+
+
+# -- CardPanel ---------------------------------------------------------------
+
+
+def test_cardpanel_defaults_carry_no_app_specific_copy():
+    from wapyt.cardpanel.cardpanel_config import CardPanelConfig
+
+    payload = CardPanelConfig().to_dict()
+    assert payload["title"] == ""
+    assert payload["description"] == ""
+    assert "data source" not in json.dumps(payload).lower()
