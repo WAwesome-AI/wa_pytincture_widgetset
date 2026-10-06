@@ -408,6 +408,8 @@ Promise of `{ok, value}`, which the Python side awaits.
   on Cancel so Enter cannot destroy anything. Tab is trapped in the dialog and
   focus returns to the trigger on close. Only the topmost of stacked dialogs
   handles keys.
+- `prompt(..., password=True)` masks the input with `autocomplete="new-password"`,
+  so the browser does not fill a saved password into a reset field.
 - Toasts: bottom-centre stack, at most four (oldest goes), `timeout_ms=0` is
   sticky, hover pauses the timer. Errors get `role="alert"`, the rest
   `role="status"`.
