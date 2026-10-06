@@ -127,6 +127,11 @@ class Layout(object, metaclass=LoadUICaller):
 
         return ProgressBar(config=progressbar_config or ProgressBarConfig(), container=self.layout.getCell(id))
 
+    def add_pagination(self, id: str = "mainwindow", pagination_config: Optional["PaginationConfig"] = None) -> "Pagination":
+        from ..pagination import Pagination, PaginationConfig
+
+        return Pagination(config=pagination_config or PaginationConfig(), container=self.layout.getCell(id))
+
     def add_sidebar(self, id: str = "mainwindow", sidebar_config: Optional["SidebarConfig"] = None) -> "Sidebar":
         sidebar_widget = Sidebar(config=sidebar_config or SidebarConfig(), container=self.layout.getCell(id))
         return sidebar_widget

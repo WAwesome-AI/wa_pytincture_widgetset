@@ -21,6 +21,7 @@
 - `Toolbar`: Buttons, toggles, one-of-several groups, text, separators and spacers, dropping to icons when space runs out.
 - `ContextMenu`: Right-click menus with icons, shortcut hints, danger and disabled items, separators and submenus; keyboard accessible.
 - `ProgressBar` / `progress_html`: Determinate or indeterminate bars with active/done/error/paused states, as a live widget or static markup.
+- `Pagination`: First/previous/next/last, a page box or numbered buttons, a page-size selector and a "1–50 of 1,234" summary; copes with totals the server could not count.
 
 ## Runtime Architecture
 - Layouts and widgets are declared in Python but render as DOM nodes through the JavaScript bundles under `wapyt/assets/`. Each helper (e.g., `Layout.add_chat`) forwards config dictionaries directly to the matching JS constructor.
