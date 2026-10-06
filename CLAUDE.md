@@ -382,6 +382,17 @@ small glyph (`.wapyt-datatable-cell-icon`) before a text cell's value;
 columns. A row without the key renders plain text. Added for Monguana's BSON
 type markers; style per icon by targeting the MDI class.
 
+## Base font (added 2026-10-06)
+
+`--wapyt-font-family` (in `wapyt.css` `:root`, a system-UI stack) is applied to
+`.wapyt-layout` and `.wapyt-modal`. Before it, neither set a font, so cell
+headers, `attach_html` content and every modal title fell back to the
+browser's serif default; Monguana and IguanaXterm each carried a
+`.wapyt-modal{font-family:…}` rule to cover it. The modal needs its own
+declaration because it is mounted on `<body>`, outside any layout. Restyle by
+overriding the property, not by styling `body` — the layout no longer
+inherits from it.
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:
@@ -397,8 +408,6 @@ Not bugs to fix blindly — context for when they surface:
   define their own private variable sets. No file uses `prefers-color-scheme`.
 - **Debug prints at import**: `chat.py:14` and `cardpanel.py:12` write to stdout on `import wapyt`,
   with stale `WRAPPER_REVISION` cache-busters.
-- **`ModalWindow` sets no font**, so its title and body fall back to the
-  browser's serif default unless the app styles `.wapyt-modal`.
 - **The modal's × button calls `hide()` unless `ModalConfig(dispose_on_close=True)`**
   (added 2026-09-25), which makes ×, Escape and a backdrop click `close()` —
   remove — the dialog. Off by default because wAwesomeChat builds its modals
