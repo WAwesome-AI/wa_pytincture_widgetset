@@ -1514,6 +1514,59 @@ input[type="color"].wapyt-form-control {
 [data-wapyt-theme="dark"] .wapyt-cmenu-item[data-danger="true"] { color: #f87171; }
 [data-wapyt-theme="dark"] .wapyt-cmenu-sep { background: var(--wapyt-divider-dark); }
 
+/* ── Popup ─────────────────────────────────────────────────────────────────── */
+/* Appended to <body> while open, fixed, above modals (9999) and below menus
+   and combo lists opened from inside it. */
+.wapyt-popup {
+  position: fixed;
+  z-index: 10030;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  max-width: min(420px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  border-radius: 10px;
+  border: 1px solid var(--wapyt-border);
+  background: var(--wapyt-bg);
+  color: var(--wapyt-text);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+  font: 13px/1.45 var(--wapyt-font-family);
+  outline: none;
+}
+.wapyt-popup-body { padding: 10px 12px; overflow: auto; min-height: 0; }
+[data-wapyt-theme="dark"] .wapyt-popup {
+  border-color: var(--wapyt-divider-dark);
+  background: var(--wapyt-bg-dark);
+  color: var(--wapyt-text-dark);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+/* ── Tooltip (one shared element, see tooltip.js) ─────────────────────────── */
+.wapyt-tooltip {
+  position: fixed;
+  z-index: 10070;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #f8fafc;
+  font: 12px/1.4 var(--wapyt-font-family);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.wapyt-tooltip[data-visible] { opacity: 1; }
+[data-wapyt-theme="dark"] .wapyt-tooltip {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wapyt-tooltip { transition: none; }
+}
+
 /* ── ProgressBar (also the markup progress_html() emits) ──────────────────── */
 .wapyt-progress {
   --wapyt-progress-fill: #3b82f6;

@@ -20,6 +20,7 @@
 - `message`: Toasts plus awaitable `alert` / `confirm` / `prompt` dialogs, styled and themed, in place of `window.confirm()`.
 - `Toolbar`: Buttons, toggles, one-of-several groups, text, separators and spacers, dropping to icons when space runs out.
 - `ContextMenu`: Right-click menus with icons, shortcut hints, danger and disabled items, separators and submenus; keyboard accessible.
+- `Popup` and tooltips: An anchored popover for pickers, help and small forms; styled, keyboard-reachable tooltips that replace native `title` text across the widgets.
 - `ProgressBar` / `progress_html`: Determinate or indeterminate bars with active/done/error/paused states, as a live widget or static markup.
 
 ## Runtime Architecture

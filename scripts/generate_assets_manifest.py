@@ -34,11 +34,14 @@ ASSETS: list[tuple[str, str]] = [
     # in manifest order, so this ordering is load-bearing (unlike the widget
     # files below, which only touch their own namespace).
     ("assets/icons.js", "javascript"),
+    # Installs document-level listeners once; no widget calls it at load time.
+    ("assets/tooltip.js", "javascript"),
     ("assets/layout.js", "javascript"),
     ("assets/modal.js", "javascript"),
     ("assets/message.js", "javascript"),
     ("assets/toolbar.js", "javascript"),
     ("assets/contextmenu.js", "javascript"),
+    ("assets/popup.js", "javascript"),
     ("assets/progressbar.js", "javascript"),
     ("assets/sidebar.js", "javascript"),
     ("assets/filetransfer.js", "javascript"),

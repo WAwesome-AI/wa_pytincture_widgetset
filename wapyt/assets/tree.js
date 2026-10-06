@@ -263,6 +263,9 @@
       label.className = "wapyt-tree-label";
       label.textContent = node.label != null ? node.label : id;
       label.title = node.tooltip || label.textContent;
+      // The label as its own tooltip only helps when it is cut off
+      // (tooltip.js checks; an explicit node.tooltip always shows).
+      if (!node.tooltip) label.dataset.wapytTooltipOverflow = "true";
       row.appendChild(label);
 
       if (node.badge != null) {
