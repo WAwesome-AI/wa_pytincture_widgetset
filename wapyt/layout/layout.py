@@ -122,6 +122,11 @@ class Layout(object, metaclass=LoadUICaller):
         toolbar_widget = Toolbar(config=toolbar_config or ToolbarConfig(), container=self.layout.getCell(id))
         return toolbar_widget
 
+    def add_progressbar(self, id: str = "mainwindow", progressbar_config: Optional["ProgressBarConfig"] = None) -> "ProgressBar":
+        from ..progressbar import ProgressBar, ProgressBarConfig
+
+        return ProgressBar(config=progressbar_config or ProgressBarConfig(), container=self.layout.getCell(id))
+
     def add_sidebar(self, id: str = "mainwindow", sidebar_config: Optional["SidebarConfig"] = None) -> "Sidebar":
         sidebar_widget = Sidebar(config=sidebar_config or SidebarConfig(), container=self.layout.getCell(id))
         return sidebar_widget
