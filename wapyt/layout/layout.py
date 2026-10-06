@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, Optional, TypeVar, Union
 
-from wapyt._runtime import js, create_proxy, require_js
+from wapyt._runtime import js, create_proxy, require_js, to_plain
 from wapyt.layout.layout_config import LayoutConfig, CellConfig
 from wapyt.cardpanel import CardPanel, CardPanelConfig
 from wapyt.sidebar import Sidebar, SidebarConfig
@@ -173,7 +173,9 @@ class Layout(object, metaclass=LoadUICaller):
     # ------------------------------------------------------------------
 
     def add_event_handler(self, event_name: str, handler: Callable) -> None:
-        event_proxy = create_proxy(handler)
+        # Payloads arrive as dicts ({"id", "cell"}), like every other widget's;
+        # "cell" stays the JS cell object, and is None when the root goes.
+        event_proxy = create_proxy(lambda *args: handler(*[to_plain(arg) for arg in args]))
         self.layout.registerEvent(event_name, event_proxy)
 
     # Convenience wrappers ------------------------------------------------

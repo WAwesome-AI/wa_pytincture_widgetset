@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 
-from wapyt._runtime import js, create_proxy, require_js
+from wapyt._runtime import js, create_proxy, require_js, to_plain
 from wapyt.resourceboard.resourceboard_config import ResourceBoardConfig
 
 
@@ -92,7 +92,7 @@ class ResourceBoard:
         self.board.select(item_id)
 
     def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda payload=None: handler(payload.to_py() if payload and hasattr(payload, "to_py") else payload))
+        proxy = create_proxy(lambda payload=None: handler(to_plain(payload)))
         self._event_proxies[event_name] = proxy
         self.board.on(event_name, proxy)
 

@@ -73,7 +73,7 @@ def test_compact_mode_is_validated():
 
 
 def test_event_payload_maps_jsnull_to_none():
-    from wapyt.toolbar.toolbar import _plain
+    from wapyt._runtime import to_plain as _plain
 
     class JsNull:  # stands in for pyodide.ffi.JsNull
         pass

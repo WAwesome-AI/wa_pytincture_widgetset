@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from .._runtime import create_proxy, require_js
+from .._runtime import create_proxy, require_js, to_plain
 from .toolbar_config import (
     ToolbarButton,
     ToolbarConfig,
@@ -21,22 +21,6 @@ try:  # pragma: no cover - only available inside Pyodide
 except Exception:  # pragma: no cover - executed on CPython
     js = None  # type: ignore
 
-
-def _plain(value: Any) -> Any:
-    """
-    Convert an event payload to plain Python. ``to_py()`` turns JS ``null``
-    into ``JsNull``, which is not ``None``; map it so ``payload["group"] is
-    None`` works as documented.
-    """
-    if hasattr(value, "to_py"):
-        value = value.to_py()
-    if isinstance(value, dict):
-        return {key: _plain(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_plain(item) for item in value]
-    if type(value).__name__ == "JsNull":
-        return None
-    return value
 
 
 class Toolbar:
@@ -108,7 +92,7 @@ class Toolbar:
         return root
 
     def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda *args, **kwargs: handler(*[_plain(arg) for arg in args], **kwargs))
+        proxy = create_proxy(lambda *args, **kwargs: handler(*[to_plain(arg) for arg in args], **kwargs))
         self._event_proxies.setdefault(event_name, []).append(proxy)
         self.toolbar.on(event_name, proxy)
 

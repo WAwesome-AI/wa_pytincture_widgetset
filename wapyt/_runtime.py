@@ -40,6 +40,36 @@ def create_proxy(callback):  # type: ignore
     return _create_proxy(callback)
 
 
+def to_plain(value: Any) -> Any:
+    """
+    Convert a value from JavaScript into plain Python, with JS ``null`` as
+    ``None``.
+
+    Pyodide maps ``undefined`` to ``None`` but ``null`` to ``pyodide.ffi.jsnull``
+    (type ``JsNull``), both when a JS function returns it and inside an object
+    converted with ``to_py()``. ``JsNull`` is falsy, but ``is None`` and
+    ``== None`` are False, so ``if x is None:`` checks silently take the
+    wrong branch -- so every widget event payload and getter goes through
+    here. Plain objects and arrays become
+    dicts and lists, recursively; other JS objects (DOM elements, class
+    instances) are returned as proxies.
+    """
+    if type(value).__name__ == "JsNull":
+        return None
+    if hasattr(value, "to_py"):
+        try:
+            value = value.to_py()
+        except Exception:  # pragma: no cover - not convertible; keep the proxy
+            return value
+    if isinstance(value, dict):
+        return {key: to_plain(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [to_plain(item) for item in value]
+    if type(value).__name__ == "JsNull":
+        return None
+    return value
+
+
 def _inject_css(content: str) -> None:
     style = js.document.createElement("style")
     style.innerHTML = content

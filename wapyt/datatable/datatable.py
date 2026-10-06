@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from .._runtime import create_proxy, require_js
+from .._runtime import create_proxy, require_js, to_plain
 from .datatable_config import ColumnConfig, DataTableConfig, TableAction
 
 try:  # pragma: no cover - only available inside Pyodide
@@ -86,14 +86,14 @@ class DataTable:
 
     def _bind_event(self, event_name: str, handler: Callable) -> None:
         proxy = create_proxy(lambda *args, **kwargs: handler(*[
-            arg.to_py() if hasattr(arg, "to_py") else arg for arg in args
+            to_plain(arg) for arg in args
         ], **kwargs))
         self._event_proxies.setdefault(event_name, []).append(proxy)
         self.datatable.on(event_name, proxy)
 
     @staticmethod
     def _to_py(value: Any) -> Any:
-        return value.to_py() if hasattr(value, "to_py") else value
+        return to_plain(value)
 
     # ------------------------------------------------------------------
     # Event bindings

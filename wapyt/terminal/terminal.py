@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from .._runtime import create_proxy, require_js
+from .._runtime import create_proxy, require_js, to_plain
 from .terminal_config import TerminalConfig, TerminalTheme
 
 try:  # pragma: no cover - only available inside Pyodide
@@ -79,7 +79,7 @@ class Terminal:
 
     def _bind_event(self, event_name: str, handler: Callable) -> None:
         proxy = create_proxy(lambda *args, **kwargs: handler(*[
-            arg.to_py() if hasattr(arg, "to_py") else arg for arg in args
+            to_plain(arg) for arg in args
         ], **kwargs))
         self._event_proxies.setdefault(event_name, []).append(proxy)
         self.terminal.on(event_name, proxy)
