@@ -69,6 +69,7 @@ def dialog_options(
     danger: bool = False,
     value: Optional[str] = None,
     placeholder: Optional[str] = None,
+    password: bool = False,
 ) -> Dict[str, Any]:
     if kind not in ("alert", "confirm", "prompt"):
         raise ValueError(f"unknown dialog kind {kind!r}")
@@ -85,6 +86,10 @@ def dialog_options(
         options["value"] = str(value)
     if placeholder:
         options["placeholder"] = str(placeholder)
+    if password:
+        if kind != "prompt":
+            raise ValueError("password applies only to prompt dialogs")
+        options["password"] = True
     return options
 
 
@@ -158,12 +163,17 @@ async def prompt(
     placeholder: Optional[str] = None,
     ok_text: str = "OK",
     cancel_text: str = "Cancel",
+    password: bool = False,
 ) -> Optional[str]:
     """
     Ask for one line of text. Returns it, or None when cancelled.
 
     Enter submits. An empty submission returns ``""``, which is distinct from
     cancelling. Validate the answer yourself -- and on the server, if it matters.
+
+    ``password=True`` masks the input and asks the browser not to fill in a
+    saved password (``autocomplete="new-password"``), for setting or resetting
+    one. The answer still travels as plain text to whatever you send it to.
     """
     result = _to_py(
         await _api().dialog(
@@ -171,6 +181,7 @@ async def prompt(
                 dialog_options(
                     "prompt", text, title=title, ok_text=ok_text,
                     cancel_text=cancel_text, value=value, placeholder=placeholder,
+                    password=password,
                 )
             )
         )

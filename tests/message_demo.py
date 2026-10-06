@@ -16,6 +16,7 @@ BUTTONS = [
     ("confirm", "Confirm"),
     ("confirm-danger", "Destructive confirm"),
     ("prompt", "Prompt"),
+    ("prompt-password", "Password prompt"),
     ("theme", "Toggle theme"),
 ]
 
@@ -73,6 +74,13 @@ class message_demo(MainWindow):
                             title="Drop collection",
                             ok_text="Drop",
                             danger=True,
+                        )
+                    )
+                elif key == "prompt-password":
+                    self._result(
+                        await message.prompt(
+                            "New password for ada (min 8 chars)", title="Reset password",
+                            ok_text="Reset", password=True,
                         )
                     )
                 elif key == "prompt":

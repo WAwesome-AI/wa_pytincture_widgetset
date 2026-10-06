@@ -168,8 +168,15 @@
       let input = null;
       if (kind === "prompt") {
         input = document.createElement("input");
-        input.type = "text";
+        input.type = options.password ? "password" : "text";
         input.className = "wapyt-msg-input";
+        if (options.password) {
+          // "new-password" keeps the browser from filling in a saved password:
+          // a password prompt is almost always choosing or resetting one.
+          input.autocomplete = "new-password";
+          input.spellcheck = false;
+          input.setAttribute("autocapitalize", "off");
+        }
         input.value = options.value == null ? "" : String(options.value);
         if (options.placeholder) input.placeholder = String(options.placeholder);
         input.setAttribute("aria-labelledby", text.id);

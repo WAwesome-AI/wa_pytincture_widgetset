@@ -62,3 +62,13 @@ def test_dialog_text_is_stringified_and_none_is_empty():
 def test_dialog_rejects_an_unknown_kind():
     with pytest.raises(ValueError, match="unknown dialog kind"):
         dialog_options("toast", "hi")
+
+
+def test_prompt_password_option():
+    assert dialog_options("prompt", "New password", password=True)["password"] is True
+    assert "password" not in dialog_options("prompt", "Name?")
+
+
+def test_password_is_rejected_outside_prompt():
+    with pytest.raises(ValueError, match="only to prompt"):
+        dialog_options("confirm", "Sure?", password=True)
