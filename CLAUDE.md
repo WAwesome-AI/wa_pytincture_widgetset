@@ -405,5 +405,3 @@ Not bugs to fix blindly — context for when they surface:
   once and reopens them; Monguana, which builds one per use, turns it on.
   `close()` also removes the modal's document-level Escape listener, which
   used to outlive every dialog.
-- `CardPanelConfig` defaults to `title="Data Sources"` with a description about lineage tracking —
-  app-specific copy baked into a generic widget.

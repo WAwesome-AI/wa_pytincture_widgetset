@@ -58,10 +58,13 @@ class CardPanelConfig:
     * ``card_columns`` – integer column count translated into CSS grid template.
     * ``viewport_height`` – constrains the grid height and enables scrolling.
     * ``card_gap`` / ``card_min_height`` / ``card_height`` – tune card spacing.
-    * ``add_button_text`` / ``search_placeholder`` – copy for built-in chrome.
+    * ``add_button_text`` / ``search_placeholder`` – copy for built-in chrome
+      (``"Add"`` / ``"Search…"`` when unset).
+    * ``title`` / ``description`` default to empty; an empty description hides
+      its row.
     """
-    title: str = "Data Sources"
-    description: str = "Manage and connect to various data sources with intelligent profiling and lineage tracking."
+    title: str = ""
+    description: str = ""
     searchable: bool = True
     auto_filter: bool = True
     cards: List[Any] = field(default_factory=list)

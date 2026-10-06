@@ -114,7 +114,7 @@ function wapytEscapeHtml(value) {
                                 <path d="M21 21l-4.2-4.2" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"></path>
                                 <circle cx="11" cy="11" r="7" stroke="#94a3b8" stroke-width="2"></circle>
                             </svg>
-                            <input type="text" id="${this._ids.searchInput}" placeholder="Search data sources..." />
+                            <input type="text" id="${this._ids.searchInput}" placeholder="Search…" />
                             <button class="cardpanel-search-btn" id="${this._ids.searchButton}">Search</button>
                         </div>
                         <button class="cardpanel-add" id="${this._ids.addButton}">
@@ -180,12 +180,12 @@ function wapytEscapeHtml(value) {
 
         _bootstrap(options) {
             this.options = Object.assign({
-                title: "Data Sources",
-                description: "Manage and connect to various data sources with intelligent profiling and lineage tracking.",
+                title: "",
+                description: "",
                 searchable: true,
-                searchPlaceholder: "Search data sources...",
+                searchPlaceholder: "Search…",
                 searchButtonText: "Search",
-                addButtonText: "Add Data Source",
+                addButtonText: "Add",
                 viewButtonText: "View Details",
                 autoFilter: true,
                 cardMinWidth: 260,
