@@ -538,6 +538,41 @@ pytincture's shapes, `__Host-<ns>-csrf` / `<ns>-dev-csrf`, preferring the
 default namespace. `tests/test_filetransfer_csrf.py` runs the real function
 under Node.
 
+## Form field types (added 2026-10-06)
+
+`FieldConfig(type=...)` now also takes `date`, `time`, `datetime-local`,
+`color`, `range`, `radio`, `toggle` and `checkbox_group`; an unknown type
+raises `ValueError` in `to_dict()` instead of silently rendering a text box.
+`form.js` routes every read and write through type sets (`DATELIKE`,
+`BOUNDED`, `BOOLEAN`, `GROUPS`) and `_readControl` / `_writeControl`.
+
+- **Values.** Date-likes read back as ISO strings, `None` when empty, and take
+  `datetime.date` / `time` / `datetime` on the way in (`iso_value`, and
+  `json_default` for `set_values`); aware datetimes are refused. `range` reads
+  as a number, `toggle` as a bool, `radio` as the picked value or `None`,
+  `checkbox_group` as a list. An unset `range` keeps the browser's midpoint.
+- **Groups** are a borderless `<fieldset>` (`role="radiogroup"` / `"group"`)
+  labelled through `aria-labelledby`, so `fieldset.disabled` disables every
+  option and `_focusEntry` focuses the picked (or first) option on an invalid
+  submit. Radio names are the per-instance control id, so two forms never
+  share a set. `inline=True` lays options in a row; `set_field_options` works
+  on groups and keeps whatever is still offered selected.
+- **Bounds.** `min` / `max` apply to number, range and date-likes and are
+  checked through the control's own `validity.rangeUnderflow/Overflow`. The
+  default copy quotes the ISO bound ("Must be 2026-01-01 or later") even though
+  the picker shows a locale format; `range_message` overrides it.
+- **Toggle** is the checkbox itself with `appearance: none`, `role="switch"`
+  and a `::before` knob. Its selectors carry `.wapyt-form-row` on purpose:
+  `.wapyt-form-row[data-inline] .wapyt-form-control { width: auto }` otherwise
+  wins and collapses it to zero width.
+- Dark theme sets `color-scheme: dark` on the form so native picker icons and
+  popups are not black on dark.
+
+`tests/form_demo.py` has every type; a 25-check Playwright run (values and
+types, ARIA, escaping, range readout, keyboard, required groups, number and
+date bounds, set_values with date objects, set_field_options, dark scheme)
+passed. Still to come: `combo` (searchable, optional multi-select).
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:
