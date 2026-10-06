@@ -571,7 +571,40 @@ raises `ValueError` in `to_dict()` instead of silently rendering a text box.
 `tests/form_demo.py` has every type; a 25-check Playwright run (values and
 types, ARIA, escaping, range readout, keyboard, required groups, number and
 date bounds, set_values with date objects, set_field_options, dark scheme)
-passed. Still to come: `combo` (searchable, optional multi-select).
+passed.
+
+### Combo (added 2026-10-06)
+
+`type="combo"` is a searchable select: the `Combo` class in `form.js`, a
+WAI-ARIA combobox (`role="combobox"`, `aria-activedescendant`) over a
+`role="listbox"`. `multiple=True` picks several values as chips and reads back
+as a list; `allow_custom=True` keeps typed text that is not an option.
+
+- **The listbox lives in `<body>`**, `position: fixed`, z-index 10045, and is
+  attached only while open, so a modal's or a cell's overflow cannot clip it
+  and nothing is left behind when a form is thrown away. It flips above the
+  field when there is no room below and follows scrolls and resizes.
+- **Change fires on a pick, never on typing**; typing only filters
+  (case-insensitive substring on the label). Enter in an open list picks and
+  does not submit the form; Escape closes the list and stops there, so an
+  enclosing modal stays open; Backspace in an empty multi combo drops the last
+  chip.
+- **Blur commits the text:** an exact label match picks it, unmatched text
+  reverts (or is kept with `allow_custom`), and clearing the box clears a
+  single combo. Clicking a single combo selects its text so typing starts a
+  new search instead of appending to the current label.
+- `set_values` / `set_field_options` drop values that are not options unless
+  `allow_custom` is on.
+- The inner input's reset is four classes deep on purpose: modal.js injects
+  `.wapyt-modal-body input` rules (0,3,1 when dark) that otherwise draw a box
+  inside the combo. The same rule gave a dark-modal toggle a border, so the
+  dark toggle rule sets `border: 0` too.
+
+The same demo has combos inline and in a modal; a 30-check Playwright run
+(ARIA, filtering, keyboard, blur rules, chips, custom values, escaping,
+required, set_values / set_field_options, overflow past the modal, Escape not
+closing the modal, both themes inside a modal) passed alongside the 25
+field-type checks.
 
 ## Known rough edges
 

@@ -8,7 +8,7 @@ FIELD_TYPES = frozenset({
     "text", "password", "email", "number", "url", "search", "tel", "textarea",
     "select", "checkbox", "hidden",
     "date", "time", "datetime-local", "color", "range",
-    "radio", "toggle", "checkbox_group",
+    "radio", "toggle", "checkbox_group", "combo",
 })
 
 
@@ -44,7 +44,7 @@ def json_default(value: Any) -> Any:
 
 @dataclass
 class SelectOption:
-    """One entry in a ``select``, ``radio`` or ``checkbox_group`` field."""
+    """One entry in a ``select``, ``combo``, ``radio`` or ``checkbox_group`` field."""
 
     value: str
     label: Optional[str] = None
@@ -65,13 +65,15 @@ class FieldConfig:
             · ``search`` · ``tel`` · ``textarea`` · ``select`` · ``checkbox``
             · ``hidden``; the native pickers ``date`` · ``time`` ·
             ``datetime-local`` · ``color`` · ``range``; and ``radio`` ·
-            ``toggle`` (a switch) · ``checkbox_group``.
+            ``toggle`` (a switch) · ``checkbox_group``; and ``combo``, a
+            searchable select.
         value: Initial value. ``checkbox`` and ``toggle`` coerce it to a
             bool; ``checkbox_group`` takes a list of option values; ``date``,
             ``time`` and ``datetime-local`` take an ISO string or a
             ``datetime.date`` / ``time`` / ``datetime``. Values read back as
             ISO strings (``None`` when empty), numbers for ``number`` and
-            ``range``, and a list for ``checkbox_group``.
+            ``range``, and a list for ``checkbox_group`` and a ``multiple``
+            combo.
         placeholder: Placeholder text for textual controls.
         help: Hint rendered under the control.
         required: Fails validation when empty.
@@ -79,8 +81,10 @@ class FieldConfig:
         pattern: JavaScript regular expression source the value must match.
         matches: Another field's id whose value this one must equal — for
             "confirm password" pairs.
-        options: Choices for ``select``, ``radio`` and ``checkbox_group``;
-            strings or :class:`SelectOption`.
+        options: Choices for ``select``, ``combo``, ``radio`` and
+            ``checkbox_group``; strings or :class:`SelectOption`.
+        multiple: Let a ``combo`` pick several values, shown as chips.
+        allow_custom: Let a ``combo`` keep typed text that is not an option.
         inline: Lay ``radio`` / ``checkbox_group`` options out in a row.
         show_value: Show a ``range`` field's current value beside it.
         rows: Row count for ``textarea``.
@@ -109,6 +113,8 @@ class FieldConfig:
     options: Optional[List[Union[str, SelectOption]]] = None
     inline: bool = False
     show_value: bool = True
+    multiple: bool = False
+    allow_custom: bool = False
     rows: Optional[int] = None
     min: Optional[Union[int, float, str, _dt.date, _dt.time]] = None
     max: Optional[Union[int, float, str, _dt.date, _dt.time]] = None
@@ -149,6 +155,8 @@ class FieldConfig:
             "options": options,
             "inline": self.inline or None,
             "showValue": None if self.show_value else False,
+            "multiple": self.multiple or None,
+            "allowCustom": self.allow_custom or None,
             "rows": self.rows,
             "min": iso_value(self.min),
             "max": iso_value(self.max),

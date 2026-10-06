@@ -11,7 +11,7 @@ from wapyt.form.form_config import FIELD_TYPES, json_default
 
 
 @pytest.mark.parametrize("kind", ["date", "time", "datetime-local", "color", "range",
-                                  "radio", "toggle", "checkbox_group"])
+                                  "radio", "toggle", "checkbox_group", "combo"])
 def test_new_types_are_accepted(kind):
     assert kind in FIELD_TYPES
     assert FieldConfig(id="f", type=kind).to_dict()["type"] == kind
@@ -68,3 +68,10 @@ def test_range_message_is_forwarded():
 def test_form_with_every_type_serializes():
     config = FormConfig(fields=[FieldConfig(id=kind, type=kind) for kind in sorted(FIELD_TYPES)])
     assert len(json.loads(json.dumps(config.to_dict()))["fields"]) == len(FIELD_TYPES)
+
+
+def test_combo_flags_only_sent_when_on():
+    assert FieldConfig(id="c", type="combo").to_dict() == {"id": "c", "type": "combo"}
+    payload = FieldConfig(id="c", type="combo", multiple=True, allow_custom=True, value=["a"],
+                          options=[SelectOption("a", "A")]).to_dict()
+    assert payload["multiple"] is True and payload["allowCustom"] is True and payload["value"] == ["a"]
