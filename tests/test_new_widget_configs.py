@@ -248,15 +248,42 @@ def test_tree_action_requires_round_trips():
     assert action["requires"] == ["rename"]
 
 
-def test_tree_menu_filters_on_node_flags():
-    """The filter itself is JS; pin that it reads node.data.flags and needs all of them."""
+def test_tree_menu_filters_by_scope_kinds_and_flags():
+    """Run Tree's real per-node filter (tree.js `_actionApplies`) under Node."""
+    import json
+    import shutil
+    import subprocess
     from pathlib import Path
 
-    source = (Path(__file__).resolve().parents[1] / "wapyt" / "assets" / "tree.js").read_text(
-        encoding="utf-8")
-    assert "item.dataset.requires" in source
-    assert "requires.every((flag) => flags.includes(flag))" in source
-    assert "node.data.flags" in source
+    node_bin = shutil.which("node")
+    if not node_bin:
+        pytest.skip("node is not installed")
+    tree_js = Path(__file__).resolve().parents[1] / "wapyt" / "assets" / "tree.js"
+    script = """
+      globalThis.wapyt = {};
+      require("vm").runInThisContext(require("fs").readFileSync(process.argv[1], "utf8"));
+      const applies = globalThis.wapyt.Tree.prototype._actionApplies;
+      const leaf = {id: "c", data: {kind: "collection", flags: ["rename", "drop"]}};
+      const branch = {id: "d", items: [leaf], data: {kind: "database"}};
+      const cases = {
+        any: applies({scope: "any"}, leaf),
+        branchOnLeaf: applies({scope: "branch"}, leaf),
+        branchOnBranch: applies({scope: "branch"}, branch),
+        kindMatch: applies({kinds: ["collection"]}, leaf),
+        kindMiss: applies({kinds: ["server"]}, leaf),
+        kindOnNoKind: applies({kinds: ["server"]}, {id: "x"}),
+        requiresAll: applies({requires: ["rename", "drop"]}, leaf),
+        requiresMissing: applies({requires: ["rename", "export"]}, leaf),
+        requiresNoFlags: applies({requires: ["rename"]}, branch),
+      };
+      console.log(JSON.stringify(cases));
+    """
+    out = subprocess.run([node_bin, "-e", script, str(tree_js)], capture_output=True, text=True, check=True)
+    assert json.loads(out.stdout) == {
+        "any": True, "branchOnLeaf": False, "branchOnBranch": True,
+        "kindMatch": True, "kindMiss": False, "kindOnNoKind": False,
+        "requiresAll": True, "requiresMissing": False, "requiresNoFlags": False,
+    }
 
 
 def test_datatable_column_features_are_off_by_default():

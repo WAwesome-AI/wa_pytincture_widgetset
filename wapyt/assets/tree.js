@@ -92,114 +92,75 @@
       this._buildContextMenu();
     }
 
+    // The right-click menu is a wapyt.ContextMenu (keyboard, focus, ARIA,
+    // clean-up). TreeAction stays the public API: each action gets an
+    // internal id, so two actions sharing an id cannot hide each other, and
+    // scope / kinds / requires decide per node which ones are hidden.
     _buildContextMenu() {
       const actions = this.options.contextActions || [];
       if (!actions.length) return;
-
-      const menu = document.createElement("div");
-      menu.className = "wapyt-tree-menu";
-      menu.hidden = true;
-      actions.forEach((action) => {
-        if (action && action.separator) {
-          const sep = document.createElement("div");
-          sep.className = "wapyt-tree-menu-sep";
-          menu.appendChild(sep);
-          return;
-        }
-        const item = document.createElement("button");
-        item.type = "button";
-        item.className = "wapyt-tree-menu-item";
-        if (action.danger) item.dataset.danger = "true";
-        if (action.icon) {
-          const icon = document.createElement("span");
-          icon.className = iconClass(action.icon);
-          item.appendChild(icon);
-        }
-        const label = document.createElement("span");
-        label.textContent = action.label || action.id;
-        item.appendChild(label);
-        item.addEventListener("click", () => {
-          const nodeId = menu.dataset.nodeId;
-          this._hideMenu();
-          this._emit("action", {
-            action: action.id,
-            id: nodeId,
-            node: this.getNode(nodeId),
-          });
-        });
-        // A folder-only or leaf-only action is filtered when the menu opens,
-        // and so is one limited to certain node kinds (node.data.kind) or
-        // needing flags the node carries (node.data.flags).
-        item.dataset.scope = action.scope || "any";
-        if (Array.isArray(action.kinds) && action.kinds.length) {
-          item.dataset.kinds = action.kinds.join("\u001f");
-        }
-        if (Array.isArray(action.requires) && action.requires.length) {
-          item.dataset.requires = action.requires.join("\u001f");
-        }
-        menu.appendChild(item);
+      const ContextMenu = globalThis.wapyt && globalThis.wapyt.ContextMenu;
+      if (!ContextMenu) {
+        console.warn("[wapyt.Tree] context actions need wapyt.ContextMenu (contextmenu.js)");
+        return;
+      }
+      this._menuActions = actions.map((action, index) => ({ key: `a${index}`, action: action || {} }));
+      const items = this._menuActions.map(({ key, action }) =>
+        action.separator
+          ? { separator: true }
+          : {
+              id: key,
+              label: action.label || action.id,
+              icon: action.icon,
+              danger: Boolean(action.danger),
+              data: { actionId: String(action.id) },
+            }
+      );
+      this._menu = new ContextMenu({
+        items,
+        label: "Tree actions",
+        menuClass: "wapyt-tree-menu",
+        itemClass: "wapyt-tree-menu-item",
       });
-
-      document.body.appendChild(menu);
-      this._menu = menu;
-      this._dismissMenu = (event) => {
-        if (this._menu && !this._menu.hidden && !this._menu.contains(event.target)) {
-          this._hideMenu();
-        }
-      };
-      document.addEventListener("pointerdown", this._dismissMenu, true);
-      document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") this._hideMenu();
+      this._menu.on("select", ({ id, context }) => {
+        const entry = this._menuActions.find((candidate) => candidate.key === id);
+        if (!entry) return;
+        this._emit("action", { action: entry.action.id, id: context, node: this.getNode(context) });
       });
-      this._scroller.addEventListener("scroll", () => this._hideMenu());
+    }
+
+    _actionApplies(action, node) {
+      const isBranch = Boolean(node && node.items && node.items.length);
+      const kind = node && node.data && node.data.kind != null ? String(node.data.kind) : null;
+      const flags = node && node.data && Array.isArray(node.data.flags)
+        ? node.data.flags.map(String) : [];
+      const scope = action.scope || "any";
+      const kinds = Array.isArray(action.kinds) && action.kinds.length ? action.kinds.map(String) : null;
+      const requires = Array.isArray(action.requires) ? action.requires.map(String) : [];
+      return (
+        (scope === "any" || (scope === "branch" && isBranch) || (scope === "leaf" && !isBranch)) &&
+        (!kinds || (kind !== null && kinds.includes(kind))) &&
+        requires.every((flag) => flags.includes(flag))
+      );
     }
 
     _showMenu(nodeId, x, y) {
       if (!this._menu) return;
       const node = this.getNode(nodeId);
-      const isBranch = Boolean(node && node.items && node.items.length);
-      const kind = node && node.data && node.data.kind != null ? String(node.data.kind) : null;
-      const flags = node && node.data && Array.isArray(node.data.flags)
-        ? node.data.flags.map(String) : [];
+      const hide = [];
       let visible = 0;
-      this._menu.querySelectorAll(".wapyt-tree-menu-item").forEach((item) => {
-        const scope = item.dataset.scope || "any";
-        const kinds = item.dataset.kinds ? item.dataset.kinds.split("\u001f") : null;
-        const requires = item.dataset.requires ? item.dataset.requires.split("\u001f") : [];
-        const show =
-          (scope === "any" ||
-            (scope === "branch" && isBranch) ||
-            (scope === "leaf" && !isBranch)) &&
-          (!kinds || (kind !== null && kinds.includes(kind))) &&
-          requires.every((flag) => flags.includes(flag));
-        item.hidden = !show;
-        if (show) visible += 1;
+      this._menuActions.forEach(({ key, action }) => {
+        if (action.separator) return;
+        if (this._actionApplies(action, node)) visible += 1;
+        else hide.push(key);
       });
-      // Separators between groups that are all hidden would stack up.
-      let previousVisible = null;
-      this._menu.childNodes.forEach((child) => {
-        if (child.classList.contains("wapyt-tree-menu-sep")) {
-          child.hidden = previousVisible !== "item";
-          if (!child.hidden) previousVisible = "sep";
-        } else if (!child.hidden) {
-          previousVisible = "item";
-        }
-      });
-      const lastShown = [...this._menu.childNodes].reverse().find((child) => !child.hidden);
-      if (lastShown && lastShown.classList.contains("wapyt-tree-menu-sep")) lastShown.hidden = true;
       if (!visible) return;
-
-      this._menu.dataset.nodeId = nodeId;
-      this._menu.hidden = false;
-      const rect = this._menu.getBoundingClientRect();
-      const left = Math.min(x, window.innerWidth - rect.width - 8);
-      const top = Math.min(y, window.innerHeight - rect.height - 8);
-      this._menu.style.left = `${Math.max(8, left)}px`;
-      this._menu.style.top = `${Math.max(8, top)}px`;
+      // ContextMenu drops separators left leading, trailing or doubled.
+      this._menu.showAt(x, y, { context: nodeId, hide });
     }
 
     _hideMenu() {
-      if (this._menu) this._menu.hidden = true;
+      if (this._menu) this._menu.hide(false);
     }
 
     // ── Data ─────────────────────────────────────────────────────────────────
@@ -409,11 +370,9 @@
     }
 
     destroy() {
-      if (this._dismissMenu) {
-        document.removeEventListener("pointerdown", this._dismissMenu, true);
-      }
-      if (this._menu && this._menu.parentNode) {
-        this._menu.parentNode.removeChild(this._menu);
+      if (this._menu) {
+        this._menu.destroy();
+        this._menu = null;
       }
       this._host.innerHTML = "";
     }

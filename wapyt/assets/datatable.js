@@ -334,80 +334,53 @@
       }));
     }
 
+    // The right-click menu is a wapyt.ContextMenu (keyboard, focus, ARIA,
+    // clean-up); TableAction stays the public API. Actions get internal ids,
+    // since apps reuse ids such as "delete" across groups.
     _buildContextMenu() {
       const actions = this.options.contextActions || [];
       if (!actions.length) return;
-
-      const menu = document.createElement("div");
-      menu.className = "wapyt-datatable-menu";
-      menu.hidden = true;
-      actions.forEach((action) => {
-        if (action && action.separator) {
-          const sep = document.createElement("div");
-          sep.className = "wapyt-datatable-menu-sep";
-          menu.appendChild(sep);
-          return;
-        }
-        const item = document.createElement("button");
-        item.type = "button";
-        item.className = "wapyt-datatable-menu-item";
-        item.dataset.actionId = action.id;
-        if (action.danger) {
-          item.dataset.danger = "true";
-        }
-        if (action.icon) {
-          const icon = document.createElement("span");
-          icon.className = iconClass(action.icon);
-          item.appendChild(icon);
-        }
-        const label = document.createElement("span");
-        label.textContent = action.label || action.id;
-        item.appendChild(label);
-        item.addEventListener("click", () => {
-          const rowId = menu.dataset.rowId;
-          this._hideMenu();
-          this._emit("action", {
-            action: action.id,
-            id: rowId,
-            row: this.getRow(rowId),
-            selected: this.getSelectedIds(),
-          });
+      const ContextMenu = globalThis.wapyt && globalThis.wapyt.ContextMenu;
+      if (!ContextMenu) {
+        console.warn("[wapyt.DataTable] context actions need wapyt.ContextMenu (contextmenu.js)");
+        return;
+      }
+      this._menuActions = actions.map((action, index) => ({ key: `a${index}`, action: action || {} }));
+      const items = this._menuActions.map(({ key, action }) =>
+        action.separator
+          ? { separator: true }
+          : {
+              id: key,
+              label: action.label || action.id,
+              icon: action.icon,
+              danger: Boolean(action.danger),
+              data: { actionId: String(action.id) },
+            }
+      );
+      this._menu = new ContextMenu({
+        items,
+        label: "Row actions",
+        menuClass: "wapyt-datatable-menu",
+        itemClass: "wapyt-datatable-menu-item",
+      });
+      this._menu.on("select", ({ id, context }) => {
+        const entry = this._menuActions.find((candidate) => candidate.key === id);
+        if (!entry) return;
+        this._emit("action", {
+          action: entry.action.id,
+          id: context,
+          row: this.getRow(context),
+          selected: this.getSelectedIds(),
         });
-        menu.appendChild(item);
       });
-
-      document.body.appendChild(menu);
-      this._menu = menu;
-
-      this._dismissMenu = (event) => {
-        if (this._menu && !this._menu.hidden && !this._menu.contains(event.target)) {
-          this._hideMenu();
-        }
-      };
-      document.addEventListener("pointerdown", this._dismissMenu, true);
-      document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") this._hideMenu();
-      });
-      window.addEventListener("blur", () => this._hideMenu());
-      this._scroller.addEventListener("scroll", () => this._hideMenu());
     }
 
     _showMenu(rowId, x, y) {
-      if (!this._menu) return;
-      this._menu.dataset.rowId = rowId;
-      this._menu.hidden = false;
-      // Measure first, then clamp inside the viewport.
-      const rect = this._menu.getBoundingClientRect();
-      const left = Math.min(x, window.innerWidth - rect.width - 8);
-      const top = Math.min(y, window.innerHeight - rect.height - 8);
-      this._menu.style.left = `${Math.max(8, left)}px`;
-      this._menu.style.top = `${Math.max(8, top)}px`;
+      if (this._menu) this._menu.showAt(x, y, { context: rowId });
     }
 
     _hideMenu() {
-      if (this._menu) {
-        this._menu.hidden = true;
-      }
+      if (this._menu) this._menu.hide(false);
     }
 
     _wireDropTarget() {
@@ -763,11 +736,9 @@
     }
 
     destroy() {
-      if (this._dismissMenu) {
-        document.removeEventListener("pointerdown", this._dismissMenu, true);
-      }
-      if (this._menu && this._menu.parentNode) {
-        this._menu.parentNode.removeChild(this._menu);
+      if (this._menu) {
+        this._menu.destroy();
+        this._menu = null;
       }
       this._host.innerHTML = "";
     }

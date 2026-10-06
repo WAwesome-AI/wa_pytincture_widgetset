@@ -463,10 +463,23 @@ submenus via `items`. Not mounted in a cell.
   items stay focusable but cannot be chosen.
 - Separators that would lead, trail or double up after hiding are dropped.
 - One menu open per page; document listeners are added on open and removed
-  on close (Tree/DataTable add a `keydown` listener per instance and never
-  remove it). Positions clamp to the viewport; submenus flip left at the edge.
-- Tree, DataTable and Terminal still build their own menus. Moving them onto
-  this, keeping `TreeAction`/`TableAction` as the public API, is the next step.
+  on close. Positions clamp to the viewport; submenus flip left at the edge.
+  Window blur closes it too.
+- `menuClass` / `itemClass` add class names beside `wapyt-cmenu*`, and an
+  item's `data` dict becomes `data-*` attributes, so a widget moving onto it
+  keeps its old selectors.
+
+**Tree, DataTable and Terminal use it** (2026-10-06). Their old menus had
+Escape as the only key, no focus handling, and a document `keydown` listener
+per instance that was never removed. `TreeAction` / `TableAction` and the event
+payloads are unchanged. Each action gets an internal id (`a0`, `a1`…) because
+apps reuse ids such as `delete` within one table; Tree computes the per-node
+`hide` list from `scope` / `kinds` / `requires`. The panels keep
+`wapyt-tree-menu` / `wapyt-datatable-menu` / `wapyt-terminal-menu` and the items
+`data-action-id` (Tree, DataTable) or `data-action` (Terminal), which the apps'
+smoke tests select on. Terminal's Copy is disabled per opening without a
+selection; the menu sits on `<body>`, so a click never reaches xterm, and
+Escape is consumed instead of going to the shell. The old menu CSS is gone.
 
 `tests/contextmenu_demo.py` drives it; a 30-check Playwright run passed.
 
