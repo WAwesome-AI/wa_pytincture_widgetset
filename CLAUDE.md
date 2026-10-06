@@ -511,6 +511,42 @@ Python's `csv`: order, quoting, newlines, accents, injection guard, raw/safe,
 columns, delimiter, filter, reordered column, real downloads with BOM and
 filename, selected-only, counts, no CSP errors) passed.
 
+## Sidebar groups (added 2026-10-06)
+
+`SidebarItem(items=[...])` is a group: it expands and collapses instead of
+being selected, and groups nest (indent via `--wapyt-sidebar-depth`). New
+entries: `SidebarHeading(label)`, `SidebarSeparator()`, `SidebarSpacer()` (a
+flex-grow block that pushes what follows, e.g. Settings, to the bottom).
+Items also take `disabled` and `tooltip`; `badge` may be an int (`0` shows).
+
+- `setActive` opens every group above the active item and marks them
+  `data-has-active`, which tints a closed group so the rail shows where the
+  active item lives. `aria-current="page"` is on the active item.
+- **Collapsed rail:** labels, chevrons, headings and child groups hide;
+  top-level items without an icon show their label's first letter; badges
+  shrink to a corner dot-count. A group click opens its children in a
+  `wapyt.Popup` flyout (`placement: right-start`, class
+  `wapyt-sidebar-flyout`), nested groups listed open inside it; Escape closes
+  it and focus returns to the group.
+- Keyboard: Up/Down/Home/End over visible, enabled items; Right opens a group
+  then enters it; Left closes it, or from a child goes to its group.
+- `on_toggle` → `{id, expanded, expanded_ids}` (only for the person's
+  clicks/keys); `get_expanded` / `set_expanded` / `SidebarConfig(expanded=)`
+  persist and restore the tree. `set_items` re-renders keeping open groups and
+  the active item; `set_badge(id, None)` clears a badge.
+- **Its CSS moved from a `<style>` sidebar.js injected into `wapyt.css`**, on
+  the `--wapyt-*` tokens (it used hardcoded rgba colours and its own dark
+  values). The `<svg` raw-markup icon path is kept for app-authored icons only.
+- `Sidebar._bind_event` kept one proxy per event name, so a second handler
+  replaced the first in the dict while both stayed registered; it is a list
+  now, and `destroy()` releases them.
+
+No app used wapyt's Sidebar yet (wAwesomeChat's notes refer to dhxpyt's), so
+the restructure needed no migration. `tests/sidebar_demo.py`; a 24-check
+Playwright run (structure, ARIA, indentation, toggle events, nested select and
+ancestor marks, disabled, badges, spacer, keyboard, set_items preserving
+state, the rail, rail tooltips, flyout pick and Escape) passed.
+
 ## Base font (added 2026-10-06)
 
 `--wapyt-font-family` (in `wapyt.css` `:root`, a system-UI stack) is applied to
@@ -826,7 +862,7 @@ Not bugs to fix blindly — context for when they surface:
 - **Copy-paste**: `_resolve_root` duplicated 5×, `_clean` 3×, `_bind_event` 5× with three different
   argument-conversion behaviours. A `_base.py` mixin would remove ~150 lines.
 - **Theming is split**: `wapyt.css` defines `--wapyt-*` tokens but only `modal.js` uses them (4 refs).
-  `chat.js` and `sidebar.js` reference zero and hardcode palettes; `cardpanel.js` / `resourceboard.js`
+  `chat.js` references zero and hardcodes a palette (`sidebar.js` moved onto the tokens on 2026-10-06); `cardpanel.js` / `resourceboard.js`
   define their own private variable sets. No file uses `prefers-color-scheme`.
 - **Debug prints at import**: `chat.py:14` and `cardpanel.py:12` write to stdout on `import wapyt`,
   with stale `WRAPPER_REVISION` cache-busters.

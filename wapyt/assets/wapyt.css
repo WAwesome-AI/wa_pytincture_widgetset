@@ -332,6 +332,173 @@
   line-height: 1;
 }
 
+/* Sidebar
+ * -------------------------------------------------------------------------
+ * Moved here from a <style> sidebar.js injected, and onto the --wapyt-* tokens.
+ * Items indent by --wapyt-sidebar-depth (set per button); collapsed, the rail
+ * shows icons only and groups open in a flyout (.wapyt-sidebar-flyout, a
+ * wapyt.Popup).
+ */
+.wapyt-sidebar {
+  --wapyt-sidebar-accent: #2563eb;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 220px;
+  box-sizing: border-box;
+  border-right: 1px solid var(--wapyt-border);
+  background: var(--wapyt-surface);
+  color: var(--wapyt-text);
+  font-family: var(--wapyt-font-family);
+  transition: width 0.2s ease;
+  overflow: hidden;
+}
+.wapyt-sidebar[data-collapsed="true"] { width: 60px; }
+.wapyt-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 0.85rem 0.85rem 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+.wapyt-sidebar-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wapyt-sidebar-toggle {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: transform 0.2s ease;
+}
+.wapyt-sidebar-toggle:hover { background: var(--wapyt-border); }
+.wapyt-sidebar[data-collapsed="true"] .wapyt-sidebar-header { justify-content: center; padding-inline: 0; }
+.wapyt-sidebar[data-collapsed="true"] .wapyt-sidebar-title { display: none; }
+.wapyt-sidebar[data-collapsed="true"] .wapyt-sidebar-toggle { transform: rotate(180deg); }
+.wapyt-sidebar-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem 0.5rem 0.6rem;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.wapyt-sidebar-group { display: flex; flex-direction: column; gap: 2px; }
+.wapyt-sidebar-group[hidden] { display: none; }
+.wapyt-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 34px;
+  box-sizing: border-box;
+  padding: 0.45rem 0.6rem 0.45rem calc(0.6rem + var(--wapyt-sidebar-depth, 0) * 1.1rem);
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: 13px/1.3 var(--wapyt-font-family);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.wapyt-sidebar-item:hover:not(:disabled) { background: rgba(37, 99, 235, 0.07); }
+.wapyt-sidebar-item:focus-visible { outline: 2px solid #38bdf8; outline-offset: -2px; }
+.wapyt-sidebar-item:disabled { opacity: 0.45; cursor: default; }
+.wapyt-sidebar-item[data-active="true"] {
+  background: rgba(37, 99, 235, 0.13);
+  color: #1e40af;
+  font-weight: 600;
+}
+/* A collapsed group that holds the active item says so. */
+.wapyt-sidebar-item[data-kind="group"][data-has-active="true"][aria-expanded="false"] { color: #1e40af; }
+.wapyt-sidebar-icon {
+  width: 1.25rem;
+  font-size: 1.15rem;
+  text-align: center;
+  opacity: 0.75;
+}
+.wapyt-sidebar-initial {
+  font: 600 12px/1 var(--wapyt-font-family);
+  opacity: 0.6;
+}
+.wapyt-sidebar-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wapyt-sidebar-badge {
+  flex: none;
+  margin-left: auto;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: var(--wapyt-border);
+  font-size: 11px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.wapyt-sidebar-badge[hidden] { display: none; }
+.wapyt-sidebar-chevron {
+  flex: none;
+  width: 0.9rem;
+  text-align: center;
+  font-size: 10px;
+  opacity: 0.6;
+  transition: transform 0.15s ease;
+}
+.wapyt-sidebar-chevron::before { content: "▸"; }
+.wapyt-sidebar-item[aria-expanded="true"] .wapyt-sidebar-chevron { transform: rotate(90deg); }
+.wapyt-sidebar-heading {
+  padding: 0.75rem 0.6rem 0.25rem;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wapyt-sidebar-separator { height: 1px; margin: 0.4rem 0.4rem; background: var(--wapyt-divider); flex: none; }
+.wapyt-sidebar-spacer { flex: 1 1 auto; min-height: 0.5rem; }
+/* Collapsed rail: icons only, centred; headings drop out. */
+.wapyt-sidebar[data-collapsed="true"] .wapyt-sidebar-label,
+.wapyt-sidebar[data-collapsed="true"] .wapyt-sidebar-chevron,
+.wapyt-sidebar[data-collapsed="true"] .wapyt-sidebar-heading,
+.wapyt-sidebar[data-collapsed="true"] .wapyt-sidebar-group { display: none; }
+.wapyt-sidebar[data-collapsed="true"] .wapyt-sidebar-item { justify-content: center; padding: 0.45rem 0; position: relative; }
+.wapyt-sidebar[data-collapsed="true"] .wapyt-sidebar-badge {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  padding: 0 4px;
+  font-size: 9.5px;
+  line-height: 14px;
+}
+.wapyt-sidebar-flyout .wapyt-popup-body { padding: 6px; min-width: 180px; }
+.wapyt-sidebar-flyout .wapyt-sidebar-list { padding: 0; overflow: visible; }
+.wapyt-sidebar-flyout .wapyt-sidebar-heading { padding-top: 0.35rem; }
+.wapyt-sidebar-flyout .wapyt-sidebar-item:disabled { opacity: 0.7; font-weight: 600; }
+[data-wapyt-theme="dark"] .wapyt-sidebar {
+  background: var(--wapyt-surface-dark);
+  border-color: var(--wapyt-border-dark);
+  color: var(--wapyt-text-dark);
+}
+[data-wapyt-theme="dark"] .wapyt-sidebar-toggle:hover,
+[data-wapyt-theme="dark"] .wapyt-sidebar-badge { background: var(--wapyt-divider-dark); }
+[data-wapyt-theme="dark"] .wapyt-sidebar-item:hover:not(:disabled) { background: rgba(96, 165, 250, 0.1); }
+[data-wapyt-theme="dark"] .wapyt-sidebar-item[data-active="true"] { background: rgba(96, 165, 250, 0.18); color: #bfdbfe; }
+[data-wapyt-theme="dark"] .wapyt-sidebar-item[data-kind="group"][data-has-active="true"][aria-expanded="false"] { color: #bfdbfe; }
+[data-wapyt-theme="dark"] .wapyt-sidebar-separator { background: var(--wapyt-divider-dark); }
+@media (prefers-reduced-motion: reduce) {
+  .wapyt-sidebar, .wapyt-sidebar-toggle, .wapyt-sidebar-chevron, .wapyt-sidebar-item { transition: none; }
+}
+
 /* Terminal
  * -------------------------------------------------------------------------
  * The host is position:relative so the search bar and the status overlay can

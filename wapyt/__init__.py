@@ -14,7 +14,7 @@ from .chat.chat_config import ChatConfig, ChatAgentConfig, ChatMessageConfig
 from .cardpanel.cardpanel import CardPanel, CardPanelConfig, CardPanelCardConfig
 from .tabwidget.tabwidget import TabWidget, TabWidgetConfig, TabConfig
 from .sidebar.sidebar import Sidebar
-from .sidebar.sidebar_config import SidebarConfig, SidebarItem
+from .sidebar.sidebar_config import SidebarConfig, SidebarHeading, SidebarItem, SidebarSeparator, SidebarSpacer
 from .modal.modal import ModalWindow, ModalConfig
 from .form.form import Form
 from .datatable.datatable import DataTable
@@ -65,6 +65,9 @@ __all__ = [
     "Sidebar",
     "SidebarConfig",
     "SidebarItem",
+    "SidebarHeading",
+    "SidebarSeparator",
+    "SidebarSpacer",
     "ModalWindow",
     "ModalConfig",
     "Form",

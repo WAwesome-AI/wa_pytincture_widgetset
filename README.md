@@ -14,7 +14,7 @@
 - `Chat`: Streaming chat surface with agent metadata, artifact events, and helpers for incremental responses.
 - `CardPanel`: Searchable, template-driven card grid with add/view/action callbacks and custom renderers.
 - `TabWidget`: Lightweight tab host that supports badges, closable tabs, and attaching HTML or PyTincture components per tab.
-- `Sidebar`: Collapsible navigation rail with badges, icons, and selection events for driving the rest of your layout.
+- `Sidebar`: Collapsible navigation rail with icons, badges, nested groups (a flyout when collapsed), headings, separators and a spacer for bottom-pinned items; keyboard navigable.
 - `ModalWindow`: Simple modal shell that can host arbitrary Layout instances or HTML snippets.
 - `ResourceBoard`: Master/detail resource explorer with selectable rows, action hooks, and optional add button wiring.
 - `message`: Toasts plus awaitable `alert` / `confirm` / `prompt` dialogs, styled and themed, in place of `window.confirm()`.
