@@ -54,7 +54,7 @@ def test_config_payload():
 
 
 def test_payload_jsnull_becomes_none():
-    from wapyt.contextmenu.contextmenu import _plain
+    from wapyt._runtime import to_plain as _plain
 
     class JsNull:
         pass

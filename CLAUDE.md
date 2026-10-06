@@ -439,10 +439,8 @@ replaces the toolbars Monguana and IguanaXterm built from HTML. Items:
   accessible name. `keep_label=True` exempts a button; a button with no icon
   always keeps its text.
 - WAI-ARIA toolbar keyboard model: one tab stop, arrows/Home/End move.
-- **`JsNull` in payloads.** `to_py()` turns JS `null` into `JsNull`, which is
-  not `None`; Toolbar's `_plain()` maps it, so `payload["group"] is None`
-  holds. Tree's `on_select` (`id: null` when the selection clears) and other
-  wrappers still pass `JsNull` through.
+- `on_click` payloads have real `None` for a plain button's `group` /
+  `active` (see *JsNull* below).
 
 `tests/toolbar_demo.py` reproduces IguanaXterm's toolbar; a 26-check
 Playwright run against it passed.
@@ -510,6 +508,24 @@ and Monguana's dashboard meters each drew their own.
 `tests/progressbar_demo.py` simulates a queue; a 10-check Playwright run
 (in-place updates, indeterminate, final states and colours, progress_html
 matching the widget, compact height, alignment) passed.
+
+## JsNull → None in every widget (fixed 2026-10-06)
+
+Pyodide maps JS `undefined` to `None` but `null` to `pyodide.ffi.jsnull`
+(`JsNull`), both for a JS function's return value and inside `to_py()`.
+`JsNull` is falsy but `is None` / `== None` are False, so `if x is None:` took
+the wrong branch. (It does serialise with `json.dumps`, as `null`.) It leaked
+from Tree (`on_select` when the selection clears; `get_selected`, `get_node`,
+`get_parent_id` with nothing to return), DataTable (`on_select.id` whenever
+0 or 2+ rows are selected; `get_row` for a missing id), Sidebar and TabWidget
+`get_active`, and Layout's events, which handed over raw JS objects.
+
+`wapyt._runtime.to_plain()` converts recursively and maps `JsNull` to `None`;
+every `_bind_event` and getter uses it, and Layout's `add_event_handler` now
+passes dicts (`{"id", "cell"}`, `cell` still a JS object, `None` for the root).
+`tests/test_jsnull.py` guards against a wrapper calling `.to_py()` directly
+again. Verified in Chromium: the same page reports `JsNull` on the old wheel
+and `None` on this one for all seven values.
 
 ## Known rough edges
 

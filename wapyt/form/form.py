@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from .._runtime import create_proxy, require_js
+from .._runtime import create_proxy, require_js, to_plain
 from .form_config import FieldConfig, FormConfig, SelectOption
 
 try:  # pragma: no cover - only available inside Pyodide
@@ -83,7 +83,7 @@ class Form:
 
     def _bind_event(self, event_name: str, handler: Callable) -> None:
         proxy = create_proxy(lambda *args, **kwargs: handler(*[
-            arg.to_py() if hasattr(arg, "to_py") else arg for arg in args
+            to_plain(arg) for arg in args
         ], **kwargs))
         self._event_proxies.setdefault(event_name, []).append(proxy)
         self.form.on(event_name, proxy)
@@ -113,7 +113,7 @@ class Form:
 
     def get_values(self) -> Dict[str, Any]:
         result = self.form.getValues()
-        return result.to_py() if hasattr(result, "to_py") else dict(result)
+        return to_plain(result) or {}
 
     def set_values(self, values: Dict[str, Any]) -> None:
         self.form.setValues(js.JSON.parse(json.dumps(values)))
@@ -169,7 +169,7 @@ class Form:
 
     def validate(self) -> Dict[str, str]:
         result = self.form.validate()
-        return result.to_py() if hasattr(result, "to_py") else dict(result)
+        return to_plain(result) or {}
 
 
 __all__ = ["Form", "FormConfig", "FieldConfig", "SelectOption"]

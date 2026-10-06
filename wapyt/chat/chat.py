@@ -4,7 +4,7 @@ import logging
 import inspect
 from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Union
 
-from wapyt._runtime import js, create_proxy, require_js
+from wapyt._runtime import js, create_proxy, require_js, to_plain
 from wapyt.chat.chat_config import ChatConfig, ChatAgentConfig, ChatMessageConfig
 
 
@@ -95,7 +95,7 @@ class Chat:
     def _bind_event(self, event_name: str, handler: Callable) -> None:
         def wrapped(*args, **kwargs):
             converted = [
-                arg.to_py() if hasattr(arg, "to_py") else arg
+                to_plain(arg)
                 for arg in args
             ]
             return handler(*converted, **kwargs)
@@ -207,7 +207,7 @@ class Chat:
     ) -> str:
         payload = self._message_to_dict(message)
         result = self.chat.addMessage(js.JSON.parse(json.dumps(payload)))
-        return result.to_py() if hasattr(result, "to_py") else result
+        return to_plain(result)
 
     def update_message(self, message_id: str, **updates: Any) -> None:
         self.chat.updateMessage(
@@ -232,7 +232,7 @@ class Chat:
     ) -> str:
         payload = self._message_to_dict(message)
         result = self.chat.startStream(js.JSON.parse(json.dumps(payload)))
-        return result.to_py() if hasattr(result, "to_py") else result
+        return to_plain(result)
 
     def append_stream(self, message_id: str, chunk: str) -> None:
         self.chat.appendStream(message_id, chunk)
@@ -285,19 +285,14 @@ class Chat:
         self.chat.setChatBadge(chat_id, badge)
 
     def get_chats(self) -> List[Dict[str, Any]]:
-        result = self.chat.getChats()
-        if hasattr(result, "to_py"):
-            return result.to_py()
-        return result
+        return to_plain(self.chat.getChats())
 
     def get_messages(self, chat_id: Optional[str] = None) -> List[Dict[str, Any]]:
         if chat_id is None:
             result = self.chat.getMessages()
         else:
             result = self.chat.getMessages(chat_id)
-        if hasattr(result, "to_py"):
-            return result.to_py()
-        return result
+        return to_plain(result)
 
     # ------------------------------------------------------------------
     # Conversation helpers

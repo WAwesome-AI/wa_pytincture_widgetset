@@ -30,7 +30,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
-from .._runtime import create_proxy, require_js
+from .._runtime import create_proxy, require_js, to_plain
 
 try:  # pragma: no cover - only available inside Pyodide
     import js  # type: ignore
@@ -86,7 +86,7 @@ class TransferResult:
 
 
 def _to_result(raw: Any) -> TransferResult:
-    data: Dict[str, Any] = raw.to_py() if hasattr(raw, "to_py") else dict(raw)
+    data: Dict[str, Any] = to_plain(raw) or {}
     return TransferResult(
         ok=bool(data.get("ok")),
         cancelled=bool(data.get("cancelled")),
@@ -133,7 +133,7 @@ def capabilities() -> Capabilities:
     tell the user, rather than falling back silently — a Save-As prompt per file
     is worse than not offering a destination choice at all.
     """
-    data = _api().supported().to_py()
+    data = to_plain(_api().supported()) or {}
     return Capabilities(
         save_file=bool(data.get("saveFile")),
         directory=bool(data.get("directory")),

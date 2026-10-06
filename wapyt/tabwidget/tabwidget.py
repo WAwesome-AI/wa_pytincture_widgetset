@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from wapyt._runtime import js, create_proxy, require_js
+from wapyt._runtime import js, create_proxy, require_js, to_plain
 
 
 def _clean(mapping: Dict[str, Any]) -> Dict[str, Any]:
@@ -137,7 +137,7 @@ class TabWidget:
 
     def _bind_event(self, event_name: str, handler: Callable) -> None:
         proxy = create_proxy(lambda *args, **kwargs: handler(*[
-            arg.to_py() if hasattr(arg, "to_py") else arg for arg in args
+            to_plain(arg) for arg in args
         ], **kwargs))
         self._event_proxies.setdefault(event_name, []).append(proxy)
         self.tabwidget.on(event_name, proxy)
@@ -171,7 +171,7 @@ class TabWidget:
 
     def get_active(self) -> Optional[str]:
         result = self.tabwidget.getActive()
-        return result if isinstance(result, str) else (result.to_py() if hasattr(result, "to_py") else result)
+        return to_plain(result)
 
     def attach_html(self, tab_id: str, html: str) -> None:
         self.tabwidget.attachHTML(tab_id, html)

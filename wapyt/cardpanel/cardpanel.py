@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
-from wapyt._runtime import js, create_proxy, require_js
+from wapyt._runtime import js, create_proxy, require_js, to_plain
 from wapyt.cardpanel.cardpanel_config import CardPanelConfig, CardPanelCardConfig
 
 
@@ -149,7 +149,7 @@ class CardPanel:
         def wrapped(*args, **kwargs):
             if args:
                 converted = [
-                    arg.to_py() if hasattr(arg, "to_py") else arg
+                    to_plain(arg)
                     for arg in args
                 ]
             else:

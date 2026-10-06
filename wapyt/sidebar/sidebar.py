@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, Optional, Union
 
-from wapyt._runtime import js, create_proxy, require_js
+from wapyt._runtime import js, create_proxy, require_js, to_plain
 from wapyt.sidebar.sidebar_config import SidebarConfig
 
 
@@ -57,7 +57,7 @@ class Sidebar:
         return root
 
     def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda payload=None: handler(payload.to_py() if payload and hasattr(payload, "to_py") else payload))
+        proxy = create_proxy(lambda payload=None: handler(to_plain(payload)))
         self._event_proxies[event_name] = proxy
         self.sidebar.on(event_name, proxy)
 
@@ -78,4 +78,4 @@ class Sidebar:
 
     def get_active(self) -> Optional[str]:
         value = self.sidebar.getActive()
-        return value if isinstance(value, str) else (value.to_py() if hasattr(value, "to_py") else value)
+        return to_plain(value)

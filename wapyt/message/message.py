@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, Optional
 
-from .._runtime import require_js
+from .._runtime import require_js, to_plain
 
 try:  # pragma: no cover - only available inside Pyodide
     import js  # type: ignore
@@ -45,7 +45,7 @@ def _payload(options: Dict[str, Any]) -> Any:
 
 
 def _to_py(value: Any) -> Any:
-    return value.to_py() if hasattr(value, "to_py") else value
+    return to_plain(value)
 
 
 # ── Option builders (pure, so they can be tested without a browser) ───────────

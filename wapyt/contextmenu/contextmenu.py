@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
-from .._runtime import create_proxy, require_js
+from .._runtime import create_proxy, require_js, to_plain
 from .contextmenu_config import ContextMenuConfig, MenuItem
 
 try:  # pragma: no cover - only available inside Pyodide
@@ -15,18 +15,6 @@ try:  # pragma: no cover - only available inside Pyodide
 except Exception:  # pragma: no cover - executed on CPython
     js = None  # type: ignore
 
-
-def _plain(value: Any) -> Any:
-    """Event payload to plain Python, with JS ``null`` (``JsNull``) as ``None``."""
-    if hasattr(value, "to_py"):
-        value = value.to_py()
-    if isinstance(value, dict):
-        return {key: _plain(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_plain(item) for item in value]
-    if type(value).__name__ == "JsNull":
-        return None
-    return value
 
 
 class ContextMenu:
@@ -61,7 +49,7 @@ class ContextMenu:
         self.menu = js.wapyt.ContextMenu.new(js.JSON.parse(json.dumps(self.config.to_dict())))
 
     def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda *args, **kwargs: handler(*[_plain(arg) for arg in args], **kwargs))
+        proxy = create_proxy(lambda *args, **kwargs: handler(*[to_plain(arg) for arg in args], **kwargs))
         self._event_proxies.setdefault(event_name, []).append(proxy)
         self.menu.on(event_name, proxy)
 
