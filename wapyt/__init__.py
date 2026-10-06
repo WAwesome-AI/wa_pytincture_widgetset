@@ -30,6 +30,8 @@ from .toolbar.toolbar import Toolbar
 from .contextmenu.contextmenu import ContextMenu
 from .progressbar.progressbar import ProgressBar
 from .progressbar.progressbar_config import ProgressBarConfig, progress_html
+from .pagination.pagination import Pagination, page_slice
+from .pagination.pagination_config import PaginationConfig
 from .contextmenu.contextmenu_config import ContextMenuConfig, MenuItem
 from .toolbar.toolbar_config import (
     ToolbarButton,
@@ -88,6 +90,9 @@ __all__ = [
     "ProgressBar",
     "ProgressBarConfig",
     "progress_html",
+    "Pagination",
+    "PaginationConfig",
+    "page_slice",
     "ContextMenuConfig",
     "MenuItem",
     "ToolbarConfig",

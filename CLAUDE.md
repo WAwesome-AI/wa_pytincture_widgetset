@@ -606,6 +606,37 @@ required, set_values / set_field_options, overflow past the modal, Escape not
 closing the modal, both themes inside a modal) passed alongside the 25
 field-type checks.
 
+## Pagination (added 2026-10-06)
+
+`Pagination` (`assets/pagination.js`, `Layout.add_pagination`) replaces
+Monguana's hand-built pager: first / previous / next / last, a "page N of M"
+box (or `numbers=True` buttons, `1 … 4 5 6 … 20`), a page-size selector shown
+when `page_sizes` is set, and a summary ("1–50 of 1,234", "≈" when
+`exact=False`).
+
+- **`on_change` fires only for the person's moves** (`{page, page_size,
+  offset}`), plus one case: `set_total` shrinking the list under the current
+  page clamps to the new last page and fires, so the app reloads it. The
+  setters (`set_total`, `set_page`, `set_page_size`, `set_busy`) are silent,
+  so a load handler can call them without looping.
+- **Unknown totals** (`total=None`, Monguana's count timeout): no Last button
+  and no "of M"; Next follows `has_more`; `shown` (rows on this page) keeps the
+  summary right on a short final page ("41–57"). Numbered mode needs a total
+  and falls back to the page box without one.
+- Changing page size returns to page 1. A non-number typed in the box reverts
+  without firing; a too-large one clamps to the last page.
+- `set_busy(True)` disables every control while a page loads.
+- `page_slice(rows, page, size)` and `pager.page_rows(rows)` page an
+  in-memory list.
+- `None` crosses the FFI as `js.undefined` in `set_total`, as in
+  `Form.set_error`. Dark-theme input borders use `--wapyt-divider-dark`;
+  `--wapyt-border-dark` is invisible on the dark surface.
+
+`tests/pagination_demo.py` covers server-paged, numbered, unknown-total and
+in-memory pagers; a 24-check Playwright run (busy state, jump box clamping and
+reverting, page size, shrinking totals, number windows, unknown totals,
+page_rows, keyboard, dark borders, wrapping at 360px) passed.
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:
