@@ -1210,3 +1210,63 @@ textarea.wapyt-form-control {
 [data-wapyt-theme="dark"] .wapyt-cmenu-item[aria-expanded="true"] { background: rgba(96, 165, 250, 0.16); }
 [data-wapyt-theme="dark"] .wapyt-cmenu-item[data-danger="true"] { color: #f87171; }
 [data-wapyt-theme="dark"] .wapyt-cmenu-sep { background: var(--wapyt-divider-dark); }
+
+/* ── ProgressBar (also the markup progress_html() emits) ──────────────────── */
+.wapyt-progress {
+  --wapyt-progress-fill: #3b82f6;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font: 12px/1.3 var(--wapyt-font-family);
+  color: var(--wapyt-text);
+}
+.wapyt-progress[data-state="done"]   { --wapyt-progress-fill: #10b981; }
+.wapyt-progress[data-state="error"]  { --wapyt-progress-fill: #ef4444; }
+.wapyt-progress[data-state="paused"] { --wapyt-progress-fill: #f59e0b; }
+.wapyt-progress-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.wapyt-progress-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wapyt-progress-value { flex: none; margin-left: auto; font-variant-numeric: tabular-nums; opacity: 0.75; }
+.wapyt-progress-label[hidden], .wapyt-progress-value[hidden] { display: none; }
+.wapyt-progress-head:has(> :not([hidden])) { min-height: 1.3em; }
+.wapyt-progress-track {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(100, 116, 139, 0.2);
+}
+.wapyt-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--wapyt-progress-fill);
+  transition: width 0.2s ease;
+}
+.wapyt-progress[data-indeterminate="true"] .wapyt-progress-fill {
+  position: absolute;
+  width: 35%;
+  animation: wapyt-progress-slide 1.2s ease-in-out infinite;
+}
+@keyframes wapyt-progress-slide {
+  from { left: -35%; }
+  to   { left: 100%; }
+}
+/* Compact: one line, the bar between label and value -- for table rows,
+   queues and tiles. */
+.wapyt-progress[data-compact="true"] { flex-direction: row; align-items: center; gap: 8px; }
+.wapyt-progress[data-compact="true"] .wapyt-progress-head { display: contents; }
+.wapyt-progress[data-compact="true"] .wapyt-progress-label { flex: 0 1 auto; max-width: 40%; }
+.wapyt-progress[data-compact="true"] .wapyt-progress-track { flex: 1 1 auto; order: 1; height: 5px; min-width: 40px; }
+.wapyt-progress[data-compact="true"] .wapyt-progress-value { order: 2; margin-left: 0; }
+[data-wapyt-theme="dark"] .wapyt-progress { color: var(--wapyt-text-dark); }
+[data-wapyt-theme="dark"] .wapyt-progress-track { background: rgba(148, 163, 184, 0.2); }
+@media (prefers-reduced-motion: reduce) {
+  .wapyt-progress-fill { transition: none; }
+  .wapyt-progress[data-indeterminate="true"] .wapyt-progress-fill {
+    animation: none;
+    left: 0;
+    width: 100%;
+    opacity: 0.45;
+  }
+}

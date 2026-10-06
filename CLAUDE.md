@@ -487,6 +487,30 @@ Toolbar and ContextMenu separators use `--wapyt-divider` / `--wapyt-divider-dark
 (#cbd5e1 / #475569). The border tokens they first used were invisible as a
 line in dark mode: `--wapyt-border-dark` on `--wapyt-surface-dark` is 1.00:1.
 
+## ProgressBar (added 2026-10-06)
+
+`ProgressBar` (`assets/progressbar.js`, `Layout.add_progressbar`) and
+`progress_html()` share one markup and stylesheet. IguanaXterm's transfer queue
+and Monguana's dashboard meters each drew their own.
+
+- `set_value(value, max=None, text=None)` only touches the fill width and two
+  text nodes, so a transfer callback can call it several times a second.
+  `text` replaces the percentage ("42%  1.2 MB"); `""` restores it.
+- States `active` / `done` / `error` / `paused` (blue / green / red / amber);
+  `set_indeterminate(True)` for an unknown total (sliding bar, no
+  `aria-valuenow`; reduced motion shows a static dim bar).
+- `compact=True` is one line (label, bar, value) for rows and tiles;
+  `label_width` / `value_width` line the bars of a stacked list up.
+- `progress_html(value, max, label=, text=, state=, compact=)` is the
+  no-JS form for string-built UIs, every string escaped. Pass a fraction with
+  `max=1`.
+- `role="progressbar"` with `aria-valuemin/max/now/valuetext` and the label as
+  `aria-label`.
+
+`tests/progressbar_demo.py` simulates a queue; a 10-check Playwright run
+(in-place updates, indeterminate, final states and colours, progress_html
+matching the widget, compact height, alignment) passed.
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:

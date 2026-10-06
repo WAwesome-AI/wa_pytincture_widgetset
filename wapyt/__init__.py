@@ -28,6 +28,8 @@ from .form.form_config import FormConfig, FieldConfig, SelectOption
 from .terminal.terminal import Terminal
 from .toolbar.toolbar import Toolbar
 from .contextmenu.contextmenu import ContextMenu
+from .progressbar.progressbar import ProgressBar
+from .progressbar.progressbar_config import ProgressBarConfig, progress_html
 from .contextmenu.contextmenu_config import ContextMenuConfig, MenuItem
 from .toolbar.toolbar_config import (
     ToolbarButton,
@@ -83,6 +85,9 @@ __all__ = [
     "TerminalTheme",
     "Toolbar",
     "ContextMenu",
+    "ProgressBar",
+    "ProgressBarConfig",
+    "progress_html",
     "ContextMenuConfig",
     "MenuItem",
     "ToolbarConfig",

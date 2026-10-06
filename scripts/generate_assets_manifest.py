@@ -39,6 +39,7 @@ ASSETS: list[tuple[str, str]] = [
     ("assets/message.js", "javascript"),
     ("assets/toolbar.js", "javascript"),
     ("assets/contextmenu.js", "javascript"),
+    ("assets/progressbar.js", "javascript"),
     ("assets/sidebar.js", "javascript"),
     ("assets/filetransfer.js", "javascript"),
     ("assets/datatable.js", "javascript"),
