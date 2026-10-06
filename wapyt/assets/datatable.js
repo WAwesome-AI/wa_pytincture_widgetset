@@ -79,6 +79,11 @@
       this._sortBy = this.options.sortBy;
       this._sortDir = this.options.sortDir === "desc" ? "desc" : "asc";
       this._busy = false;
+      // Editing: the one editable cell in the tab order, the open editor, and
+      // errors the app reported per cell (they survive re-renders).
+      this._active = null;
+      this._editing = null;
+      this._cellErrors = new Map();
 
       this._host = resolveHost(target);
       if (!this._host) {
@@ -123,6 +128,11 @@
       this._tbody = document.createElement("tbody");
       this._table.appendChild(this._thead);
       this._table.appendChild(this._tbody);
+      this._tbody.addEventListener("keydown", (event) => this._onCellKey(event));
+      this._tbody.addEventListener("focusin", (event) => {
+        const td = event.target.closest && event.target.closest("td[data-editable]");
+        if (td) this._setActive(td.parentElement.dataset.rowId, td.dataset.columnId);
+      });
       this._scroller.appendChild(this._table);
       this._host.appendChild(this._scroller);
 
@@ -157,7 +167,7 @@
           } else {
             this._selected.clear();
           }
-          this._refresh();
+          this._syncSelection();
           this._emitSelection();
         });
         this._selectAll = box;
@@ -485,13 +495,19 @@
     }
 
     _refresh() {
+      // A click selects (and re-renders) the row; keep keyboard focus on the
+      // same cell rather than dropping it to <body>.
+      const hadFocus = this._tbody.contains(document.activeElement) && !this._editing;
       this._computeView();
       this._renderHead();
       this._renderBody();
       this._syncSelectAll();
+      if (hadFocus && this._active) this._focusCell(this._active.id, this._active.column);
     }
 
     _renderBody() {
+      // Re-rendering would destroy an open editor; keep what was typed.
+      if (this._editing) this._closeEditor(true);
       this._tbody.innerHTML = "";
 
       if (this._busy) {
@@ -549,39 +565,18 @@
           if (column.align) {
             td.style.textAlign = column.align;
           }
-          const value = row[column.id];
-
-          if (column.type === "icon") {
-            const icon = document.createElement("span");
-            icon.className = iconClass(value);
-            if (row[`${column.id}_title`]) {
-              icon.title = String(row[`${column.id}_title`]);
-            }
-            td.appendChild(icon);
-          } else {
-            const text = value == null ? "" : String(value);
-            const marker = column.iconBy ? row[column.iconBy] : null;
-            if (marker) {
-              const icon = document.createElement("span");
-              icon.className = `${iconClass(marker)} wapyt-datatable-cell-icon`;
-              if (row[`${column.iconBy}_title`]) {
-                icon.title = String(row[`${column.iconBy}_title`]);
-              }
-              td.appendChild(icon);
-              td.appendChild(document.createTextNode(text));
-            } else {
-              td.textContent = text;
-            }
-            if (column.ellipsis !== false) {
-              td.className = "wapyt-datatable-ellipsis";
-              td.title = value == null ? "" : String(value);
-            }
-          }
+          this._fillCell(td, row, column);
           tr.appendChild(td);
         });
 
         tr.addEventListener("click", (event) => this._onRowClick(event, id));
-        tr.addEventListener("dblclick", () => {
+        tr.addEventListener("dblclick", (event) => {
+          // An editable cell edits; anywhere else activates the row.
+          const td = event.target.closest("td[data-editable]");
+          if (td) {
+            this.editCell(id, td.dataset.columnId);
+            return;
+          }
           this._emit("activate", { id, row: this.getRow(id) });
         });
         tr.addEventListener("contextmenu", (event) => {
@@ -597,6 +592,351 @@
       });
 
       this._tbody.appendChild(fragment);
+      this._syncTabStop();
+    }
+
+    // Draw one body cell's content. Also used after an edit, which redraws
+    // only that cell so the row does not jump under an active sort.
+    _fillCell(td, row, column) {
+      td.textContent = "";
+      td.className = "";
+      td.removeAttribute("title");
+      const value = row[column.id];
+      const editor = column.editable ? column.editor || "text" : null;
+
+      if (editor) {
+        const id = this._rowId(row);
+        td.dataset.editable = editor;
+        td.tabIndex = this._isActiveCell(id, column.id) ? 0 : -1;
+        const error = this._cellErrors.get(this._cellKey(id, column.id));
+        if (error) {
+          td.dataset.error = "true";
+          td.setAttribute("aria-invalid", "true");
+          td.dataset.wapytTooltip = error;
+          // An error shows whether or not the text is cut off.
+          delete td.dataset.wapytTooltipOverflow;
+        } else {
+          delete td.dataset.error;
+          td.removeAttribute("aria-invalid");
+          delete td.dataset.wapytTooltip;
+        }
+      }
+
+      if (editor === "checkbox") {
+        // Shown as a checkbox; Space or a click toggles it and commits.
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.className = "wapyt-datatable-checkbox";
+        box.checked = Boolean(value);
+        box.tabIndex = -1;
+        box.setAttribute("aria-label", column.header || column.id);
+        box.addEventListener("click", (event) => {
+          event.stopPropagation();
+          this._commit(this._rowId(row), column, box.checked);
+        });
+        td.appendChild(box);
+        return;
+      }
+
+      if (column.type === "icon") {
+        const icon = document.createElement("span");
+        icon.className = iconClass(value);
+        if (row[`${column.id}_title`]) {
+          icon.title = String(row[`${column.id}_title`]);
+        }
+        td.appendChild(icon);
+        return;
+      }
+
+      const shown = this._displayValue(column, value);
+      const marker = column.iconBy ? row[column.iconBy] : null;
+      if (marker) {
+        const icon = document.createElement("span");
+        icon.className = `${iconClass(marker)} wapyt-datatable-cell-icon`;
+        if (row[`${column.iconBy}_title`]) {
+          icon.title = String(row[`${column.iconBy}_title`]);
+        }
+        td.appendChild(icon);
+        td.appendChild(document.createTextNode(shown));
+      } else {
+        td.textContent = shown;
+      }
+      if (column.ellipsis !== false) {
+        td.className = "wapyt-datatable-ellipsis";
+        // An error message is the tooltip while there is one.
+        if (!td.dataset.error) td.title = shown;
+      }
+    }
+
+    // ── Editing ──────────────────────────────────────────────────────────────
+
+    _cellKey(id, columnId) {
+      return `${id}\u0000${columnId}`;
+    }
+
+    _column(columnId) {
+      return (this.options.columns || []).find((column) => column.id === columnId) || null;
+    }
+
+    _editableIds() {
+      return (this.options.columns || []).filter((column) => column.editable).map((column) => column.id);
+    }
+
+    _cellEl(id, columnId) {
+      const tr = Array.from(this._tbody.children).find((row) => row.dataset.rowId === String(id));
+      return tr ? Array.from(tr.children).find((td) => td.dataset.columnId === columnId) || null : null;
+    }
+
+    _isActiveCell(id, columnId) {
+      return Boolean(this._active && this._active.id === String(id) && this._active.column === columnId);
+    }
+
+    // One editable cell is in the tab order (roving tabindex); arrows move it.
+    _setActive(id, columnId) {
+      if (this._isActiveCell(id, columnId)) return;
+      const previous = this._active && this._cellEl(this._active.id, this._active.column);
+      if (previous) previous.tabIndex = -1;
+      this._active = { id: String(id), column: columnId };
+      const cell = this._cellEl(id, columnId);
+      if (cell) cell.tabIndex = 0;
+    }
+
+    _syncTabStop() {
+      const cells = this._tbody.querySelectorAll("td[data-editable]");
+      if (!cells.length) return;
+      const active = this._active && this._cellEl(this._active.id, this._active.column);
+      if (active) {
+        active.tabIndex = 0;
+        return;
+      }
+      const first = cells[0];
+      this._active = { id: first.parentElement.dataset.rowId, column: first.dataset.columnId };
+      first.tabIndex = 0;
+    }
+
+    _focusCell(id, columnId) {
+      const cell = this._cellEl(id, columnId);
+      if (!cell) return false;
+      this._setActive(id, columnId);
+      cell.focus({ preventScroll: false });
+      return true;
+    }
+
+    _move(id, columnId, dRow, dCol) {
+      const ids = this._view.map((row) => this._rowId(row));
+      const cols = this._editableIds();
+      let r = ids.indexOf(String(id));
+      let c = cols.indexOf(columnId);
+      if (r < 0 || c < 0) return false;
+      c += dCol;
+      // Tab off the end of a row continues on the next one.
+      if (c >= cols.length) { c = 0; r += 1; }
+      if (c < 0) { c = cols.length - 1; r -= 1; }
+      r += dRow;
+      if (r < 0 || r >= ids.length) return false;
+      return this._focusCell(ids[r], cols[c]);
+    }
+
+    _onCellKey(event) {
+      if (this._editing) return; // the editor handles its own keys
+      const td = event.target.closest && event.target.closest("td[data-editable]");
+      if (!td || event.target !== td) return;
+      const id = td.parentElement.dataset.rowId;
+      const columnId = td.dataset.columnId;
+      const editor = td.dataset.editable;
+      const moves = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+      if (moves[event.key]) {
+        event.preventDefault();
+        this._move(id, columnId, ...moves[event.key]);
+      } else if (event.key === "Enter" || event.key === "F2") {
+        event.preventDefault();
+        if (editor === "checkbox") this._toggle(id, columnId);
+        else this.editCell(id, columnId);
+      } else if (event.key === " " && editor === "checkbox") {
+        event.preventDefault();
+        this._toggle(id, columnId);
+      } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey &&
+                 (editor === "text" || editor === "number")) {
+        // Typing over a cell starts an edit with that character, as in a sheet.
+        event.preventDefault();
+        this.editCell(id, columnId, event.key);
+      }
+    }
+
+    _toggle(id, columnId) {
+      const row = this.getRow(id);
+      const column = this._column(columnId);
+      if (row && column) this._commit(String(id), column, !row[columnId]);
+    }
+
+    editCell(id, columnId, initialText) {
+      const row = this.getRow(id);
+      const column = this._column(columnId);
+      if (!row || !column || !column.editable) return false;
+      if (this._editing) this._closeEditor(true);
+      const td = this._cellEl(id, columnId);
+      if (!td) return false;
+      const kind = column.editor || "text";
+      if (kind === "checkbox") {
+        this._focusCell(id, columnId);
+        return true;
+      }
+      this._setActive(id, columnId);
+      const value = row[columnId];
+      let input;
+      if (kind === "select") {
+        input = document.createElement("select");
+        (column.options || []).forEach((option) => {
+          const opt = document.createElement("option");
+          const isObj = option && typeof option === "object";
+          opt.value = String(isObj ? option.value ?? "" : option ?? "");
+          opt.textContent = String(isObj ? option.label ?? option.value ?? "" : option ?? "");
+          input.appendChild(opt);
+        });
+        input.value = value == null ? "" : String(value);
+      } else {
+        input = document.createElement("input");
+        input.type = kind === "date" ? "date" : "text";
+        if (kind === "number") input.inputMode = "decimal";
+        input.value = initialText != null ? initialText : value == null ? "" : String(value);
+      }
+      input.className = "wapyt-datatable-editor";
+      input.setAttribute("aria-label", `${column.header || column.id}`);
+      td.dataset.editing = "true";
+      td.textContent = "";
+      td.removeAttribute("title");
+      td.appendChild(input);
+      this._editing = { id: String(id), column, input, td };
+
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          if (this._closeEditor(true, true)) this._focusCell(id, columnId);
+        } else if (event.key === "Tab") {
+          event.preventDefault();
+          if (this._closeEditor(true, true)) {
+            if (!this._move(id, columnId, 0, event.shiftKey ? -1 : 1)) this._focusCell(id, columnId);
+          }
+        } else if (event.key === "Escape") {
+          // Stop here so an enclosing modal stays open.
+          event.preventDefault();
+          event.stopPropagation();
+          this._closeEditor(false);
+          this._focusCell(id, columnId);
+        }
+      });
+      input.addEventListener("blur", () => {
+        // Leaving with an invalid value drops it rather than trapping focus.
+        if (this._editing && this._editing.input === input && !this._closeEditor(true, true)) {
+          this._closeEditor(false);
+        }
+      });
+      input.focus();
+      if (initialText == null && typeof input.select === "function") input.select();
+      return true;
+    }
+
+    // The typed value as the column's type, or {error}.
+    _parse(column, raw) {
+      const kind = column.editor || "text";
+      const text = String(raw ?? "");
+      if (!text.trim()) {
+        if (column.required) return { error: `${column.header || column.id} is required` };
+        return { value: kind === "number" || kind === "date" ? null : "" };
+      }
+      if (kind === "number") {
+        const number = Number(text.trim().replace(/,/g, ""));
+        if (!Number.isFinite(number)) return { error: "Must be a number" };
+        return { value: number };
+      }
+      return { value: text };
+    }
+
+    // Close the open editor. With commit, a valid value is saved (returns
+    // true); an invalid one keeps the editor open with the error when `stay`,
+    // else returns false and leaves it to the caller.
+    _closeEditor(commit, stay = false) {
+      const editing = this._editing;
+      if (!editing) return true;
+      if (commit) {
+        const parsed = this._parse(editing.column, editing.input.value);
+        if (parsed.error) {
+          if (stay) {
+            editing.input.setAttribute("aria-invalid", "true");
+            editing.input.dataset.wapytTooltip = parsed.error;
+            if (globalThis.wapyt && globalThis.wapyt.tooltip) globalThis.wapyt.tooltip.show(editing.input);
+            return false;
+          }
+          commit = false;
+        }
+        if (commit) {
+          this._editing = null;
+          delete editing.td.dataset.editing;
+          this._commit(editing.id, editing.column, parsed.value, editing.td);
+          return true;
+        }
+      }
+      this._editing = null;
+      delete editing.td.dataset.editing;
+      const row = this.getRow(editing.id);
+      if (row) this._fillCell(editing.td, row, editing.column);
+      return true;
+    }
+
+    _commit(id, column, value, td) {
+      const row = this.getRow(id);
+      if (!row) return;
+      const old = row[column.id];
+      const cell = td || this._cellEl(id, column.id);
+      const same = old === value || (old == null && value == null) ||
+        (old != null && value != null && typeof old !== "boolean" && String(old) === String(value) && typeof old === typeof value);
+      if (!same) {
+        row[column.id] = value;
+        this._cellErrors.delete(this._cellKey(id, column.id));
+      }
+      if (cell) this._fillCell(cell, row, column);
+      if (!same) {
+        this._emit("edit", { id, column: column.id, value, old_value: old === undefined ? null : old, row });
+      }
+    }
+
+    cancelEdit() {
+      if (!this._editing) return;
+      const { id, column } = this._editing;
+      this._closeEditor(false);
+      this._focusCell(id, column.id);
+    }
+
+    // The app's answer to an edit: put a value back (or set one) without
+    // firing "edit", and/or flag the cell with a message (null clears it).
+    setCell(id, columnId, value) {
+      const row = this.getRow(id);
+      const column = this._column(columnId);
+      if (!row || !column) return;
+      row[columnId] = value;
+      const td = this._cellEl(id, columnId);
+      if (td && !(this._editing && this._editing.td === td)) this._fillCell(td, row, column);
+    }
+
+    setCellError(id, columnId, message) {
+      const key = this._cellKey(id, columnId);
+      if (message) this._cellErrors.set(key, String(message));
+      else this._cellErrors.delete(key);
+      const row = this.getRow(id);
+      const column = this._column(columnId);
+      const td = this._cellEl(id, columnId);
+      if (row && column && td && !(this._editing && this._editing.td === td)) this._fillCell(td, row, column);
+    }
+
+    // A select column shows the option's label for its value.
+    _displayValue(column, value) {
+      if (value == null) return "";
+      if (column.editor === "select" && Array.isArray(column.options)) {
+        const match = column.options.find((option) =>
+          option && typeof option === "object" ? String(option.value) === String(value) : String(option) === String(value));
+        if (match) return String(typeof match === "object" ? match.label ?? match.value : match);
+      }
+      return String(value);
     }
 
     _setStatus(text) {
@@ -612,6 +952,8 @@
     // ── Selection ────────────────────────────────────────────────────────────
 
     _onRowClick(event, id) {
+      // Clicks inside an open editor must not re-render it away.
+      if (event.target.closest && event.target.closest(".wapyt-datatable-editor")) return;
       const mode = this.options.selection;
       if (mode === "none") return;
 
@@ -624,7 +966,7 @@
           for (let i = lo; i <= hi; i += 1) {
             this._selected.add(ids[i]);
           }
-          this._refresh();
+          this._syncSelection();
           this._emitSelection();
           return;
         }
@@ -637,7 +979,7 @@
           this._selected.add(id);
         }
         this._lastAnchor = id;
-        this._refresh();
+        this._syncSelection();
         this._emitSelection();
         return;
       }
@@ -649,8 +991,24 @@
       this._selected.clear();
       this._selected.add(id);
       this._lastAnchor = id;
-      this._refresh();
+      this._syncSelection();
       this._emitSelection();
+    }
+
+    // Selection changes repaint rows in place. Re-rendering re-sorted the view
+    // on every click, so a row edited out of sort order jumped away between
+    // the two clicks of a double-click, and keyboard focus was lost.
+    _syncSelection() {
+      Array.from(this._tbody.children).forEach((tr) => {
+        const id = tr.dataset.rowId;
+        if (id == null) return;
+        const chosen = this._selected.has(id);
+        if (chosen) tr.dataset.selected = "true";
+        else delete tr.dataset.selected;
+        const box = tr.querySelector(".wapyt-datatable-check input");
+        if (box) box.checked = chosen;
+      });
+      this._syncSelectAll();
     }
 
     _syncSelectAll() {
@@ -683,14 +1041,14 @@
       (Array.isArray(ids) ? ids : [ids]).forEach((id) => {
         if (id != null) this._selected.add(String(id));
       });
-      this._refresh();
+      this._syncSelection();
       this._emitSelection();
     }
 
     clearSelection() {
       this._selected.clear();
       this._lastAnchor = null;
-      this._refresh();
+      this._syncSelection();
       this._emitSelection();
     }
 

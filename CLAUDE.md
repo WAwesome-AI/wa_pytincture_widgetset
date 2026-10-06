@@ -418,6 +418,46 @@ small glyph (`.wapyt-datatable-cell-icon`) before a text cell's value;
 columns. A row without the key renders plain text. Added for Monguana's BSON
 type markers; style per icon by targeting the MDI class.
 
+## DataTable inline editing (added 2026-10-06)
+
+`ColumnConfig(editable=True, editor=..., options=..., required=...)`; editors
+are `text` (default), `number`, `select`, `checkbox`, `date`.
+
+- **Starting:** double-click an editable cell (anywhere else still fires
+  `activate`), or on a focused cell press Enter/F2 or just type (text and
+  number start with that character). Editable cells use a roving tabindex:
+  one tab stop for the whole table, arrows move between editable cells.
+- **Finishing:** Enter saves and keeps focus on the cell; Tab / Shift+Tab save
+  and move (off the end of a row onto the next); Escape cancels and stops
+  propagation (an enclosing modal stays open); blur saves, or drops an invalid
+  value rather than trapping focus. Enter/Tab on an invalid value keep the
+  editor open with the message as its tooltip ("Must be a number", "<Header>
+  is required").
+- **Saving** mutates the row, redraws only that cell (`_fillCell`), and emits
+  `edit` with `{id, column, value, old_value, row}`; `value` is typed (number
+  or None, bool, string, date `YYYY-MM-DD`). The row does not re-sort until
+  the next sort / filter / `set_rows`.
+- **Server refusal:** `set_cell(id, col, old_value)` (no event) and
+  `set_cell_error(id, col, message)`: red inset, `aria-invalid`, the message
+  as the cell's tooltip (overflow-only is turned off for it). Errors are kept
+  in `_cellErrors`, survive re-renders, and clear on the next good edit.
+- A re-render while an editor is open (`set_rows`, a header sort) saves it
+  first. Clicks inside the editor are ignored by `_onRowClick`.
+- `checkbox` columns render real checkboxes; click or Space toggles and saves.
+  `select` columns display the option label for the stored value.
+
+**Selection no longer re-renders the body.** Every row click used to call
+`_refresh()`, which re-sorted the view: a row edited out of sort order jumped
+away between the two clicks of a double-click (activating the wrong row), and
+focus dropped to `<body>`. Clicks, Ctrl/Shift ranges, row checkboxes,
+select-all, `select()` and `clear_selection()` now go through
+`_syncSelection()`, which repaints `data-selected` and the checkboxes in place.
+
+`tests/datatable_edit_demo.py`; a 30-check Playwright run (every editor,
+keyboard, tab stop, validation, refusal round-trip, no jump, mid-edit
+re-render, edit_cell on a new row, modal Escape, dark) plus 7 selection
+regression checks passed.
+
 ## Base font (added 2026-10-06)
 
 `--wapyt-font-family` (in `wapyt.css` `:root`, a system-UI stack) is applied to
