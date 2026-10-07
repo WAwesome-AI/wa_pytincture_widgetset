@@ -639,6 +639,39 @@ actions, live ProgressBar and a button in an item body, a template with an
 Html key, a copy-only library, a refused move); a 26-check Playwright run
 passed.
 
+## Kanban (added 2026-10-07)
+
+`Kanban` (`assets/kanban.js`, `Layout.add_kanban`) is a row of columns, each
+a header plus a `wapyt.Listbox`, all in one private drag group
+(`wapyt-kanban-<n>`). Cards are Listbox items, so templates, `card_body`
+widgets, actions and keyboard moves come from Listbox; kanban.js only adds
+the board. It talks to Listbox through its public methods, plus setting
+`list.options.accept`.
+
+- **Counts and WIP.** `_refresh(col)` after every move / add / remove writes
+  "n" or "n / limit" and sets `data-full` (amber) / `data-over` (red).
+  `wip_strict` makes a full column refuse drops by turning its Listbox's
+  `accept` off, so the placeholder never appears there (no revert needed);
+  the column still reorders its own cards, and `add_card` from code can
+  exceed the limit (then it shows red). A collapsed column also has
+  `accept` off.
+- **Events.** Listbox `move` → board `move` `{id, card, from_column,
+  to_column, from_index, to_index}`; `move_card` reverts silently. Selection
+  is single across the board: a `select` in one column clears the others
+  under a `_quiet` guard so the clears do not re-emit.
+- **Columns.** Header drag (pointer, 5px threshold, drops before the first
+  column whose centre is right of the pointer) or Alt+Left / Alt+Right on a
+  focused header; `on_column_move` with the new order; `move_column` is
+  silent for restoring a saved order. Collapse turns a column into a 44px
+  strip with a vertical title.
+- `--wapyt-kanban-accent` (per-column `color`) is the top edge. The dark rule
+  sets `border-color`, which reset that edge; it sets `border-top-color`
+  back.
+- Card ids are unique across the board (checked in `KanbanConfig.to_dict`).
+- Not built yet: swimlanes.
+
+`tests/kanban_demo.py`; a 20-check Playwright run passed.
+
 ## Base font (added 2026-10-06)
 `--wapyt-font-family` (in `wapyt.css` `:root`, a system-UI stack) is applied to
 `.wapyt-layout` and `.wapyt-modal`. Before it, neither set a font, so cell

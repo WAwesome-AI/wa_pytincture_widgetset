@@ -1911,6 +1911,98 @@ input[type="color"].wapyt-form-control {
   .wapyt-listbox-actions { transition: none; }
 }
 
+/* ── Kanban ───────────────────────────────────────────────────────────────── */
+.wapyt-kanban {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+  font: 13px/1.4 var(--wapyt-font-family);
+  color: var(--wapyt-text);
+}
+.wapyt-kanban-filter {
+  flex: none;
+  align-self: flex-start;
+  width: min(320px, 100%);
+  padding: 6px 9px;
+  font: inherit;
+  color: inherit;
+  background: var(--wapyt-bg);
+  border: 1px solid var(--wapyt-border);
+  border-radius: 6px;
+  outline: none;
+}
+.wapyt-kanban-filter:focus { border-color: #38bdf8; }
+.wapyt-kanban-board {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.wapyt-kanban-column {
+  --wapyt-kanban-accent: var(--wapyt-divider);
+  flex: 0 0 var(--wapyt-kanban-width, 280px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--wapyt-border);
+  border-top: 3px solid var(--wapyt-kanban-accent);
+  border-radius: 8px;
+  background: var(--wapyt-surface);
+}
+.wapyt-kanban-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 6px;
+  outline: none;
+}
+.wapyt-kanban-header[tabindex] { cursor: grab; }
+.wapyt-kanban-header:focus-visible { box-shadow: inset 0 0 0 2px #38bdf8; border-radius: 6px; }
+.wapyt-kanban-title { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wapyt-kanban-count {
+  flex: none;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--wapyt-border);
+  font-size: 11px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.wapyt-kanban-column[data-full] .wapyt-kanban-count { background: #fde68a; color: #92400e; }
+.wapyt-kanban-column[data-over] .wapyt-kanban-count { background: #fecaca; color: #991b1b; }
+.wapyt-kanban-column[data-over] { border-color: #fca5a5; }
+.wapyt-kanban-btn {
+  flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0;
+  border: 0; border-radius: 5px; background: transparent; color: inherit; cursor: pointer;
+  font-size: 16px;
+}
+.wapyt-kanban-btn:hover { background: rgba(37, 99, 235, 0.1); }
+.wapyt-kanban-btn:focus-visible { outline: 2px solid #38bdf8; }
+.wapyt-kanban-cards { flex: 1 1 auto; min-height: 0; padding: 0 8px 8px; }
+/* Collapsed: a narrow strip with the title running down it. */
+.wapyt-kanban-column[data-collapsed] { flex-basis: 44px; }
+.wapyt-kanban-column[data-collapsed] .wapyt-kanban-cards,
+.wapyt-kanban-column[data-collapsed] .wapyt-kanban-add { display: none; }
+.wapyt-kanban-column[data-collapsed] .wapyt-kanban-header { flex-direction: column; padding: 8px 4px; }
+.wapyt-kanban-column[data-collapsed] .wapyt-kanban-title { writing-mode: vertical-rl; }
+.wapyt-kanban-column[data-collapsed] .wapyt-kanban-toggle { transform: rotate(180deg); }
+.wapyt-kanban-column[data-moving] { opacity: 0.6; outline: 2px dashed #2563eb; outline-offset: 2px; }
+.wapyt-kanban-moving, .wapyt-kanban-moving * { cursor: grabbing !important; user-select: none; }
+[data-wapyt-theme="dark"] .wapyt-kanban { color: var(--wapyt-text-dark); }
+[data-wapyt-theme="dark"] .wapyt-kanban-filter { background: var(--wapyt-bg-dark); border-color: var(--wapyt-divider-dark); }
+/* border-color would also reset the top edge, so the accent is set again. */
+[data-wapyt-theme="dark"] .wapyt-kanban-column { background: var(--wapyt-surface-dark); border-color: var(--wapyt-divider-dark); --wapyt-kanban-accent: var(--wapyt-divider-dark); border-top-color: var(--wapyt-kanban-accent); }
+[data-wapyt-theme="dark"] .wapyt-kanban-count { background: var(--wapyt-divider-dark); }
+[data-wapyt-theme="dark"] .wapyt-kanban-column[data-full] .wapyt-kanban-count { background: #78350f; color: #fde68a; }
+[data-wapyt-theme="dark"] .wapyt-kanban-column[data-over] .wapyt-kanban-count { background: #7f1d1d; color: #fecaca; }
+[data-wapyt-theme="dark"] .wapyt-kanban-column[data-over] { border-color: #b91c1c; }
+
 /* ── MenuBar ──────────────────────────────────────────────────────────────── */
 .wapyt-menubar {
   display: flex;

@@ -21,6 +21,7 @@
 - `Toolbar`: Buttons, toggles, one-of-several groups, text, separators and spacers, dropping to icons when space runs out.
 - `ContextMenu`: Right-click menus with icons, shortcut hints, danger and disabled items, checkable and radio items, separators and submenus; keyboard accessible.
 - `MenuBar`: A File / Edit / View application menu whose titles open ContextMenu dropdowns; full menubar keyboard model.
+- `Kanban`: A board of Listbox columns with counts, WIP limits (optionally strict), add-card buttons, collapsible and reorderable columns, a board-wide filter and selection.
 - `Listbox`: Rich list items (fields or an escaped template) that can host live widgets, with actions, selection, a filter, and pointer and keyboard drag-and-drop within and between lists; the base for Kanban.
 - `Popup` and tooltips: An anchored popover for pickers, help and small forms; styled, keyboard-reachable tooltips that replace native `title` text across the widgets.
 - `ProgressBar` / `progress_html`: Determinate or indeterminate bars with active/done/error/paused states, as a live widget or static markup.

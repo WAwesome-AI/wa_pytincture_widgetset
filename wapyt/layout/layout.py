@@ -116,6 +116,11 @@ class Layout(object, metaclass=LoadUICaller):
         terminal_widget = Terminal(config=terminal_config or TerminalConfig(), container=self.layout.getCell(id))
         return terminal_widget
 
+    def add_kanban(self, id: str = "mainwindow", kanban_config: Optional["KanbanConfig"] = None) -> "Kanban":
+        from ..kanban import Kanban, KanbanConfig
+
+        return Kanban(config=kanban_config or KanbanConfig(), container=self.layout.getCell(id))
+
     def add_listbox(self, id: str = "mainwindow", listbox_config: Optional["ListboxConfig"] = None) -> "Listbox":
         from ..listbox import Listbox, ListboxConfig
 

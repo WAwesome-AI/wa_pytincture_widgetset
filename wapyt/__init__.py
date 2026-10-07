@@ -37,6 +37,8 @@ from .menubar.menubar import MenuBar
 from .menubar.menubar_config import MenuBarConfig
 from .listbox.listbox import Listbox
 from .listbox.listbox_config import ListAction, ListboxConfig
+from .kanban.kanban import Kanban
+from .kanban.kanban_config import KanbanColumn, KanbanConfig
 from .popup.popup import Popup, set_tooltips_enabled, tooltip
 from .popup.popup_config import PopupConfig, tooltip_attr
 from .toolbar.toolbar_config import (
@@ -109,6 +111,9 @@ __all__ = [
     "Listbox",
     "ListboxConfig",
     "ListAction",
+    "Kanban",
+    "KanbanConfig",
+    "KanbanColumn",
     "Popup",
     "PopupConfig",
     "tooltip",
