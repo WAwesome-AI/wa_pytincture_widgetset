@@ -620,8 +620,12 @@
         this._groupInputs(entry).forEach((input) => {
           input.checked = wanted.has(input.value);
         });
-      } else if (value != null || type !== "range") {
-        // An unset range keeps the browser's midpoint rather than snapping to min.
+      } else if (type === "range" && value == null) {
+        // An unset range sits at the midpoint of its own min and max. Left to
+        // the browser it took the midpoint of 0-100 before min/max were set,
+        // so min=0, max=20 started at 20, not 10.
+        el.value = String(this._rangeMidpoint(entry.field));
+      } else {
         el.value = value == null ? "" : String(value);
       }
       if (entry.output) entry.output.textContent = el.value;
@@ -643,6 +647,47 @@
         out[id] = this._readControl(id);
       });
       return out;
+    }
+
+    // Empty every field, or (reset) put back the values the form was built
+    // with. Both are silent, like setValues: no "change" events.
+    clear(opts = {}) {
+      const { values = true, errors = true } = opts || {};
+      if (values) this._controls.forEach((entry) => this._writeControl(entry, this._emptyValue(entry)));
+      if (errors) this.clearErrors();
+    }
+
+    reset() {
+      this._controls.forEach((entry) => {
+        const initial = entry.field.value;
+        this._writeControl(entry, initial === undefined || initial === null ? this._defaultValue(entry) : initial);
+      });
+      this.clearErrors();
+    }
+
+    // What "empty" means per control. Native range and colour inputs cannot
+    // be blank, so they go to their minimum and to black; a select ends up
+    // with nothing chosen (it reads back as "").
+    _emptyValue(entry) {
+      const { type, field } = entry;
+      if (BOOLEAN.has(type)) return false;
+      if (type === "checkbox_group") return [];
+      if (type === "range") return field.min != null ? field.min : 0;
+      if (type === "color") return "#000000";
+      return null;
+    }
+
+    _rangeMidpoint(field) {
+      const min = field.min != null ? Number(field.min) : 0;
+      const max = field.max != null ? Number(field.max) : 100;
+      return min + (max - min) / 2;
+    }
+
+    // A field configured without a value goes back to how a fresh form shows
+    // it: a range at its midpoint, a select with nothing chosen, the rest empty.
+    _defaultValue(entry) {
+      if (entry.type === "range") return this._rangeMidpoint(entry.field);
+      return this._emptyValue(entry);
     }
 
     setValues(values) {
