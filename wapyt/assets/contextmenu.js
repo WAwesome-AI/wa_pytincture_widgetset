@@ -30,8 +30,12 @@
       // menuClass / itemClass add class names alongside the wapyt-cmenu ones,
       // so a widget can keep its own selectors (tests, app CSS) when it moves
       // onto this menu.
+      // owner: an element whose presses do not count as "outside" (a menu
+      // bar's own buttons, which handle their own clicks). onEdge(dir): called
+      // when Left / Right would leave the top-level panel, so a menu bar can
+      // move to its neighbour.
       this.options = Object.assign(
-        { items: [], label: "Context menu", menuClass: "", itemClass: "" },
+        { items: [], label: "Context menu", menuClass: "", itemClass: "", owner: null, onEdge: null },
         options || {}
       );
       this._events = {};
@@ -44,6 +48,103 @@
       this._onDocPointer = this._onDocPointer.bind(this);
       this._onDocKey = this._onDocKey.bind(this);
       this._onViewportChange = () => this.hide();
+      // Persistent state, on top of what each item declares and what a
+      // showAt() call hides or disables for one opening.
+      this._stateHidden = new Set();
+      this._stateDisabled = new Set();
+      this._stateEnabled = new Set(); // overrides an item's own `disabled`
+      this._checked = new Set();
+      this._seedChecked(this._items);
+    }
+
+    _seedChecked(items) {
+      (items || []).forEach((item) => {
+        if (!item || item.separator) return;
+        if (item.checked) this._checked.add(String(item.id));
+        this._seedChecked(item.items);
+      });
+    }
+
+    // Recursion passes `item.items || []`, never undefined: an undefined
+    // argument would fall back to the default and restart from the top.
+    _findItem(id, items = this._items) {
+      for (const item of items || []) {
+        if (!item || item.separator) continue;
+        if (String(item.id) === String(id)) return item;
+        const found = this._findItem(id, item.items || []);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    hasItem(id) {
+      return Boolean(this._findItem(id));
+    }
+
+    // ── Persistent item state ──────────────────────────────────────────────
+
+    setDisabled(ids, disabled = true) {
+      [].concat(ids || []).map(String).forEach((id) => {
+        if (disabled) {
+          this._stateDisabled.add(id);
+          this._stateEnabled.delete(id);
+        } else {
+          this._stateDisabled.delete(id);
+          this._stateEnabled.add(id);
+        }
+      });
+      if (this.isOpen()) this.hide(false);
+    }
+
+    setHidden(ids, hidden = true) {
+      [].concat(ids || []).map(String).forEach((id) => {
+        if (hidden) this._stateHidden.add(id);
+        else this._stateHidden.delete(id);
+      });
+      if (this.isOpen()) this.hide(false);
+    }
+
+    isDisabled(id) {
+      const key = String(id);
+      const item = this._findItem(key);
+      if (this._stateDisabled.has(key)) return true;
+      if (this._stateEnabled.has(key)) return false;
+      return Boolean(item && item.disabled);
+    }
+
+    isHidden(id) {
+      return this._stateHidden.has(String(id));
+    }
+
+    // Checked state of a checkable item or a radio-group member. Checking a
+    // group member unchecks the rest of its group.
+    setChecked(id, checked = true) {
+      const key = String(id);
+      const item = this._findItem(key);
+      if (!item) return;
+      if (checked && item.group) this._groupMembers(item.group).forEach((other) => this._checked.delete(String(other.id)));
+      if (checked) this._checked.add(key);
+      else this._checked.delete(key);
+      this._syncChecks();
+    }
+
+    isChecked(id) {
+      return this._checked.has(String(id));
+    }
+
+    _groupMembers(group, items = this._items, out = []) {
+      (items || []).forEach((item) => {
+        if (!item || item.separator) return;
+        if (item.group === group) out.push(item);
+        this._groupMembers(group, item.items || [], out);
+      });
+      return out;
+    }
+
+    _syncChecks() {
+      this._panels.forEach((panel) => panel.querySelectorAll("[aria-checked]").forEach((el) => {
+        el.setAttribute("aria-checked", this._checked.has(el.dataset.id) ? "true" : "false");
+      }));
     }
 
     // ── Events ─────────────────────────────────────────────────────────────
@@ -73,6 +174,8 @@
 
     setItems(items) {
       this._items = items || [];
+      this._checked = new Set(Array.from(this._checked).filter((id) => this._findItem(id)));
+      this._seedChecked(this._items);
       if (this.isOpen()) this.hide();
     }
 
@@ -124,7 +227,7 @@
       this.hide(false);
       this._context = options.context === undefined ? null : options.context;
       this._target = options.target === undefined ? null : options.target;
-      this._hidden = new Set((options.hide || []).map(String));
+      this._hidden = new Set([...(options.hide || []).map(String), ...this._stateHidden]);
       this._disabled = new Set((options.disable || []).map(String));
       this._returnFocus = document.activeElement;
 
@@ -208,15 +311,20 @@
             if (/^[a-z][A-Za-z0-9]*$/.test(key)) el.dataset[key] = String(item.data[key]);
           });
         }
-        el.setAttribute("role", "menuitem");
+        const checkable = Boolean(item.checkable || item.group);
+        el.setAttribute("role", item.group ? "menuitemradio" : item.checkable ? "menuitemcheckbox" : "menuitem");
+        if (checkable) el.setAttribute("aria-checked", this._checked.has(String(item.id)) ? "true" : "false");
         el.tabIndex = -1;
         el.dataset.id = String(item.id);
         if (item.danger) el.dataset.danger = "true";
-        const disabled = item.disabled || this._disabled.has(String(item.id));
+        const disabled = this._disabled.has(String(item.id)) || this.isDisabled(item.id);
         if (disabled) el.setAttribute("aria-disabled", "true");
 
         const icon = document.createElement("i");
-        icon.className = item.icon ? `wapyt-cmenu-icon ${iconClass(item.icon)}` : "wapyt-cmenu-icon";
+        // A checkable item shows its tick (or radio dot) in the icon slot.
+        icon.className = item.icon ? `wapyt-cmenu-icon ${iconClass(item.icon)}`
+          : checkable ? "wapyt-cmenu-icon wapyt-cmenu-check" : "wapyt-cmenu-icon";
+        if (item.group && !item.icon) icon.dataset.radio = "true";
         icon.setAttribute("aria-hidden", "true");
         el.appendChild(icon);
 
@@ -300,6 +408,13 @@
 
     _choose(item) {
       const payload = { id: String(item.id), context: this._context, target: this._target };
+      if (item.group) {
+        this.setChecked(item.id, true);
+        payload.checked = true;
+      } else if (item.checkable) {
+        this.setChecked(item.id, !this.isChecked(item.id));
+        payload.checked = this.isChecked(item.id);
+      }
       this.hide();
       this._emit("select", payload);
     }
@@ -317,7 +432,10 @@
     }
 
     _onDocPointer(event) {
-      if (!this._panels.some((panel) => panel.contains(event.target))) this.hide(false);
+      if (this._panels.some((panel) => panel.contains(event.target))) return;
+      const owner = this.options.owner;
+      if (owner && owner.contains && owner.contains(event.target)) return;
+      this.hide(false);
     }
 
     _onDocKey(event) {
@@ -361,6 +479,10 @@
               current.getAttribute("aria-disabled") !== "true") {
             event.preventDefault();
             this._openSub(current, current._wapytItem, true);
+          } else if (typeof this.options.onEdge === "function") {
+            event.preventDefault();
+            event.stopPropagation();
+            this.options.onEdge(1);
           }
           break;
         }
@@ -370,6 +492,10 @@
             const parentItem = panel._parentItemEl;
             this._closeSubsFrom(this._panels[this._panels.length - 2]);
             if (parentItem) parentItem.focus();
+          } else if (typeof this.options.onEdge === "function") {
+            event.preventDefault();
+            event.stopPropagation();
+            this.options.onEdge(-1);
           }
           break;
         case "Enter":

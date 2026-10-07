@@ -58,7 +58,8 @@ class ContextMenu:
     # ------------------------------------------------------------------
 
     def on_select(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
-        """An item was chosen: ``{"id", "context", "target"}``."""
+        """An item was chosen: ``{"id", "context", "target"}``, plus
+        ``checked`` (the new state) for a checkable or group item."""
         self._bind_event("select", handler)
 
     def on_show(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
@@ -118,12 +119,43 @@ class ContextMenu:
         payload = ContextMenuConfig(items=list(items)).to_dict()["items"]
         self.menu.setItems(js.JSON.parse(json.dumps(payload)))
 
+    # ------------------------------------------------------------------
+    # Item state (kept across openings; ``show_at(hide=, disable=)`` adds to
+    # it for one opening)
+    # ------------------------------------------------------------------
+
+    def set_disabled(self, ids: Union[str, Iterable[str]], disabled: bool = True) -> None:
+        """Grey items out (``disabled=False`` enables them, even ones declared
+        ``disabled``)."""
+        self.menu.setDisabled(_to_js(_id_list(ids)), bool(disabled))
+
+    def set_hidden(self, ids: Union[str, Iterable[str]], hidden: bool = True) -> None:
+        self.menu.setHidden(_to_js(_id_list(ids)), bool(hidden))
+
+    def is_disabled(self, item_id: str) -> bool:
+        return bool(self.menu.isDisabled(item_id))
+
+    def is_hidden(self, item_id: str) -> bool:
+        return bool(self.menu.isHidden(item_id))
+
+    def set_checked(self, item_id: str, checked: bool = True) -> None:
+        """Tick or untick a checkable item; checking a group item unchecks
+        the rest of its group. Does not fire ``on_select``."""
+        self.menu.setChecked(item_id, bool(checked))
+
+    def is_checked(self, item_id: str) -> bool:
+        return bool(self.menu.isChecked(item_id))
+
     def destroy(self) -> None:
         self.menu.destroy()
 
 
 def _to_js(value: Any) -> Any:
     return js.JSON.parse(json.dumps(value))
+
+
+def _id_list(ids: Union[str, Iterable[str]]) -> List[str]:
+    return [ids] if isinstance(ids, str) else [str(i) for i in ids]
 
 
 __all__ = ["ContextMenu", "ContextMenuConfig", "MenuItem"]

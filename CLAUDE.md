@@ -688,7 +688,41 @@ smoke tests select on. Terminal's Copy is disabled per opening without a
 selection; the menu sits on `<body>`, so a click never reaches xterm, and
 Escape is consumed instead of going to the shell. The old menu CSS is gone.
 
-`tests/contextmenu_demo.py` drives it; a 30-check Playwright run passed.
+`tests/contextmenu_demo.py` drives it; a 29-check Playwright run passed (this
+said 30 until 2026-10-07; the suite has 29).
+
+**Persistent item state and checked items (added 2026-10-07, for MenuBar).**
+`set_disabled(ids)` / `set_hidden(ids)` / `is_*` keep state across openings
+(`showAt(hide=, disable=)` still adds to it for one opening; `disabled=False`
+overrides an item's own `disabled`). `MenuItem(checkable=True)` is a
+`menuitemcheckbox` and `MenuItem(group="...")` a `menuitemradio`; choosing
+flips / checks it and `select` carries `checked`. `set_checked` is silent. The
+tick or radio dot is drawn in the icon slot (`.wapyt-cmenu-check`). Two
+JS-only options serve MenuBar: `owner` (an element whose presses are not
+"outside") and `onEdge(dir)` (Left / Right at the top level). `_findItem` /
+`_groupMembers` recurse with `item.items || []`: passing `undefined` re-used
+the default parameter (`this._items`) and recursed forever, which the first
+MenuBar run caught.
+
+## MenuBar (added 2026-10-07)
+
+`MenuBar` (`assets/menubar.js`, `Layout.add_menubar(id="mainwindow_header")`)
+is a WAI-ARIA `menubar`: top-level `MenuItem`s with `items` open a
+`wapyt.ContextMenu` dropdown (class `wapyt-menubar-menu`, placed flush under
+the title); one without `items` is a plain command (`select` with
+`menu: None`). One tab stop; Left/Right/Home/End on the bar, Down/Enter/Space
+open; inside a dropdown Left/Right at the top level move to the neighbouring
+menu (`onEdge`), plain commands and disabled titles just take focus; once a
+menu is open, `pointerenter` on another title switches to it. Each dropdown
+is created with `owner: bar`, so clicking the open title closes it instead of
+the document listener closing and the click reopening it. State methods
+(`set_disabled`, `set_hidden`, `set_checked`, `is_*`) find the dropdown that
+holds the id; top-level titles keep their own hidden/disabled state.
+`on_select` → `{id, menu, checked?}`, `on_open` → `{id}`. Ids must be unique
+across the whole bar; separators are not allowed at the top level.
+
+`tests/menubar_demo.py`; a 26-check Playwright run passed, plus the 29-check
+ContextMenu suite against the same build.
 
 Toolbar and ContextMenu separators use `--wapyt-divider` / `--wapyt-divider-dark`
 (#cbd5e1 / #475569). The border tokens they first used were invisible as a

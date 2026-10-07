@@ -28,6 +28,11 @@ class MenuItem:
             selected.
         separator: A divider; every other field is ignored. Separators that
             would lead, trail or double up after hiding items are dropped.
+        checkable: A toggle (``role="menuitemcheckbox"``): choosing it flips
+            a tick, and ``on_select`` carries the new ``checked``.
+        group: Makes it one of a radio group (``role="menuitemradio"``):
+            choosing it checks it and unchecks the rest of the group.
+        checked: Initial state of a checkable or group item.
     """
 
     id: str = ""
@@ -38,6 +43,9 @@ class MenuItem:
     disabled: bool = False
     items: List["MenuItem"] = field(default_factory=list)
     separator: bool = False
+    checkable: bool = False
+    group: Optional[str] = None
+    checked: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         if self.separator:
@@ -55,8 +63,20 @@ class MenuItem:
                 "items": [
                     item.to_dict() if hasattr(item, "to_dict") else item for item in self.items
                 ] or None,
+                "checkable": self.checkable or None,
+                "group": self.group,
+                "checked": self.checked or None,
             }
         )
+
+
+def check_unique_ids(items: List[Dict[str, Any]]) -> None:
+    """Raise if an id repeats anywhere in the tree (submenus included)."""
+    ids: List[str] = []
+    _collect_ids(items, ids)
+    duplicates = sorted({i for i in ids if ids.count(i) > 1})
+    if duplicates:
+        raise ValueError(f"duplicate menu item ids: {', '.join(duplicates)}")
 
 
 def _collect_ids(items: List[Dict[str, Any]], into: List[str]) -> None:
@@ -84,11 +104,7 @@ class ContextMenuConfig:
 
     def to_dict(self) -> Dict[str, Any]:
         items = [item.to_dict() if hasattr(item, "to_dict") else item for item in self.items]
-        ids: List[str] = []
-        _collect_ids(items, ids)
-        duplicates = sorted({i for i in ids if ids.count(i) > 1})
-        if duplicates:
-            raise ValueError(f"duplicate menu item ids: {', '.join(duplicates)}")
+        check_unique_ids(items)
         payload = {"items": items, "label": self.label}
         payload.update(self.extra or {})
         return _clean(payload)
