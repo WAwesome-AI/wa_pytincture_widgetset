@@ -261,6 +261,14 @@
   display: block;
 }
 
+/* A widget mounted on the panel itself (via TabWidget.get_cell) styles that
+   element as its own host, and a host rule such as `.wapyt-form { display:
+   flex }` would otherwise show an inactive tab through the active one. This
+   outranks any single-class host rule. */
+.wapyt-tabwidget-panels > .wapyt-tab-panel:not([data-active="true"]) {
+  display: none;
+}
+
 .wapyt-tab-close {
   font-weight: 600;
   cursor: pointer;

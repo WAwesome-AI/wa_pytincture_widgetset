@@ -371,3 +371,19 @@ def test_cardpanel_defaults_carry_no_app_specific_copy():
     assert payload["title"] == ""
     assert payload["description"] == ""
     assert "data source" not in json.dumps(payload).lower()
+
+
+def test_inactive_tab_panel_stays_hidden_under_a_widget_host_rule():
+    """
+    A widget mounted with ``container=tabs.get_cell(id)`` styles the panel
+    itself as its host (``.wapyt-form { display: flex }``), which used to show
+    an inactive tab through the active one. The hiding rule has to outrank a
+    single-class host rule.
+    """
+    from pathlib import Path
+
+    css = (Path(__file__).resolve().parents[1] / "wapyt" / "assets" / "wapyt.css").read_text(
+        encoding="utf-8")
+    rule = '.wapyt-tabwidget-panels > .wapyt-tab-panel:not([data-active="true"]) {'
+    assert rule in css
+    assert "display: none" in css.split(rule, 1)[1].split("}", 1)[0]
