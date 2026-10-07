@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "package": "wapyt",
-  "version": "0.1.0",
+  "version": "0.2.0.dev0",
   "assets": [
     {
       "path": "wapyt/assets/wapyt.css",
       "type": "css",
-      "sha256": "a1645cab15c66e63c948dcda7aa165bfc32737378f4dd244269030188b85dea5"
+      "sha256": "a872f6dd7c2a2d2078b46bac9c0ffce9fc42347e7d0e2cda25e80bd1007edcdf"
     },
     {
       "path": "wapyt/assets/icons.js",
@@ -14,14 +14,19 @@
       "sha256": "c6b641553933be2ebf8dfd652feb9d89338da24d1cbaf78aeef11f4e0c7b3f35"
     },
     {
+      "path": "wapyt/assets/tooltip.js",
+      "type": "javascript",
+      "sha256": "882ce5c7a35f8719ddc231ea7b9844a6b567bf9cc9a8bf84d0d9adb592c73690"
+    },
+    {
       "path": "wapyt/assets/layout.js",
       "type": "javascript",
-      "sha256": "c7d621848103fedf187b4089cae2d6c277796c884b8976c58bbf47dc2349ebf4"
+      "sha256": "8a218aaf5162d4b8cf897c6ada1103c2208e46a4e10cd0a3d1bebf8d18584aa2"
     },
     {
       "path": "wapyt/assets/modal.js",
       "type": "javascript",
-      "sha256": "d3f13dc71a03b778a54cfab3fab7ff3bb82f6ebb024b104dab6d17170931d6e7"
+      "sha256": "01aad3f56bf77f74c8e169379b3c9f66b11b1ce7948f5974ebe53f17c919bf54"
     },
     {
       "path": "wapyt/assets/message.js",
@@ -36,7 +41,27 @@
     {
       "path": "wapyt/assets/contextmenu.js",
       "type": "javascript",
-      "sha256": "8555d7b4f1b9b8db59eccbe7985200224ad9eaca2b0119542e7a77a4cc7d4524"
+      "sha256": "f7efc1cd2c3bbf6af86dc97f8c010fbbaff238921ebdfe0bb08c35e572685688"
+    },
+    {
+      "path": "wapyt/assets/menubar.js",
+      "type": "javascript",
+      "sha256": "af8eea3d28306d86cd5f14784b5ec7b4f996644bc4438a15f24a2caca66b0165"
+    },
+    {
+      "path": "wapyt/assets/listbox.js",
+      "type": "javascript",
+      "sha256": "a21b9a1a5e5c7f1fadc6bf4b1ac0e72e327ce0f1c29d46e24a45420315f49915"
+    },
+    {
+      "path": "wapyt/assets/kanban.js",
+      "type": "javascript",
+      "sha256": "14ba04cc21171f1e0bbdcd3bc18ad9a3c96c668797fd55b7c5e22b3d3c1e0604"
+    },
+    {
+      "path": "wapyt/assets/popup.js",
+      "type": "javascript",
+      "sha256": "1936d70d2e059974a51af5d3b2050f7fb50a875da2f30cb8bc6e829c00910fc8"
     },
     {
       "path": "wapyt/assets/progressbar.js",
@@ -44,9 +69,14 @@
       "sha256": "b8bcf4c6c69146d0c30a1128738e44e56d8ec9de269277ea86dccce6866c41e4"
     },
     {
+      "path": "wapyt/assets/pagination.js",
+      "type": "javascript",
+      "sha256": "f7778a55b68f73dc4a4642fb6235e03f258501e589f16c82dc095d0b46b68f1f"
+    },
+    {
       "path": "wapyt/assets/sidebar.js",
       "type": "javascript",
-      "sha256": "3e79be992fa0d30e3bced04c79657b8a945e224b0dbdc7ea5d4bace97c16c2ff"
+      "sha256": "83b09cb08394cfa2ef3bd0aaa6a5c457bdfbfc807b088e0eba32391e590ce78c"
     },
     {
       "path": "wapyt/assets/filetransfer.js",
@@ -56,17 +86,17 @@
     {
       "path": "wapyt/assets/datatable.js",
       "type": "javascript",
-      "sha256": "024d3093fa8b6fdefac9c930179f3b75779611ef5c4a6247e829c17d4bc6bc63"
+      "sha256": "14cd71786e725dc744c5d773ddce5a375839efe35e4a9962d6368b047a8d2b20"
     },
     {
       "path": "wapyt/assets/tree.js",
       "type": "javascript",
-      "sha256": "4214fc6385c65aaec17bd5e3a0c14d1d31bba1f553cdf58a3b86b366517f3e47"
+      "sha256": "f734d88fb0cf89d35c7f375f7ddecfa4ae166d945abab56ddb99f941276f7d92"
     },
     {
       "path": "wapyt/assets/form.js",
       "type": "javascript",
-      "sha256": "286947cded46772a0127f1fb38ae10274c8ae61db24b99c5fe5565823c25ee1d"
+      "sha256": "afeaebdaf1fff0f0c1d7e0e511497148a678b288fd9a8b60c702e28da4083254"
     },
     {
       "path": "wapyt/assets/tabwidget.js",

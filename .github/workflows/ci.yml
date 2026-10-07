@@ -1,0 +1,43 @@
+# Runs on every push to main and every pull request: unit tests, JavaScript
+# syntax, the asset-manifest drift check, and a build whose wheel and sdist are
+# verified the way pytincture verifies them in the browser.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Unit tests
+        run: uv run --group dev pytest tests/ -q
+
+      - name: JavaScript syntax
+        run: for f in wapyt/assets/*.js; do node --check "$f"; done
+
+      # Fails when an asset changed (or the version moved) without running
+      # `python scripts/generate_assets_manifest.py .` and committing the result.
+      - name: Asset manifest is current
+        run: python scripts/generate_assets_manifest.py . --check
+
+      - name: Build
+        run: uv build --out-dir dist
+
+      - name: Verify the built wheel and sdist
+        run: python scripts/check_dist.py dist

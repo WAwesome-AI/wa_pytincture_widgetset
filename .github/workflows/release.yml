@@ -1,0 +1,108 @@
+# Publishes wapyt to PyPI when a version tag is pushed:
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# The tag must equal the version in pyproject.toml, wapyt/__init__.py and the
+# asset manifest (without the "v"). Pre-release versions (0.2.0.dev1, 0.2.0rc1)
+# publish too; pip only installs them with --pre.
+#
+# Uses PyPI trusted publishing: no API token is stored. A maintainer of the
+# PyPI project must add this repository as a trusted publisher once
+# (owner WAwesome-AI, repository wa_pytincture_widgetset, workflow
+# release.yml, environment pypi). See CLAUDE.md "Releasing".
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Tag, pyproject, __version__ and manifest agree
+        id: version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          project=$(python -c "import re;print(re.search(r'^version\s*=\s*\"([^\"]+)\"', open('pyproject.toml').read(), re.M).group(1))")
+          module=$(python -c "import re;print(re.search(r'^__version__\s*=\s*\"([^\"]+)\"', open('wapyt/__init__.py').read(), re.M).group(1))")
+          manifest=$(python -c "import json;print(json.load(open('wapyt/pytincture-assets.json'))['version'])")
+          echo "tag=$tag pyproject=$project __version__=$module manifest=$manifest"
+          if [ "$tag" != "$project" ] || [ "$tag" != "$module" ] || [ "$tag" != "$manifest" ]; then
+            echo "::error::version mismatch: tag $tag, pyproject $project, __version__ $module, manifest $manifest"
+            exit 1
+          fi
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+          if [[ "$tag" =~ (a|b|rc|dev)[0-9]*$ ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Unit tests
+        run: uv run --group dev pytest tests/ -q
+
+      - name: JavaScript syntax
+        run: for f in wapyt/assets/*.js; do node --check "$f"; done
+
+      - name: Asset manifest is current
+        run: python scripts/generate_assets_manifest.py . --check
+
+      - name: Build
+        run: uv build --out-dir dist
+
+      - name: Verify the distributions
+        run: python scripts/check_dist.py dist --version "${{ steps.version.outputs.version }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/wapyt/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write   # trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    needs: [build, pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=""
+          if [ "${{ needs.build.outputs.prerelease }}" = "true" ]; then flags="--prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "wapyt ${{ needs.build.outputs.version }}" --generate-notes $flags

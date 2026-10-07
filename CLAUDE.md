@@ -263,8 +263,62 @@ uv run --group dev pytest tests/
 `tests/pyproject.toml` now sources `pytincture` from `../../pytincture` so the demos run
 against the local `1.0.0rc5`; a bare `>=` pin would not select a pre-release from PyPI.
 
-## Widget conventions
+## Versioning, CI and releasing (added 2026-10-07)
 
+**Version:** `0.2.0.dev0` since 2026-10-07, a PEP 440 development release on
+the way to 0.2.0. 0.2.0 ships once the roadmap's parity items and the
+Scheduler are done. The version lives in three places that must agree:
+`pyproject.toml`, `wapyt/__init__.py` (`__version__`, a plain string literal
+because pytincture reads it by parsing the file) and
+`wapyt/pytincture-assets.json`. `tests/test_release_metadata.py` and the
+release workflow both check. `__version_tuple__` holds the numeric release
+part only, so pre-releases do not break `int()`.
+
+**The asset manifest is now enforced.** It records the version and every
+asset's SHA-256, and pytincture refuses a wheel whose manifest does not match.
+Until this change it was never regenerated on `main` (every widget PR had
+left it stale; apps never noticed because their browser wheel is the 99.99.99
+dev wheel, built with a fresh manifest). **After changing anything in
+`wapyt/assets/` or the version, run
+`python scripts/generate_assets_manifest.py .` and commit the JSON**; CI
+fails otherwise.
+
+**CI** (`.github/workflows/ci.yml`, every push to main and every PR): unit
+tests, `node --check` on every asset, the manifest `--check`, `uv build`, and
+`scripts/check_dist.py`, which opens the wheel and sdist and verifies the
+manifest version and every asset hash the way pytincture does, and that the
+wheel declares no runtime dependencies.
+
+**Releasing** (`.github/workflows/release.yml`):
+
+1. Set the version in all three places (for the release, drop `.dev0`), run
+   the manifest script, merge.
+2. Tag and push from `main`: `git tag v0.2.0 && git push origin v0.2.0`.
+3. The workflow checks that the tag equals all three versions, re-runs the
+   checks, builds, verifies, publishes to PyPI by **trusted publishing** (no
+   stored token), and creates a GitHub release with the files (marked
+   pre-release for `aN` / `bN` / `rcN` / `.devN`).
+
+**One-time setup, outside this repo:**
+
+- **PyPI:** the `wapyt` project already exists (0.1.0, 2025-12-05, published
+  from `schapman1974/wA_pytincture_widgetset`), so a **current owner of that
+  PyPI project** must add a trusted publisher: owner `WAwesome-AI`, repository
+  `wa_pytincture_widgetset`, workflow `release.yml`, environment `pypi`. (That
+  0.1.0 still declares the `pyodide-py` / `itsdangerous` dependencies removed
+  since.)
+- **GitHub:** create the `pypi` environment in the repo settings (optionally
+  with required reviewers, so a tag cannot publish unattended).
+- **TestPyPI is not an option for rehearsals:** the name `wapyt` there belongs
+  to an unrelated project (a WhatsApp library). Rehearse with a `.devN` tag
+  on the real index instead; pip ignores it without `--pre`.
+
+**Consumers:** Monguana and IguanaXterm build wapyt from source at a pinned
+commit (`WAPYT_REF`), so the version number does not affect their builds;
+their `vendor-wheels/wapyt-0.1.0-*.whl` and wAwesomeChat's `wapyt==0.1.0` pin
+need updating when they move to 0.2.x.
+
+## Widget conventions
 **Escaping.** Model and remote data reach the DOM through these files, so the rules are load-bearing:
 
 - Text → `textContent`. Markup → `innerHTML` only with an `escapeHtml()` call on every interpolated value.
