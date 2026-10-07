@@ -1794,6 +1794,44 @@ input[type="color"].wapyt-form-control {
 .wapyt-cmenu-shortcut { flex: none; margin-left: 16px; font-size: 11.5px; opacity: 0.55; }
 .wapyt-cmenu-chevron { flex: none; margin-left: 12px; font-size: 15px; opacity: 0.6; }
 .wapyt-cmenu-sep { height: 1px; margin: 4px 6px; background: var(--wapyt-divider); }
+/* Checkable items draw their tick (or radio dot) in the icon slot. */
+.wapyt-cmenu-check::before { content: ""; }
+[aria-checked="true"] > .wapyt-cmenu-check::before { content: "✓"; font: 600 13px/1 var(--wapyt-font-family); }
+[aria-checked="true"] > .wapyt-cmenu-check[data-radio]::before { content: "●"; font-size: 9px; }
+
+/* ── MenuBar ──────────────────────────────────────────────────────────────── */
+.wapyt-menubar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  font: 13px/1.3 var(--wapyt-font-family);
+  color: var(--wapyt-text);
+  user-select: none;
+}
+.wapyt-menubar-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.wapyt-menubar-item[hidden] { display: none; }
+.wapyt-menubar-item:hover:not([aria-disabled="true"]),
+.wapyt-menubar-item[aria-expanded="true"] { background: rgba(37, 99, 235, 0.1); }
+.wapyt-menubar-item:focus-visible { outline: 2px solid #38bdf8; outline-offset: -2px; }
+.wapyt-menubar-item[aria-disabled="true"] { opacity: 0.45; cursor: default; }
+.wapyt-menubar-icon { font-size: 15px; opacity: 0.85; }
+/* The dropdown sits flush under its title. */
+.wapyt-menubar-menu { border-top-left-radius: 4px; }
+[data-wapyt-theme="dark"] .wapyt-menubar { color: var(--wapyt-text-dark); }
+[data-wapyt-theme="dark"] .wapyt-menubar-item:hover:not([aria-disabled="true"]),
+[data-wapyt-theme="dark"] .wapyt-menubar-item[aria-expanded="true"] { background: rgba(96, 165, 250, 0.16); }
 [data-wapyt-theme="dark"] .wapyt-cmenu {
   background: var(--wapyt-surface-dark);
   color: var(--wapyt-text-dark);
