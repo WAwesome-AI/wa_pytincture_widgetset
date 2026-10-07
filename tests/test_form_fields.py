@@ -75,3 +75,17 @@ def test_combo_flags_only_sent_when_on():
     payload = FieldConfig(id="c", type="combo", multiple=True, allow_custom=True, value=["a"],
                           options=[SelectOption("a", "A")]).to_dict()
     assert payload["multiple"] is True and payload["allowCustom"] is True and payload["value"] == ["a"]
+
+
+def test_none_button_text_reaches_js_as_null():
+    """None hides a button. Dropping the key instead let the JS default
+    ("Save") back in, so submit_text=None still showed a Save button."""
+    payload = FormConfig(submit_text=None).to_dict()
+    assert "submitText" in payload and payload["submitText"] is None
+    assert "cancelText" in payload and payload["cancelText"] is None
+    assert FormConfig(submit_text="Go", cancel_text="Back").to_dict()["cancelText"] == "Back"
+
+
+def test_extra_can_still_override_button_text():
+    payload = FormConfig(submit_text=None, extra={"submitText": "Send"}).to_dict()
+    assert payload["submitText"] == "Send"

@@ -210,4 +210,9 @@ class FormConfig:
             "autocomplete": self.autocomplete,
         }
         payload.update(self.extra or {})
-        return _clean(payload)
+        cleaned = _clean(payload)
+        # None hides a button, so it has to reach JS as null: a dropped key
+        # lets the JS default ("Save") back in.
+        for key in ("submitText", "cancelText"):
+            cleaned.setdefault(key, payload[key])
+        return cleaned
