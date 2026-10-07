@@ -44,6 +44,8 @@ ASSETS: list[tuple[str, str]] = [
     # Builds its dropdowns from wapyt.ContextMenu, but only when constructed.
     ("assets/menubar.js", "javascript"),
     ("assets/listbox.js", "javascript"),
+    # Builds its columns from wapyt.Listbox, but only when constructed.
+    ("assets/kanban.js", "javascript"),
     ("assets/popup.js", "javascript"),
     ("assets/progressbar.js", "javascript"),
     ("assets/pagination.js", "javascript"),
