@@ -41,6 +41,12 @@ class ColumnConfig:
         options: Choices for a ``select`` editor; strings or
             ``{"value": ..., "label": ...}`` dicts.
         required: An emptied cell is refused instead of saved.
+        hidden: Start hidden. Hidden columns keep their place and width; show
+            them with ``DataTable.show_column``. They do not render, match the
+            filter, or export unless named in ``to_csv(columns=...)``.
+        css: Class name(s) added to this column's header and body cells.
+        cell_class_by: Row key holding class name(s) for this column's cell
+            in that row, e.g. ``"due_class"`` set to ``"overdue"``.
     """
 
     id: str
@@ -56,6 +62,9 @@ class ColumnConfig:
     editor: Optional[str] = None
     options: Optional[List[Any]] = None
     required: bool = False
+    hidden: bool = False
+    css: Optional[str] = None
+    cell_class_by: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         if self.editor is not None and self.editor not in EDITORS:
@@ -78,6 +87,9 @@ class ColumnConfig:
                 "options": [o.to_dict() if hasattr(o, "to_dict") else o for o in self.options]
                 if self.options is not None else None,
                 "required": self.required or None,
+                "hidden": self.hidden or None,
+                "css": self.css,
+                "cellClassBy": self.cell_class_by,
             }
         )
 
@@ -142,6 +154,9 @@ class DataTableConfig:
             its panel) instead of stretching them to fill it.
         reorderable_columns: Drag a header onto another to move its column.
         min_column_width: Narrowest a resize may make a column, in pixels.
+        row_class_by: Row key holding class name(s) for that row's ``<tr>``
+            (a string, space-separated, or a list), e.g. ``"status_class"``.
+            Only tokens that look like class names are applied.
         frozen_columns: How many leading columns stay in place while the
             table scrolls sideways (dhxpyt's ``leftSplit``); the multi-select
             checkbox column goes with them. The table scrolls sideways once
@@ -167,6 +182,7 @@ class DataTableConfig:
     reorderable_columns: bool = False
     min_column_width: int = 48
     frozen_columns: int = 0
+    row_class_by: Optional[str] = None
     extra: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -195,6 +211,7 @@ class DataTableConfig:
             "reorderableColumns": self.reorderable_columns,
             "minColumnWidth": self.min_column_width,
             "frozenColumns": self.frozen_columns or None,
+            "rowClassBy": self.row_class_by,
         }
         payload.update(self.extra or {})
         return _clean(payload)

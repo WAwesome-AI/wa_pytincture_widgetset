@@ -131,10 +131,11 @@ class DataTable:
 
     def on_columns(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         """
-        A column was resized or moved (``resizable_columns`` /
-        ``reorderable_columns``). Payload: ``{reason: "resize"|"reorder",
-        column, columns: [{id, width}]}`` in display order; ``width`` is None
-        for a column that has no pixel width yet.
+        A column was resized, moved, hidden or shown. Payload: ``{reason:
+        "resize"|"reorder"|"hide"|"show", column, columns: [{id, width,
+        hidden}]}`` in display order; ``width`` is None for a column that has
+        no pixel width yet. Save ``columns`` and restore it with
+        ``set_columns`` (widths and ``hidden`` included).
         """
         self._bind_event("columns", handler)
 
@@ -236,6 +237,21 @@ class DataTable:
             "delimiter": delimiter,
         }
 
+    def hide_column(self, column_id: str) -> None:
+        """Hide a column; ``on_columns`` fires with ``reason="hide"``."""
+        self.datatable.hideColumn(column_id)
+
+    def show_column(self, column_id: str) -> None:
+        """Show a hidden column in its old place; ``on_columns`` fires with
+        ``reason="show"``."""
+        self.datatable.showColumn(column_id)
+
+    def set_column_hidden(self, column_id: str, hidden: bool = True) -> None:
+        self.datatable.setColumnHidden(column_id, bool(hidden))
+
+    def is_column_hidden(self, column_id: str) -> bool:
+        return bool(self.datatable.isColumnHidden(column_id))
+
     def set_frozen_columns(self, count: int) -> None:
         """Freeze the first ``count`` columns (0 unfreezes)."""
         if count < 0:
@@ -250,7 +266,7 @@ class DataTable:
         self.datatable.setColumns(js.JSON.parse(json.dumps(payload)))
 
     def get_column_state(self) -> List[Dict[str, Any]]:
-        """``[{id, width}]`` in display order (see :meth:`on_columns`)."""
+        """``[{id, width, hidden}]`` in display order (see :meth:`on_columns`)."""
         return list(self._to_py(self.datatable.getColumnState()) or [])
 
     def move_column(self, column_id: str, target_id: str, after: bool = False) -> None:

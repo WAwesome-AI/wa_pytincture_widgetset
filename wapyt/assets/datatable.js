@@ -43,6 +43,15 @@
   // Cell values reach the DOM through textContent, and icon cells only ever
   // receive a class name. Nothing here interpolates row data into innerHTML, so
   // a remote filename cannot inject markup.
+  // Class names from row data go through classList one token at a time, and
+  // only tokens that look like class names: a value is never markup, and a
+  // stray space or symbol in data cannot throw or smuggle in an attribute.
+  const CLASS_TOKEN = /^-?[A-Za-z_][\w-]*$/;
+  function classTokens(value) {
+    const list = Array.isArray(value) ? value : String(value == null ? "" : value).split(/\s+/);
+    return list.map(String).filter((token) => CLASS_TOKEN.test(token));
+  }
+
   class DataTable {
     constructor(target, options = {}) {
       this.options = Object.assign(
@@ -68,6 +77,8 @@
           minColumnWidth: 48,
           // Leading columns that stay put while the table scrolls sideways.
           frozenColumns: 0,
+          // Row key holding class names for each <tr> (a string or a list).
+          rowClassBy: null,
         },
         options || {}
       );
@@ -183,9 +194,10 @@
         tr.appendChild(th);
       }
 
-      (this.options.columns || []).forEach((column) => {
+      this._visibleColumns().forEach((column) => {
         const th = document.createElement("th");
         th.dataset.columnId = column.id;
+        classTokens(column.css).forEach((token) => th.classList.add(token));
         if (column.width) {
           th.style.width = typeof column.width === "number" ? `${column.width}px` : column.width;
         }
@@ -224,6 +236,36 @@
       this._observeFrozen();
     }
 
+    // ── Hidden columns ───────────────────────────────────────────────────────
+
+    // Columns that render. Hidden ones keep their place, width and settings in
+    // options.columns, so showing one puts it back where it was.
+    _visibleColumns() {
+      return (this.options.columns || []).filter((column) => !column.hidden);
+    }
+
+    isColumnHidden(columnId) {
+      const column = this._column(columnId);
+      return Boolean(column && column.hidden);
+    }
+
+    setColumnHidden(columnId, hidden) {
+      const column = this._column(columnId);
+      if (!column || Boolean(column.hidden) === Boolean(hidden)) return;
+      if (this._editing && this._editing.column.id === columnId) this._closeEditor(true);
+      column.hidden = Boolean(hidden);
+      this._refresh();
+      this._emit("columns", { reason: hidden ? "hide" : "show", column: columnId, columns: this.getColumnState() });
+    }
+
+    hideColumn(columnId) {
+      this.setColumnHidden(columnId, true);
+    }
+
+    showColumn(columnId) {
+      this.setColumnHidden(columnId, false);
+    }
+
     // ── Frozen columns ───────────────────────────────────────────────────────
 
     // How many leading cells per row are frozen: the multi-select checkbox
@@ -231,7 +273,7 @@
     _frozenCount() {
       const n = Math.max(0, Math.trunc(Number(this.options.frozenColumns) || 0));
       if (!n) return 0;
-      const columns = (this.options.columns || []).length;
+      const columns = this._visibleColumns().length;
       return Math.min(n, columns) + (this.options.selection === "multi" ? 1 : 0);
     }
 
@@ -307,7 +349,7 @@
       const all = this.options.columns || [];
       const cols = Array.isArray(columns) && columns.length
         ? columns.map((id) => all.find((c) => c.id === id)).filter(Boolean)
-        : all.filter((c) => c.type !== "icon");
+        : all.filter((c) => c.type !== "icon" && !c.hidden);
       const rows = selectedOnly
         ? this._view.filter((row) => this._selected.has(this._rowId(row)))
         : this._view;
@@ -363,7 +405,7 @@
     // dropped. Once every column has a pixel width, the table takes their sum
     // instead (and scrolls sideways if that is wider than the panel).
     _applyTableWidth() {
-      const columns = this.options.columns || [];
+      const columns = this._visibleColumns();
       const fixed = columns.length && columns.every((c) => typeof c.width === "number");
       if (!fixed || !this.options.resizableColumns) {
         this._table.style.width = "";
@@ -376,7 +418,7 @@
 
     // Give every column its current rendered width in pixels.
     _freezeWidths() {
-      (this.options.columns || []).forEach((column) => {
+      this._visibleColumns().forEach((column) => {
         if (typeof column.width === "number") return;
         const th = this._thead.querySelector(`th[data-column-id="${CSS.escape(column.id)}"]`);
         if (th) column.width = Math.round(th.getBoundingClientRect().width);
@@ -482,6 +524,7 @@
       return (this.options.columns || []).map((c) => ({
         id: c.id,
         width: typeof c.width === "number" ? c.width : null,
+        hidden: Boolean(c.hidden),
       }));
     }
 
@@ -604,7 +647,8 @@
 
       if (this._filter) {
         const needle = this._filter;
-        const columns = this.options.columns || [];
+        // A hidden column's text cannot be seen, so it does not match either.
+        const columns = this._visibleColumns();
         view = view.filter((row) =>
           columns.some((column) => {
             const value = row[column.id];
@@ -661,7 +705,7 @@
       }
       this._setStatus(null);
 
-      const columns = this.options.columns || [];
+      const columns = this._visibleColumns();
       const fragment = document.createDocumentFragment();
 
       this._view.forEach((row) => {
@@ -671,9 +715,9 @@
         if (this._selected.has(id)) {
           tr.dataset.selected = "true";
         }
-        if (row._class) {
-          tr.classList.add(String(row._class));
-        }
+        // row_class_by names the key; "_class" is the older, undocumented one.
+        if (this.options.rowClassBy) classTokens(row[this.options.rowClassBy]).forEach((t) => tr.classList.add(t));
+        if (row._class) classTokens(row._class).forEach((t) => tr.classList.add(t));
 
         if (this.options.selection === "multi") {
           const td = document.createElement("td");
@@ -743,6 +787,8 @@
       td.textContent = "";
       td.className = "";
       td.removeAttribute("title");
+      classTokens(column.css).forEach((token) => td.classList.add(token));
+      if (column.cellClassBy) classTokens(row[column.cellClassBy]).forEach((token) => td.classList.add(token));
       const value = row[column.id];
       const editor = column.editable ? column.editor || "text" : null;
 
@@ -804,7 +850,7 @@
         td.textContent = shown;
       }
       if (column.ellipsis !== false) {
-        td.className = "wapyt-datatable-ellipsis";
+        td.classList.add("wapyt-datatable-ellipsis");
         // An error message is the tooltip while there is one.
         if (!td.dataset.error) td.title = shown;
       }
@@ -821,7 +867,7 @@
     }
 
     _editableIds() {
-      return (this.options.columns || []).filter((column) => column.editable).map((column) => column.id);
+      return this._visibleColumns().filter((column) => column.editable).map((column) => column.id);
     }
 
     _cellEl(id, columnId) {
