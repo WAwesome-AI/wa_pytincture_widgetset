@@ -369,6 +369,25 @@ content taller than it scrolls inside the body rather than the modal growing.
 The session editor needed 740px for nine fields plus the action row — at 640 the
 Save button sat below the fold.
 
+## Modal events (added 2026-10-06)
+
+`ModalWindow` used to fire nothing, so an app could not tell that × , Escape
+or the backdrop had closed its dialog (to save a draft, or to drop a reference
+to a disposed modal). Now `on_show`, `on_hide` → `{reason}` and `on_close` →
+`{reason}`, where `reason` is `button` / `escape` / `backdrop` (the person) or
+`code` (the app's own `hide()` / `close()`). A dismissal with
+`dispose_on_close` fires `hide` then `close`; `close()` is idempotent and
+nothing fires after it. `show()` on a visible modal does not fire again.
+`is_visible()` added. No veto: wapyt's shape is act, then let the app react.
+
+**Only the topmost visible modal answers Escape** (a module-level open stack,
+re-ordered on `show()`). Every visible modal used to handle the same keypress,
+so one Escape closed a whole stack. The × button also gained
+`aria-label="Close"`.
+
+`tests/modal_events_demo.py` (a reused modal and a disposable one stacked on
+it); a 12-check Playwright run passed.
+
 ## Tree context menus by node kind (added 2026-09-25)
 
 `TreeAction(kinds=["server", "database"])` shows an entry only on nodes whose

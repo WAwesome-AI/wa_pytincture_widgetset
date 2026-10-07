@@ -1,6 +1,10 @@
 (function () {
   const globalNS = (globalThis.wapyt = globalThis.wapyt || {});
 
+  // Visible modals, oldest first. Only the topmost answers Escape, so one
+  // press closes one dialog rather than every stacked one at once.
+  const openStack = [];
+
   function toSize(value) {
     if (value == null) {
       return null;
@@ -27,6 +31,7 @@
         options || {}
       );
       this._visible = false;
+      this._events = {};
       this._createDom();
     }
 
@@ -36,7 +41,7 @@
       this.overlay.style.display = "none";
       this.overlay.addEventListener("click", (event) => {
         if (event.target === this.overlay) {
-          this._dismiss();
+          this._dismiss("backdrop");
         }
       });
 
@@ -57,7 +62,8 @@
         closeBtn.type = "button";
         closeBtn.className = "wapyt-modal-close";
         closeBtn.innerHTML = "&times;";
-        closeBtn.addEventListener("click", () => this._dismiss());
+        closeBtn.setAttribute("aria-label", "Close");
+        closeBtn.addEventListener("click", () => this._dismiss("button"));
         header.appendChild(closeBtn);
       }
 
@@ -72,18 +78,20 @@
       // Kept so close() can remove it: a document-level listener would
       // otherwise outlive the dialog it belongs to.
       this._onKeydown = (event) => {
-        if (event.key === "Escape" && this._visible) {
-          this._dismiss();
+        if (event.key === "Escape" && this._visible && openStack[openStack.length - 1] === this) {
+          this._dismiss("escape");
         }
       };
       document.addEventListener("keydown", this._onKeydown);
     }
 
-    _dismiss() {
+    // How the person closed it: "button", "escape" or "backdrop". The app's
+    // own hide() / close() report "code".
+    _dismiss(reason) {
       if (this.options.disposeOnClose) {
-        this.close();
+        this.close(reason);
       } else {
-        this.hide();
+        this.hide(reason);
       }
     }
 
@@ -120,20 +128,59 @@
     }
 
     show() {
+      if (this._closed) return;
       this._applyTheme();
       this.overlay.style.display = "flex";
-      this._visible = true;
+      const index = openStack.indexOf(this);
+      if (index >= 0) openStack.splice(index, 1);
+      openStack.push(this);
+      if (!this._visible) {
+        this._visible = true;
+        this._emit("show", {});
+      }
     }
 
-    hide() {
+    hide(reason = "code") {
       this.overlay.style.display = "none";
-      this._visible = false;
+      const index = openStack.indexOf(this);
+      if (index >= 0) openStack.splice(index, 1);
+      if (this._visible) {
+        this._visible = false;
+        this._emit("hide", { reason });
+      }
     }
 
-    close() {
-      this.hide();
+    close(reason = "code") {
+      if (this._closed) return;
+      this.hide(reason);
+      this._closed = true;
       this.overlay.remove();
       document.removeEventListener("keydown", this._onKeydown);
+      this._emit("close", { reason });
+      this._events = {};
+    }
+
+    isVisible() {
+      return this._visible;
+    }
+
+    on(event, handler) {
+      if (!this._events[event]) this._events[event] = new Set();
+      this._events[event].add(handler);
+    }
+
+    off(event, handler) {
+      if (this._events[event]) this._events[event].delete(handler);
+    }
+
+    _emit(event, payload) {
+      (this._events[event] || new Set()).forEach((handler) => {
+        try {
+          handler(payload);
+        } catch (error) {
+          console.error("[wapyt] ModalWindow listener failed", error);
+        }
+      });
     }
   }
 
