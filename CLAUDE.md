@@ -591,8 +591,55 @@ Playwright run (structure, ARIA, indentation, toggle events, nested select and
 ancestor marks, disabled, badges, spacer, keyboard, set_items preserving
 state, the rail, rail tooltips, flyout pick and Escape) passed.
 
-## Base font (added 2026-10-06)
+## Listbox (added 2026-10-07)
 
+`Listbox` (`assets/listbox.js`, `Layout.add_listbox`) is the base for Kanban:
+rich items, live widgets inside items, and drag-and-drop within and between
+lists sharing a `group`.
+
+- **Item anatomy.** One `<li>` per item: `.wapyt-listbox-content` (redrawn by
+  `update_item`; text fields via textContent, or `template` with `{key}`
+  escaped and `{keyHtml}` raw, ResourceBoard's convention),
+  `.wapyt-listbox-body` (**never redrawn**; `item_body(id)` hands it out for
+  mounting widgets) and `.wapyt-listbox-actions` (`ListAction` buttons).
+  Moves relocate the `<li>` node itself, so widgets in the body survive a drag
+  into another list; the receiving list re-fills content and actions with its
+  own template and actions (`_adopt`).
+- **ARIA.** `role="list"` / `"listitem"`, not listbox/option: an option may not
+  contain interactive content. Selection is announced with hidden text, and a
+  per-list `aria-live` region narrates keyboard moves.
+- **Interaction does not fight the drag.** Presses on `INTERACTIVE` elements
+  (buttons, inputs, links, `.wapyt-listbox-nodrag`, anything inside the body
+  but the body itself) neither select nor start a drag; a drag needs 5px of
+  movement and, with `drag_handle`, the grip. The click that ends a drag is
+  suppressed.
+- **Pointer drag.** The dragged `<li>` leaves the flow (`data-dragging="true"`
+  → `display: none`) and a placeholder takes its exact place. The first
+  version kept the item faded *and* added a placeholder, which doubled the
+  space, so the item under the pointer moved a row and every within-list drop
+  snapped back. `_itemEls()` / `_order()` skip the placeholder (it shifted
+  every index by one). A `copy` source keeps its item visible
+  (`data-dragging="copy"`) and does not reorder. The ghost lives in `<body>`
+  and carries its own font and colours. Escape cancels; auto-scroll near the
+  list edges; dragging pauses while a filter is active.
+- **Keyboard move.** With `draggable`, Space lifts (Ctrl+Space then selects),
+  Up/Down move, Left/Right hand the item to the neighbouring list of its group
+  (`groupOrder`: document order), Space/Enter drops, Escape returns it.
+- **Act, then revert.** `move` fires on the list the item lands in with
+  `{id, item, from_list, to_list, from_index, to_index, copy}`
+  (`list_id`, else `label`); `move_item(id, index, to=)` puts a refused drop
+  back without an event. When moving between lists, insert first and then
+  update the source (its empty state and tab stop must see the item gone).
+- Ids are unique per list; a copied item keeps its id in the target.
+
+Not built yet: virtual rendering for very long lists.
+
+`tests/listbox_demo.py` (four lists in one group: filter + multi-select +
+actions, live ProgressBar and a button in an item body, a template with an
+Html key, a copy-only library, a refused move); a 26-check Playwright run
+passed.
+
+## Base font (added 2026-10-06)
 `--wapyt-font-family` (in `wapyt.css` `:root`, a system-UI stack) is applied to
 `.wapyt-layout` and `.wapyt-modal`. Before it, neither set a font, so cell
 headers, `attach_html` content and every modal title fell back to the

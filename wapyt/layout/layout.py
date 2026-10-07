@@ -116,6 +116,11 @@ class Layout(object, metaclass=LoadUICaller):
         terminal_widget = Terminal(config=terminal_config or TerminalConfig(), container=self.layout.getCell(id))
         return terminal_widget
 
+    def add_listbox(self, id: str = "mainwindow", listbox_config: Optional["ListboxConfig"] = None) -> "Listbox":
+        from ..listbox import Listbox, ListboxConfig
+
+        return Listbox(config=listbox_config or ListboxConfig(), container=self.layout.getCell(id))
+
     def add_menubar(self, id: str = "mainwindow_header", menubar_config: Optional["MenuBarConfig"] = None) -> "MenuBar":
         from ..menubar import MenuBar, MenuBarConfig
 

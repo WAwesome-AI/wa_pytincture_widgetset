@@ -1799,6 +1799,118 @@ input[type="color"].wapyt-form-control {
 [aria-checked="true"] > .wapyt-cmenu-check::before { content: "✓"; font: 600 13px/1 var(--wapyt-font-family); }
 [aria-checked="true"] > .wapyt-cmenu-check[data-radio]::before { content: "●"; font-size: 9px; }
 
+/* ── Listbox ──────────────────────────────────────────────────────────────── */
+.wapyt-listbox {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  gap: 6px;
+  font: 13px/1.4 var(--wapyt-font-family);
+  color: var(--wapyt-text);
+}
+.wapyt-listbox-filter {
+  flex: none;
+  padding: 6px 9px;
+  font: inherit;
+  color: inherit;
+  background: var(--wapyt-bg);
+  border: 1px solid var(--wapyt-border);
+  border-radius: 6px;
+  outline: none;
+}
+.wapyt-listbox-filter:focus { border-color: #38bdf8; }
+.wapyt-listbox-list {
+  flex: 1 1 auto;
+  min-height: 48px;
+  margin: 0;
+  padding: 2px;
+  list-style: none;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wapyt-listbox-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--wapyt-border);
+  border-radius: 8px;
+  background: var(--wapyt-bg);
+  cursor: default;
+  outline: none;
+}
+.wapyt-listbox-item[hidden] { display: none; }
+.wapyt-listbox[data-draggable] .wapyt-listbox-item { cursor: grab; touch-action: none; }
+.wapyt-listbox[data-filtered] .wapyt-listbox-item { cursor: default; }
+.wapyt-listbox-item:hover { border-color: var(--wapyt-divider); }
+.wapyt-listbox-item:focus-visible { outline: 2px solid #38bdf8; outline-offset: 1px; }
+.wapyt-listbox-item[data-selected] { border-color: #2563eb; background: linear-gradient(rgba(37, 99, 235, 0.08), rgba(37, 99, 235, 0.08)), var(--wapyt-bg); }
+.wapyt-listbox-item[aria-disabled="true"] { opacity: 0.55; cursor: default; }
+.wapyt-listbox-item[data-dragging="true"] { display: none; }
+.wapyt-listbox-item[data-dragging="copy"] { opacity: 0.5; }
+.wapyt-listbox-item[data-lifted] { outline: 2px dashed #2563eb; outline-offset: 2px; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18); }
+.wapyt-listbox-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.wapyt-listbox-body:empty { display: none; }
+.wapyt-listbox-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.wapyt-listbox-icon { flex: none; font-size: 15px; opacity: 0.8; }
+.wapyt-listbox-title { flex: 1 1 auto; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wapyt-listbox-badge { flex: none; padding: 0 7px; border-radius: 999px; font-size: 11px; line-height: 18px; background: var(--wapyt-border); font-variant-numeric: tabular-nums; }
+.wapyt-listbox-subtitle { opacity: 0.8; }
+.wapyt-listbox-meta { font-size: 11.5px; opacity: 0.6; }
+.wapyt-listbox-handle { flex: none; align-self: center; font-size: 18px; opacity: 0.45; cursor: grab; }
+/* Actions show on hover and keyboard focus (always on touch). */
+.wapyt-listbox-actions { flex: none; display: flex; gap: 2px; opacity: 0; transition: opacity 0.1s ease; }
+.wapyt-listbox-actions:empty { display: none; }
+.wapyt-listbox-item:hover .wapyt-listbox-actions,
+.wapyt-listbox-item:focus-within .wapyt-listbox-actions { opacity: 1; }
+@media (hover: none) { .wapyt-listbox-actions { opacity: 1; } }
+.wapyt-listbox-action {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 26px; height: 26px; padding: 0 4px;
+  border: 0; border-radius: 5px; background: transparent; color: inherit; cursor: pointer; font: inherit;
+}
+.wapyt-listbox-action:hover { background: rgba(37, 99, 235, 0.1); }
+.wapyt-listbox-action:focus-visible { outline: 2px solid #38bdf8; }
+.wapyt-listbox-action[data-danger] { color: #dc2626; }
+.wapyt-listbox-placeholder {
+  flex: none;
+  border: 2px dashed #93c5fd;
+  border-radius: 8px;
+  background: rgba(37, 99, 235, 0.05);
+}
+.wapyt-listbox-ghost {
+  position: fixed;
+  z-index: 10080;
+  margin: 0;
+  pointer-events: none;
+  list-style: none;
+  transform: rotate(1.5deg);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.28);
+  opacity: 0.95;
+  /* It lives in <body>, outside the list, so it brings the list's type. */
+  font: 13px/1.4 var(--wapyt-font-family);
+  color: var(--wapyt-text);
+}
+[data-wapyt-theme="dark"] .wapyt-listbox-ghost { color: var(--wapyt-text-dark); background: var(--wapyt-bg-dark); border-color: var(--wapyt-divider-dark); }
+.wapyt-listbox-dragging, .wapyt-listbox-dragging * { cursor: grabbing !important; user-select: none; }
+.wapyt-listbox-empty { padding: 14px 8px; text-align: center; opacity: 0.55; font-size: 12px; }
+.wapyt-listbox-empty[hidden] { display: none; }
+.wapyt-listbox-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[data-wapyt-theme="dark"] .wapyt-listbox { color: var(--wapyt-text-dark); }
+[data-wapyt-theme="dark"] .wapyt-listbox-item,
+[data-wapyt-theme="dark"] .wapyt-listbox-filter { background: var(--wapyt-bg-dark); border-color: var(--wapyt-divider-dark); color: inherit; }
+[data-wapyt-theme="dark"] .wapyt-listbox-item[data-selected] { border-color: #60a5fa; background: linear-gradient(rgba(96, 165, 250, 0.14), rgba(96, 165, 250, 0.14)), var(--wapyt-bg-dark); }
+[data-wapyt-theme="dark"] .wapyt-listbox-badge { background: var(--wapyt-divider-dark); }
+[data-wapyt-theme="dark"] .wapyt-listbox-placeholder { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+@media (prefers-reduced-motion: reduce) {
+  .wapyt-listbox-ghost { transform: none; }
+  .wapyt-listbox-actions { transition: none; }
+}
+
 /* ── MenuBar ──────────────────────────────────────────────────────────────── */
 .wapyt-menubar {
   display: flex;
