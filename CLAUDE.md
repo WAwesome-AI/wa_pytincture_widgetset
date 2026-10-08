@@ -456,6 +456,47 @@ so one Escape closed a whole stack. The × button also gained
 `tests/modal_events_demo.py` (a reused modal and a disposable one stacked on
 it); a 12-check Playwright run passed.
 
+## Window (added 2026-10-08)
+
+`Window` (`assets/window.js`, `wapyt/window/`) is dhxpyt's `window`: a
+floating dialog, **non-modal by default**, separate from `ModalWindow` (which
+stays the fixed centred dialog the apps build per use) rather than a mode of
+it, so their flows are untouched.
+
+- **Stacking:** a module-level `stack` (back to front); `restack()` gives
+  z-index 9000+ (non-modal) or 9600+ (modal, with its backdrop one below), so
+  windows sit under ModalWindow (9999), popups and menus. A capture
+  `pointerdown` brings a window to the front and fires `focus`; a non-modal
+  window cannot rise above an open modal one. `data-active` marks the top.
+- **Move / resize:** pointer capture on the title bar or one of 8 invisible
+  edge grips, rAF-throttled. `html[data-wapyt-window-drag]` turns off
+  `pointer-events` on iframes and `.xterm` while dragging (a drag across the
+  window's own iframe used to stop). `_clamp` keeps the title bar inside the
+  viewport and at least 48px of the window on screen, also on window resize;
+  sizes stay within `min_*` / `max_*` (max defaults to the viewport). A west
+  or north drag keeps the opposite edge fixed. `move` / `resize` fire on
+  release (not per frame) and only when something changed; `set_position` /
+  `set_size` / `center` are silent.
+- **Maximise** fills the viewport (inline `100vw` / `100vh`) and keeps the
+  previous rect for `restore`; grips hide and moving stops. Button,
+  double-click on the title bar, or Enter on it.
+- **Keyboard:** the title bar has `tabindex=0`: arrows move 10px (Ctrl:
+  1px), Shift+arrows resize. Escape closes the topmost window when it is
+  modal, or when focus is inside a non-modal one; an Escape already handled
+  (`defaultPrevented`, or stopped by a menu / combo) is left alone. A modal
+  window traps Tab. `show()` moves focus to the first control (or the window)
+  and `hide()` returns it to whatever had it.
+- `setContent(string)` sets **text**, not HTML (ModalWindow's sets
+  innerHTML). The header, body and footer are `border-box`: a Form mounted
+  in the body makes it `width: 100%`, and content-box padding overflowed the
+  window (caught in the screenshot).
+- `footerEl` is always defined (null without a footer): Pyodide raises
+  AttributeError reading a JS property that was never set, which is what
+  `Window.footer` first did.
+
+`tests/window_demo.py`; a 45-check Playwright run passed, and the
+ModalWindow events (12) and Message (29) suites still pass.
+
 ## Tree context menus by node kind (added 2026-09-25)
 
 `TreeAction(kinds=["server", "database"])` shows an entry only on nodes whose

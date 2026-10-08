@@ -22,6 +22,7 @@ from .tabwidget.tabwidget import TabWidget, TabWidgetConfig, TabConfig
 from .sidebar.sidebar import Sidebar
 from .sidebar.sidebar_config import SidebarConfig, SidebarHeading, SidebarItem, SidebarSeparator, SidebarSpacer
 from .modal.modal import ModalWindow, ModalConfig
+from .window.window import Window, WindowConfig
 from .form.form import Form
 from .datatable.datatable import DataTable
 from . import filetransfer
@@ -81,6 +82,8 @@ __all__ = [
     "SidebarSeparator",
     "SidebarSpacer",
     "ModalWindow",
+    "Window",
+    "WindowConfig",
     "ModalConfig",
     "Form",
     "DataTable",

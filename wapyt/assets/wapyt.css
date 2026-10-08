@@ -3083,3 +3083,191 @@ input[type="color"].wapyt-form-control {
   color-scheme: dark;
 }
 [data-wapyt-theme="dark"] .wapyt-pager-num[aria-current="page"] { color: #ffffff; background: #2563eb; border-color: #2563eb; }
+
+/* ── Window: movable, resizable, non-modal by default ─────────────────────
+   Mounted on <body>, so it sets its own font; theme from data-wapyt-theme
+   stamped on show, as ModalWindow does. Grips are invisible edges. */
+.wapyt-window {
+  position: fixed;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--wapyt-bg);
+  color: var(--wapyt-text);
+  font-family: var(--wapyt-font-family);
+  border: 1px solid var(--wapyt-divider);
+  border-radius: 10px;
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.22);
+  outline: none;
+}
+
+.wapyt-window[hidden],
+.wapyt-window-backdrop[hidden] {
+  display: none;
+}
+
+.wapyt-window[data-active="true"] {
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.32);
+}
+
+.wapyt-window[data-maximized="true"] {
+  border-radius: 0;
+}
+
+.wapyt-window-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 8px 8px 8px 14px;
+  border-bottom: 1px solid var(--wapyt-border);
+  border-radius: 10px 10px 0 0;
+  background: var(--wapyt-surface);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+.wapyt-window[data-maximized="true"] .wapyt-window-header {
+  border-radius: 0;
+  cursor: default;
+}
+
+.wapyt-window[data-active="false"] .wapyt-window-header {
+  color: color-mix(in srgb, currentColor 65%, transparent);
+}
+
+.wapyt-window-header:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+
+.wapyt-window-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wapyt-window-buttons {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+
+.wapyt-window-button {
+  width: 28px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.wapyt-window-button:hover {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.wapyt-window-button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 1px;
+}
+
+/* border-box like ModalWindow: a widget mounted into the body makes it
+   width: 100%, which with content-box padding ran past the window edge. */
+.wapyt-window-header,
+.wapyt-window-body,
+.wapyt-window-footer {
+  box-sizing: border-box;
+}
+
+.wapyt-window-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px;
+}
+
+.wapyt-window-footer {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--wapyt-border);
+}
+
+.wapyt-window-grip {
+  position: absolute;
+  z-index: 1;
+}
+
+.wapyt-window-grip[data-edge="n"] { top: -4px; left: 8px; right: 8px; height: 8px; cursor: ns-resize; }
+.wapyt-window-grip[data-edge="s"] { bottom: -4px; left: 8px; right: 8px; height: 8px; cursor: ns-resize; }
+.wapyt-window-grip[data-edge="e"] { right: -4px; top: 8px; bottom: 8px; width: 8px; cursor: ew-resize; }
+.wapyt-window-grip[data-edge="w"] { left: -4px; top: 8px; bottom: 8px; width: 8px; cursor: ew-resize; }
+.wapyt-window-grip[data-edge="ne"] { top: -4px; right: -4px; width: 14px; height: 14px; cursor: nesw-resize; }
+.wapyt-window-grip[data-edge="sw"] { bottom: -4px; left: -4px; width: 14px; height: 14px; cursor: nesw-resize; }
+.wapyt-window-grip[data-edge="se"] { bottom: -4px; right: -4px; width: 14px; height: 14px; cursor: nwse-resize; }
+.wapyt-window-grip[data-edge="nw"] { top: -4px; left: -4px; width: 14px; height: 14px; cursor: nwse-resize; }
+
+.wapyt-window[data-maximized="true"] .wapyt-window-grip {
+  display: none;
+}
+
+/* While a window moves or resizes, iframes and terminals must not take the
+   pointer, and text must not get selected. */
+html[data-wapyt-window-drag] iframe,
+html[data-wapyt-window-drag] .xterm {
+  pointer-events: none;
+}
+
+html[data-wapyt-window-drag] {
+  user-select: none;
+}
+
+html[data-wapyt-window-drag="move"],
+html[data-wapyt-window-drag="move"] * {
+  cursor: move !important;
+}
+
+.wapyt-window-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.wapyt-window-backdrop[data-wapyt-theme="dark"] {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.wapyt-window[data-wapyt-theme="dark"] {
+  background: var(--wapyt-bg-dark);
+  color: var(--wapyt-text-dark);
+  border-color: var(--wapyt-divider-dark);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+}
+
+.wapyt-window[data-wapyt-theme="dark"] .wapyt-window-header {
+  background: var(--wapyt-surface-dark);
+  border-bottom-color: var(--wapyt-divider-dark);
+}
+
+.wapyt-window[data-wapyt-theme="dark"] .wapyt-window-footer {
+  border-top-color: var(--wapyt-divider-dark);
+}
+
+.wapyt-window[data-wapyt-theme="dark"] .wapyt-window-button:hover {
+  background: rgba(148, 163, 184, 0.16);
+}

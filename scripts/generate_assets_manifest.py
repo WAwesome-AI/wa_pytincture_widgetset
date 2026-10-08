@@ -38,6 +38,7 @@ ASSETS: list[tuple[str, str]] = [
     ("assets/tooltip.js", "javascript"),
     ("assets/layout.js", "javascript"),
     ("assets/modal.js", "javascript"),
+    ("assets/window.js", "javascript"),
     ("assets/message.js", "javascript"),
     ("assets/toolbar.js", "javascript"),
     ("assets/contextmenu.js", "javascript"),
