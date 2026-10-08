@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
+from ..contextmenu.contextmenu_config import MenuItem, _collect_ids
+
 
 def _clean(mapping: Dict[str, Any]) -> Dict[str, Any]:
     """Drop ``None`` values so the JS defaults win for anything unset."""
@@ -35,6 +37,13 @@ class ToolbarButton:
             ``set_hidden``.
         show_label: False for an icon-only button (the label becomes its name).
         keep_label: Keep the label visible in compact mode.
+        items: Make it a dropdown: :class:`MenuItem` entries shown in a menu
+            under the button (submenus, separators, shortcuts, checkable and
+            group items work as in :class:`ContextMenu`). The button then
+            opens the menu instead of firing ``on_click``; a pick fires
+            ``on_select``. Ids must be unique across the whole toolbar.
+        split: With ``items``, keep the button as a command (``on_click``)
+            and add an arrow beside it that opens the menu.
     """
 
     id: str
@@ -50,10 +59,19 @@ class ToolbarButton:
     hidden: bool = False
     show_label: bool = True
     keep_label: bool = False
+    items: Optional[List[MenuItem]] = None
+    split: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         if self.variant not in VARIANTS:
             raise ValueError(f"variant must be one of {', '.join(VARIANTS)}; got {self.variant!r}")
+        if self.split and self.items is None:
+            raise ValueError(f"toolbar button {self.id!r}: split needs items")
+        if self.items is not None and (self.toggle or self.group) and not self.split:
+            raise ValueError(
+                f"toolbar button {self.id!r}: a dropdown cannot be a toggle or group button "
+                "(use split=True to keep the button's own state)"
+            )
         return _clean(
             {
                 "type": "button",
@@ -70,6 +88,10 @@ class ToolbarButton:
                 "hidden": self.hidden or None,
                 "showLabel": False if not self.show_label else None,
                 "keepLabel": self.keep_label or None,
+                "items": None if self.items is None else [
+                    item.to_dict() if hasattr(item, "to_dict") else item for item in self.items
+                ],
+                "split": self.split or None,
             }
         )
 
@@ -126,13 +148,19 @@ class ToolbarConfig:
     def to_dict(self) -> Dict[str, Any]:
         if self.compact not in ("auto", "always", "never"):
             raise ValueError(f"compact must be auto, always or never; got {self.compact!r}")
-        ids = [getattr(item, "id", None) for item in self.items]
-        ids = [i for i in ids if i]
+        items = [item.to_dict() if hasattr(item, "to_dict") else item for item in self.items]
+        # Button ids and dropdown item ids share one namespace: set_disabled,
+        # set_hidden and the events address both.
+        ids: List[str] = []
+        for item in items:
+            if item.get("id"):
+                ids.append(str(item["id"]))
+            _collect_ids(item.get("items") or [], ids)
         duplicates = sorted({i for i in ids if ids.count(i) > 1})
         if duplicates:
             raise ValueError(f"duplicate toolbar item ids: {', '.join(duplicates)}")
         payload = {
-            "items": [item.to_dict() if hasattr(item, "to_dict") else item for item in self.items],
+            "items": items,
             "label": self.label,
             "compact": self.compact,
         }

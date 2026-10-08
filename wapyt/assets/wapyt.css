@@ -1761,6 +1761,23 @@ input[type="color"].wapyt-form-control {
 [data-wapyt-theme="dark"] .wapyt-toolbar-btn[data-variant="accent"] { background: rgba(16, 185, 129, 0.15); border-color: rgba(52, 211, 153, 0.45); color: #6ee7b7; }
 [data-wapyt-theme="dark"] .wapyt-toolbar-btn[data-variant="danger"] { color: #f87171; }
 [data-wapyt-theme="dark"] .wapyt-toolbar-sep { background: var(--wapyt-divider-dark); }
+/* Dropdown and split buttons. The chevron stays in compact mode; an open
+   menu's button looks pressed. A split button is two buttons joined: the
+   command and a narrow arrow, sharing one border on hover. */
+.wapyt-toolbar-chevron { font-size: 16px; margin: 0 -4px 0 -2px; opacity: 0.75; }
+.wapyt-toolbar-btn[data-open="true"] { background: rgba(15, 23, 42, 0.08); border-color: var(--wapyt-border); }
+.wapyt-toolbar-split { flex: none; display: inline-flex; align-items: stretch; border-radius: 7px; }
+.wapyt-toolbar-split[hidden] { display: none; }
+.wapyt-toolbar-split > .wapyt-toolbar-btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.wapyt-toolbar-split > .wapyt-toolbar-arrow { padding: 6px 6px; border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-color: var(--wapyt-divider); }
+.wapyt-toolbar-split > .wapyt-toolbar-arrow .wapyt-toolbar-chevron { margin: 0; }
+.wapyt-toolbar-split:hover > .wapyt-toolbar-btn:not(:disabled) { border-color: var(--wapyt-border); }
+.wapyt-toolbar-split > .wapyt-toolbar-btn[data-variant="primary"] + .wapyt-toolbar-arrow { border-left-color: rgba(255, 255, 255, 0.45); }
+.wapyt-toolbar[data-compact="true"] .wapyt-toolbar-split > .wapyt-toolbar-arrow { padding: 6px 4px; }
+.wapyt-toolbar-menu { border-top-left-radius: 4px; }
+[data-wapyt-theme="dark"] .wapyt-toolbar-btn[data-open="true"] { background: rgba(148, 163, 184, 0.16); border-color: #334155; }
+[data-wapyt-theme="dark"] .wapyt-toolbar-split > .wapyt-toolbar-arrow { border-left-color: var(--wapyt-divider-dark); }
+[data-wapyt-theme="dark"] .wapyt-toolbar-split:hover > .wapyt-toolbar-btn:not(:disabled) { border-color: #334155; }
 
 /* ── ContextMenu ──────────────────────────────────────────────────────────── */
 .wapyt-cmenu {
