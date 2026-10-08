@@ -8,8 +8,19 @@ FIELD_TYPES = frozenset({
     "text", "password", "email", "number", "url", "search", "tel", "textarea",
     "select", "checkbox", "hidden",
     "date", "time", "datetime-local", "color", "range",
-    "radio", "toggle", "checkbox_group", "combo",
+    "radio", "toggle", "checkbox_group", "combo", "static",
 })
+
+
+LABEL_POSITIONS = ("top", "left")
+BUTTON_VARIANTS = ("default", "primary", "danger", "link")
+
+
+def _label_width(value: Any) -> Any:
+    """Numbers are pixels; strings are any CSS length (``"30%"``, ``"12rem"``)."""
+    if value is None or isinstance(value, (int, float, str)):
+        return value
+    raise ValueError(f"label_width must be a number of pixels or a CSS length; got {value!r}")
 
 
 def _clean(mapping: Dict[str, Any]) -> Dict[str, Any]:
@@ -66,7 +77,9 @@ class FieldConfig:
             · ``hidden``; the native pickers ``date`` · ``time`` ·
             ``datetime-local`` · ``color`` · ``range``; and ``radio`` ·
             ``toggle`` (a switch) · ``checkbox_group``; and ``combo``, a
-            searchable select.
+            searchable select; and ``static``, a read-only value shown as
+            text (``get_values`` returns it as given, ``set_values`` changes
+            it; ``placeholder`` shows while it is empty).
         value: Initial value. ``checkbox`` and ``toggle`` coerce it to a
             bool; ``checkbox_group`` takes a list of option values; ``date``,
             ``time`` and ``datetime-local`` take an ISO string or a
@@ -105,6 +118,12 @@ class FieldConfig:
         autocomplete: Forwarded to the control's ``autocomplete`` attribute.
         required_message / min_length_message / pattern_message /
         matches_message / range_message: Override the default validation copy.
+        label_position: ``"top"`` or ``"left"`` for this field; defaults to
+            the form's ``label_position``.
+        label_width: This field's label column width when labels are on the
+            left (pixels, or a CSS length such as ``"30%"``).
+        hidden_label: Hide the label from sight but keep it as the field's
+            accessible name (for a search box with a placeholder, say).
 
     Client-side validation is a convenience, never a control: the BFF revalidates.
     """
@@ -141,8 +160,17 @@ class FieldConfig:
     pattern_message: Optional[str] = None
     matches_message: Optional[str] = None
     range_message: Optional[str] = None
+    label_position: Optional[str] = None
+    label_width: Optional[Union[int, float, str]] = None
+    hidden_label: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
+        if self.label_position is not None and self.label_position not in LABEL_POSITIONS:
+            raise ValueError(
+                f"FieldConfig {self.id!r}: label_position must be 'top' or 'left'; got {self.label_position!r}"
+            )
+        if self.type == "static" and self.required:
+            raise ValueError(f"FieldConfig {self.id!r}: a static field cannot be required")
         if self.type not in FIELD_TYPES:
             raise ValueError(
                 f"FieldConfig {self.id!r}: unknown type {self.type!r}; "
@@ -202,8 +230,164 @@ class FieldConfig:
             "patternMessage": self.pattern_message,
             "matchesMessage": self.matches_message,
             "rangeMessage": self.range_message,
+            "labelPosition": self.label_position,
+            "labelWidth": _label_width(self.label_width),
+            "hiddenLabel": self.hidden_label or None,
         }
         return _clean(payload)
+
+
+@dataclass
+class FormFieldset:
+    """
+    A titled, bordered group of fields with its own grid. Put it in
+    ``FormConfig.fields`` (or inside another fieldset).
+
+    Its fields stay flat in ``get_values`` (ids are unique across the whole
+    form). ``show_field`` / ``hide_field`` / ``set_field_disabled`` with the
+    fieldset's id act on everything inside, and fields that are hidden or
+    disabled are not validated.
+
+    Args:
+        id: Addresses the group in ``show_field`` / ``hide_field`` /
+            ``set_field_disabled``. Optional if it never changes.
+        label: Title shown in the border (``<legend>``).
+        fields: :class:`FieldConfig`, :class:`FormButton`,
+            :class:`FormSpacer` or nested :class:`FormFieldset` entries.
+        columns: Grid columns inside the group.
+        span: Columns of the parent grid to span.
+        label_position / label_width: Defaults for the fields inside.
+        disabled / hidden: Initial state.
+    """
+
+    id: Optional[str] = None
+    label: Optional[str] = None
+    fields: List[Any] = field(default_factory=list)
+    columns: int = 1
+    span: Optional[int] = None
+    label_position: Optional[str] = None
+    label_width: Optional[Union[int, float, str]] = None
+    disabled: bool = False
+    hidden: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        if self.label_position is not None and self.label_position not in LABEL_POSITIONS:
+            raise ValueError(f"FormFieldset {self.id!r}: label_position must be 'top' or 'left'")
+        if self.columns not in (1, 2, 3):
+            raise ValueError(f"FormFieldset {self.id!r}: columns must be 1, 2 or 3")
+        return _clean({
+            "type": "fieldset",
+            "id": self.id,
+            "label": self.label,
+            "fields": [item.to_dict() if hasattr(item, "to_dict") else item for item in self.fields],
+            "columns": self.columns if self.columns != 1 else None,
+            "span": self.span,
+            "labelPosition": self.label_position,
+            "labelWidth": _label_width(self.label_width),
+            "disabled": self.disabled or None,
+            "hidden": self.hidden or None,
+        })
+
+
+@dataclass
+class FormSpacer:
+    """
+    Empty space in the form grid: an empty cell that pushes the next item to
+    the next column (``span`` cells wide), or with ``height`` a fixed gap.
+
+    Args:
+        id: Only needed to show or hide it later.
+        span: Columns to take.
+        height: Pixels or a CSS length.
+        hidden: Initial state.
+    """
+
+    id: Optional[str] = None
+    span: Optional[int] = None
+    height: Optional[Union[int, float, str]] = None
+    hidden: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        return _clean({
+            "type": "spacer",
+            "id": self.id,
+            "span": self.span,
+            "height": _label_width(self.height),
+            "hidden": self.hidden or None,
+        })
+
+
+def _collect_form_ids(items: List[Dict[str, Any]], into: List[str]) -> None:
+    for item in items:
+        if item.get("id"):
+            into.append(str(item["id"]))
+        if item.get("type") == "fieldset":
+            _collect_form_ids(item.get("fields") or [], into)
+
+
+@dataclass
+class FormButton:
+    """
+    A button inside a form: put it in ``FormConfig.fields`` to place it among
+    the fields (it takes a grid cell, so ``span`` works), or in
+    ``FormConfig.buttons`` to add it to the action row before Cancel and
+    Submit.
+
+    Args:
+        id: Emitted as ``id`` by ``on_click``; also addresses it in
+            ``show_field`` / ``hide_field`` / ``set_field_disabled``,
+            ``set_button_text`` and ``set_button_loading``. Unique across the
+            form's fields and buttons.
+        text: Visible text; defaults to the id.
+        icon: MDI class (``mdi-content-save``) or a Material Symbols name.
+        variant: ``default`` (outlined), ``primary``, ``danger`` or ``link``.
+        submit: Validate the form first. ``on_click`` then fires with
+            ``{"id", "values"}`` only when validation passes; otherwise
+            ``on_invalid`` fires (with this ``id``). Use it for a second
+            submit action ("Save and close") beside the main Submit button.
+        full: Stretch to the full width of its cell.
+        tooltip: Hover text.
+        span: Columns to span when the button sits among the fields.
+        disabled / hidden: Initial state.
+        label_position: Among the fields, ``"left"`` lines the button up with
+            the controls (not the labels); defaults to the form's.
+    """
+
+    id: str
+    text: Optional[str] = None
+    icon: Optional[str] = None
+    variant: str = "default"
+    submit: bool = False
+    full: bool = False
+    tooltip: Optional[str] = None
+    span: Optional[int] = None
+    disabled: bool = False
+    hidden: bool = False
+    label_position: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        if not self.id:
+            raise ValueError("a FormButton needs an id")
+        if self.variant not in BUTTON_VARIANTS:
+            raise ValueError(
+                f"FormButton {self.id!r}: variant must be one of {', '.join(BUTTON_VARIANTS)}; got {self.variant!r}"
+            )
+        if self.label_position is not None and self.label_position not in LABEL_POSITIONS:
+            raise ValueError(f"FormButton {self.id!r}: label_position must be 'top' or 'left'")
+        return _clean({
+            "type": "button",
+            "id": self.id,
+            "text": self.text,
+            "icon": self.icon,
+            "variant": self.variant if self.variant != "default" else None,
+            "submit": self.submit or None,
+            "full": self.full or None,
+            "tooltip": self.tooltip,
+            "span": self.span,
+            "disabled": self.disabled or None,
+            "hidden": self.hidden or None,
+            "labelPosition": self.label_position,
+        })
 
 
 @dataclass
@@ -212,29 +396,50 @@ class FormConfig:
     Layout and chrome for :class:`Form`.
 
     Args:
-        fields: Controls in render order.
+        fields: Controls in render order; :class:`FormButton`,
+            :class:`FormFieldset` and :class:`FormSpacer` entries place
+            buttons, titled groups and empty space among them.
         submit_text: Label for the submit button; ``None`` hides it.
         cancel_text: Label for the cancel button; ``None`` hides it.
+        buttons: More :class:`FormButton` entries for the action row, before
+            Cancel and Submit.
+        label_position: ``"top"`` (default) or ``"left"``: labels in a column
+            beside the controls. A row whose control would be narrower than
+            160px puts its label back on top.
+        label_width: Width of that label column (pixels, or a CSS length
+            such as ``"30%"``); default 160px.
         columns: Grid column count (1 stacks the fields).
         busy: Start with the buttons disabled.
         autocomplete: Form-level ``autocomplete`` attribute.
         extra: Additional properties forwarded to JS verbatim.
     """
 
-    fields: List[FieldConfig] = field(default_factory=list)
+    fields: List[Any] = field(default_factory=list)
     submit_text: Optional[str] = "Save"
     cancel_text: Optional[str] = None
+    buttons: List["FormButton"] = field(default_factory=list)
+    label_position: str = "top"
+    label_width: Optional[Union[int, float, str]] = None
     columns: int = 1
     busy: bool = False
     autocomplete: str = "off"
     extra: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
+        if self.label_position not in LABEL_POSITIONS:
+            raise ValueError(f"label_position must be 'top' or 'left'; got {self.label_position!r}")
+        fields = [item.to_dict() if hasattr(item, "to_dict") else item for item in self.fields]
+        buttons = [item.to_dict() if hasattr(item, "to_dict") else item for item in self.buttons]
+        ids: List[str] = []
+        _collect_form_ids(fields + buttons, ids)
+        duplicates = sorted({i for i in ids if ids.count(i) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate form field or button ids: {', '.join(duplicates)}")
         payload = {
-            "fields": [
-                item.to_dict() if hasattr(item, "to_dict") else item
-                for item in self.fields
-            ],
+            "fields": fields,
+            "buttons": buttons or None,
+            "labelPosition": self.label_position if self.label_position != "top" else None,
+            "labelWidth": _label_width(self.label_width),
             "submitText": self.submit_text,
             "cancelText": self.cancel_text,
             "columns": self.columns,

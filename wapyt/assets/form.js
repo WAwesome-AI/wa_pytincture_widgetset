@@ -80,7 +80,7 @@
       });
 
       this.root.addEventListener("mousedown", (event) => {
-        if (this.input.disabled || event.target.closest(".wapyt-form-combo-chip-remove")) return;
+        if (this.input.matches(":disabled") || event.target.closest(".wapyt-form-combo-chip-remove")) return;
         if (event.target !== this.input) event.preventDefault();
         this.input.focus();
         if (this.isOpen()) {
@@ -115,7 +115,7 @@
     }
 
     open() {
-      if (this.isOpen() || this.input.disabled || this.input.readOnly) return;
+      if (this.isOpen() || this.input.matches(":disabled") || this.input.readOnly) return;
       document.body.appendChild(this.list);
       this.input.setAttribute("aria-expanded", "true");
       this.root.dataset.open = "true";
@@ -285,7 +285,7 @@
         remove.setAttribute("aria-label", `Remove ${this._labelFor(value)}`);
         remove.textContent = "×";
         remove.addEventListener("click", () => {
-          if (this.input.disabled || this.input.readOnly) return;
+          if (this.input.matches(":disabled") || this.input.readOnly) return;
           this._set(this.selected.filter((v) => v !== value));
           this.input.focus();
         });
@@ -606,6 +606,20 @@
     }
   }
 
+  // A label width as CSS: numbers are pixels, strings pass through.
+  function cssLength(value) {
+    if (value == null || value === "") return null;
+    return typeof value === "number" || /^\d+(\.\d+)?$/.test(String(value)) ? `${value}px` : String(value);
+  }
+
+  function iconClass(value) {
+    const icons = globalNS.icons;
+    if (icons && typeof icons.iconClass === "function") return icons.iconClass(value);
+    return `mdi ${String(value || "")}`;
+  }
+
+  const BUTTON_VARIANTS = { primary: "primary", danger: "danger", link: "link", default: "ghost" };
+
   // Every label, option and error string here reaches the DOM through
   // textContent, and every control is built with createElement. Nothing in this
   // widget interpolates a value into innerHTML, so field definitions coming
@@ -620,6 +634,9 @@
           columns: 1,
           busy: false,
           autocomplete: "off",
+          buttons: [],
+          labelPosition: "top",
+          labelWidth: null,
         },
         options || {}
       );
@@ -628,6 +645,8 @@
       this._controls = new Map();
       this._errorEls = new Map();
       this._rows = new Map();
+      this._buttons = new Map(); // id -> {spec, el, textEl, row, disabled, loading}
+      this._fieldsets = new Map(); // id -> fieldset element
 
       this._host = resolveHost(target);
       if (!this._host) {
@@ -647,16 +666,16 @@
       if (Number(this.options.columns) > 1) {
         this._formEl.dataset.columns = String(this.options.columns);
       }
+      const labelWidth = cssLength(this.options.labelWidth);
+      if (labelWidth) this._formEl.style.setProperty("--wapyt-form-label-width", labelWidth);
       this._formEl.addEventListener("submit", (event) => {
         event.preventDefault();
         this.submit();
       });
 
       (this.options.fields || []).forEach((field) => {
-        const row = this._createRow(field);
-        if (row) {
-          this._formEl.appendChild(row);
-        }
+        const item = this._createItem(field, null);
+        if (item) this._formEl.appendChild(item);
       });
 
       this._formError = document.createElement("div");
@@ -666,6 +685,9 @@
 
       this._actions = document.createElement("div");
       this._actions.className = "wapyt-form-actions";
+      (this.options.buttons || []).forEach((spec) => {
+        if (spec && spec.id) this._actions.appendChild(this._createButton(spec, null));
+      });
 
       if (this.options.cancelText) {
         this._cancelBtn = document.createElement("button");
@@ -687,9 +709,221 @@
       this._formEl.appendChild(this._actions);
       this._host.appendChild(this._formEl);
       this.setBusy(Boolean(this.options.busy));
+      this._syncSliders();
+      this._watchNarrow();
     }
 
-    _createRow(field) {
+    // ── Label position ───────────────────────────────────────────────────────
+
+    _labelPosition(field, inherited) {
+      const position = (field && field.labelPosition) || inherited || this.options.labelPosition;
+      return position === "left" ? "left" : "top";
+    }
+
+    // ── Layout items: fields, buttons, fieldsets, spacers ────────────────────
+
+    _createItem(spec, inherited) {
+      if (!spec) return null;
+      if (spec.type === "fieldset") return this._createFieldset(spec, inherited);
+      if (spec.type === "spacer") return this._createSpacer(spec);
+      if (spec.type === "button") return this._createButtonRow(spec, inherited);
+      return this._createRow(spec, inherited);
+    }
+
+    // A titled, bordered group with its own grid. Hiding or disabling it acts
+    // on everything inside (a disabled <fieldset> disables its native
+    // controls; sliders are synced by hand). Its fields stay flat in
+    // get_values. label_position / label_width set here apply to its fields.
+    _createFieldset(spec, inherited) {
+      const el = document.createElement("fieldset");
+      el.className = "wapyt-form-fieldset";
+      if (spec.id) el.dataset.fieldsetId = String(spec.id);
+      if (spec.span) el.dataset.span = String(spec.span);
+      const width = cssLength(spec.labelWidth);
+      if (width) el.style.setProperty("--wapyt-form-label-width", width);
+      if (spec.label) {
+        const legend = document.createElement("legend");
+        legend.className = "wapyt-form-legend";
+        legend.textContent = String(spec.label);
+        el.appendChild(legend);
+      }
+      const body = document.createElement("div");
+      body.className = "wapyt-form-fieldset-body";
+      if (Number(spec.columns) > 1) body.dataset.columns = String(spec.columns);
+      const position = spec.labelPosition || inherited;
+      (spec.fields || []).forEach((child) => {
+        const item = this._createItem(child, position);
+        if (item) body.appendChild(item);
+      });
+      el.appendChild(body);
+      if (spec.hidden) el.hidden = true;
+      if (spec.disabled) el.disabled = true;
+      if (spec.id) {
+        this._fieldsets.set(String(spec.id), el);
+        this._rows.set(String(spec.id), el);
+      }
+      return el;
+    }
+
+    _createSpacer(spec) {
+      const el = document.createElement("div");
+      el.className = "wapyt-form-spacer";
+      el.setAttribute("aria-hidden", "true");
+      if (spec.span) el.dataset.span = String(spec.span);
+      const height = cssLength(spec.height);
+      if (height) el.style.height = height;
+      if (spec.hidden) el.hidden = true;
+      if (spec.id) this._rows.set(String(spec.id), el);
+      return el;
+    }
+
+    // Whether a field is out of reach: disabled (itself or by a disabled
+    // fieldset) or not shown (itself or an ancestor inside this form is
+    // hidden). Such fields are not validated, like the browser's own forms
+    // skip disabled controls; they still appear in get_values.
+    _isInactive(entry) {
+      if (entry.type === "hidden" || entry.type === "static") return true;
+      if (entry.slider) {
+        if (entry.slider.disabled) return true;
+      } else if (entry.el.matches(":disabled")) {
+        return true;
+      }
+      for (let node = this._rows.get(entry.field.id); node && node !== this._formEl; node = node.parentElement) {
+        if (node.hidden) return true;
+      }
+      return false;
+    }
+
+    // A slider is not a native control, so a disabled fieldset cannot disable
+    // it: its state is its own setting or any disabled fieldset around it.
+    _syncSliders() {
+      this._controls.forEach((entry) => {
+        if (!entry.slider) return;
+        const inherited = Boolean(entry.slider.root.closest("fieldset.wapyt-form-fieldset:disabled"));
+        entry.slider.setDisabled(Boolean(entry.selfDisabled) || inherited);
+      });
+    }
+
+    // Left labels fall back to top labels when a row leaves its control less
+    // than 160px. A ResizeObserver rather than a container query: inline-size
+    // containment would collapse a form inside a shrink-to-fit Popup.
+    _watchNarrow() {
+      if (this._narrowObserver) this._narrowObserver.disconnect();
+      const rows = Array.from(this._rows.values()).filter((row) => row.dataset.labelPosition === "left");
+      if (!rows.length || typeof ResizeObserver !== "function") return;
+      const check = () => {
+        rows.forEach((row) => {
+          if (row.hidden) return;
+          if (row.dataset.narrow !== "true") {
+            const track = parseFloat(getComputedStyle(row).gridTemplateColumns);
+            if (Number.isFinite(track)) row._wapytLabelTrack = track;
+          }
+          const label = row._wapytLabelTrack || 0;
+          const narrow = row.clientWidth - label - 12 < 160;
+          if (narrow) row.dataset.narrow = "true";
+          else delete row.dataset.narrow;
+        });
+      };
+      this._narrowObserver = new ResizeObserver(check);
+      this._narrowObserver.observe(this._formEl);
+      check();
+    }
+
+    // ── Buttons ──────────────────────────────────────────────────────────────
+
+    _createButtonRow(spec, inherited) {
+      if (!spec.id) return null;
+      const row = document.createElement("div");
+      row.className = "wapyt-form-row";
+      row.dataset.fieldId = String(spec.id);
+      row.dataset.kind = "button";
+      if (spec.span) row.dataset.span = String(spec.span);
+      if (this._labelPosition(spec, inherited) === "left") row.dataset.labelPosition = "left";
+      row.appendChild(this._createButton(spec, row));
+      if (spec.hidden) row.hidden = true;
+      this._rows.set(String(spec.id), row);
+      return row;
+    }
+
+    _createButton(spec, row) {
+      const id = String(spec.id);
+      const button = document.createElement("button");
+      button.type = "button";
+      const variant = BUTTON_VARIANTS[spec.variant] || "ghost";
+      button.className = `wapyt-form-button wapyt-form-button-${variant}`;
+      button.dataset.buttonId = id;
+      if (spec.full) button.dataset.full = "true";
+      if (spec.tooltip) button.title = String(spec.tooltip);
+      if (spec.icon) {
+        const icon = document.createElement("i");
+        icon.className = `wapyt-form-button-icon ${iconClass(spec.icon)}`;
+        icon.setAttribute("aria-hidden", "true");
+        button.appendChild(icon);
+      }
+      const textEl = document.createElement("span");
+      textEl.className = "wapyt-form-button-text";
+      textEl.textContent = spec.text == null ? id : String(spec.text);
+      button.appendChild(textEl);
+      const spinner = document.createElement("span");
+      spinner.className = "wapyt-form-button-spinner";
+      spinner.setAttribute("aria-hidden", "true");
+      button.appendChild(spinner);
+      if (!row && spec.hidden) button.hidden = true;
+
+      const entry = { spec, el: button, textEl, row, disabled: Boolean(spec.disabled), loading: false };
+      this._buttons.set(id, entry);
+      this._syncButton(entry);
+      button.addEventListener("click", () => this._onButton(entry));
+      return button;
+    }
+
+    // A button is unusable while disabled, loading, or (for submit buttons)
+    // while the form is busy.
+    _syncButton(entry) {
+      const busy = this._busy && entry.spec.submit;
+      entry.el.disabled = entry.disabled || entry.loading || Boolean(busy);
+      if (entry.loading) {
+        entry.el.dataset.loading = "true";
+        entry.el.setAttribute("aria-busy", "true");
+      } else {
+        delete entry.el.dataset.loading;
+        entry.el.removeAttribute("aria-busy");
+      }
+    }
+
+    _onButton(entry) {
+      const id = String(entry.spec.id);
+      if (!entry.spec.submit) {
+        this._emit("click", { id });
+        return;
+      }
+      if (this._busy) return;
+      const errors = this.validate();
+      if (Object.keys(errors).length) {
+        this._focusInvalid(errors);
+        this._emit("invalid", { errors, id });
+        return;
+      }
+      this._emit("click", { id, values: this.getValues() });
+    }
+
+    _button(id) {
+      return this._buttons.get(String(id)) || null;
+    }
+
+    setButtonText(id, text) {
+      const entry = this._button(id);
+      if (entry) entry.textEl.textContent = text == null ? "" : String(text);
+    }
+
+    setButtonLoading(id, loading = true) {
+      const entry = this._button(id);
+      if (!entry) return;
+      entry.loading = Boolean(loading);
+      this._syncButton(entry);
+    }
+
+    _createRow(field, inherited) {
       if (!field || !field.id) return null;
       const type = field.type || "text";
 
@@ -707,6 +941,15 @@
       if (field.span) {
         row.dataset.span = String(field.span);
       }
+      const left = this._labelPosition(field, inherited) === "left";
+      if (left) row.dataset.labelPosition = "left";
+      const fieldLabelWidth = cssLength(field.labelWidth);
+      if (fieldLabelWidth) row.style.setProperty("--wapyt-form-label-width", fieldLabelWidth);
+      row.dataset.kind =
+        BOOLEAN.has(type) ? "boolean"
+        : GROUPS.has(type) ? "group"
+        : type === "range" ? "range"
+        : "control";
 
       const controlId = `wapyt_f_${field.id}_${Math.random().toString(16).slice(2, 8)}`;
       let control;
@@ -731,6 +974,10 @@
         control.setAttribute("aria-labelledby", `${controlId}_label`);
         if (field.required && type === "radio") control.setAttribute("aria-required", "true");
         if (field.inline) control.dataset.inline = "true";
+      } else if (type === "static") {
+        // A read-only value: an <output>, which a <label for> names, so it
+        // is announced with its label but is not a tab stop.
+        control = document.createElement("output");
       } else if (BOOLEAN.has(type)) {
         control = document.createElement("input");
         control.type = "checkbox";
@@ -754,8 +1001,9 @@
         : GROUPS.has(type) ? "wapyt-form-group"
         : type === "toggle" ? "wapyt-form-control wapyt-form-toggle"
         : type === "combo" ? "wapyt-form-combo-input"
+        : type === "static" ? "wapyt-form-static"
         : "wapyt-form-control";
-      if (!slider) {
+      if (!slider && type !== "static") {
         if (!GROUPS.has(type)) control.name = field.id;
         if (field.placeholder) control.placeholder = field.placeholder;
         if (field.autocomplete) control.autocomplete = field.autocomplete;
@@ -763,7 +1011,7 @@
         if (field.readonly && "readOnly" in control) control.readOnly = true;
       }
 
-      const entry = { field, el: control, type, name: controlId, combo, slider };
+      const entry = { field, el: control, type, name: controlId, combo, slider, selfDisabled: Boolean(field.disabled) };
       if (GROUPS.has(type)) {
         this._fillGroup(entry, field.options);
       } else if (type === "range") {
@@ -792,6 +1040,8 @@
       if (!plainLabel) label.htmlFor = controlId;
       if (slider) label.addEventListener("click", () => slider.focus());
       label.textContent = field.label || field.id;
+      // Hidden from sight, never from assistive technology.
+      if (field.hiddenLabel) label.classList.add("wapyt-form-label-hidden");
       if (field.required) {
         const mark = document.createElement("span");
         mark.className = "wapyt-form-required";
@@ -804,10 +1054,15 @@
       error.className = "wapyt-form-error";
       error.hidden = true;
 
-      if (BOOLEAN.has(type)) {
+      if (BOOLEAN.has(type) && !left) {
         row.dataset.inline = "true";
         row.appendChild(control);
         row.appendChild(label);
+      } else if (BOOLEAN.has(type)) {
+        // Left labels: the caption in the label column, the box under the
+        // other controls.
+        row.appendChild(label);
+        row.appendChild(control);
       } else if (combo) {
         row.appendChild(label);
         row.appendChild(combo.root);
@@ -906,6 +1161,9 @@
       if (entry.slider) {
         return entry.slider.getValue();
       }
+      if (type === "static") {
+        return entry.value === undefined ? null : entry.value;
+      }
       if (type === "radio") {
         const picked = this._groupInputs(entry).find((input) => input.checked);
         return picked ? picked.value : null;
@@ -933,6 +1191,13 @@
         entry.combo.setValue(value);
       } else if (entry.slider) {
         entry.slider.setValue(value);
+      } else if (type === "static") {
+        // Kept as given (string, number...) for get_values; shown as text.
+        entry.value = value === undefined ? null : value;
+        const empty = value == null || value === "";
+        el.textContent = empty ? (entry.field.placeholder || "") : String(value);
+        if (empty) el.dataset.empty = "true";
+        else delete el.dataset.empty;
       } else if (type === "radio") {
         this._groupInputs(entry).forEach((input) => {
           input.checked = value != null && input.value === String(value);
@@ -968,7 +1233,7 @@
         entry.el.focus();
         return;
       }
-      const inputs = this._groupInputs(entry).filter((input) => !input.disabled);
+      const inputs = this._groupInputs(entry).filter((input) => !input.matches(":disabled"));
       const target = inputs.find((input) => input.checked) || inputs[0];
       if (target) target.focus();
     }
@@ -1051,21 +1316,46 @@
 
     // ── Visibility / state ───────────────────────────────────────────────────
 
+    // Buttons in the action row have no row of their own: they hide alone.
+    _setHidden(id, hidden) {
+      const row = this._rows.get(String(id));
+      if (row) {
+        row.hidden = hidden;
+        return;
+      }
+      const button = this._button(id);
+      if (button) button.el.hidden = hidden;
+    }
+
     showField(id) {
-      const row = this._rows.get(id);
-      if (row) row.hidden = false;
+      this._setHidden(id, false);
     }
 
     hideField(id) {
-      const row = this._rows.get(id);
-      if (row) row.hidden = true;
+      this._setHidden(id, true);
     }
 
     setFieldDisabled(id, disabled) {
+      const fieldset = this._fieldsets.get(String(id));
+      if (fieldset) {
+        fieldset.disabled = Boolean(disabled);
+        this._syncSliders();
+        return;
+      }
+      const button = this._button(id);
+      if (button) {
+        button.disabled = Boolean(disabled);
+        this._syncButton(button);
+        return;
+      }
       const entry = this._controls.get(id);
       if (!entry) return;
-      if (entry.slider) entry.slider.setDisabled(disabled);
-      else entry.el.disabled = Boolean(disabled);
+      if (entry.slider) {
+        entry.selfDisabled = Boolean(disabled);
+        this._syncSliders();
+      } else {
+        entry.el.disabled = Boolean(disabled);
+      }
     }
 
     setBusy(busy) {
@@ -1073,12 +1363,12 @@
       this._host.dataset.busy = this._busy ? "true" : "false";
       if (this._submitBtn) this._submitBtn.disabled = this._busy;
       if (this._cancelBtn) this._cancelBtn.disabled = this._busy;
+      if (this._buttons) this._buttons.forEach((entry) => this._syncButton(entry));
     }
 
     focusFirst() {
       for (const [, entry] of this._controls) {
-        const disabled = entry.slider ? entry.slider.disabled : entry.el.disabled;
-        if (!disabled && entry.type !== "hidden") {
+        if (!this._isInactive(entry)) {
           this._focusEntry(entry);
           return;
         }
@@ -1122,6 +1412,7 @@
       const errors = {};
       this._controls.forEach((entry, id) => {
         const { field, type } = entry;
+        if (this._isInactive(entry)) return;
         const value = this._readControl(id);
         const empty = BOOLEAN.has(type)
           ? false
@@ -1182,13 +1473,16 @@
       if (this._busy) return;
       const errors = this.validate();
       if (Object.keys(errors).length) {
-        const firstId = Object.keys(errors)[0];
-        const entry = this._controls.get(firstId);
-        if (entry) this._focusEntry(entry);
+        this._focusInvalid(errors);
         this._emit("invalid", { errors });
         return;
       }
       this._emit("submit", this.getValues());
+    }
+
+    _focusInvalid(errors) {
+      const entry = this._controls.get(Object.keys(errors)[0]);
+      if (entry) this._focusEntry(entry);
     }
 
     // ── Events ───────────────────────────────────────────────────────────────

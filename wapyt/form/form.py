@@ -7,7 +7,8 @@ import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from .._runtime import create_proxy, require_js, to_plain
-from .form_config import FieldConfig, FormConfig, SelectOption, json_default
+from .form_config import (FieldConfig, FormButton, FormConfig, FormFieldset, FormSpacer, SelectOption,
+                          json_default)
 
 try:  # pragma: no cover - only available inside Pyodide
     import js  # type: ignore
@@ -106,8 +107,18 @@ class Form:
         self._bind_event("change", handler)
 
     def on_invalid(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
-        """Fires with ``{"errors": {...}}`` when a submit is rejected locally."""
+        """Fires with ``{"errors": {...}}`` when a submit is rejected locally;
+        from a ``FormButton(submit=True)`` it also carries that button's ``id``."""
         self._bind_event("invalid", handler)
+
+    def on_click(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """
+        A :class:`FormButton` was clicked: ``{"id"}``. A ``submit=True``
+        button fires only once validation passes, with ``{"id", "values"}``.
+        The built-in Submit and Cancel buttons keep ``on_submit`` /
+        ``on_cancel``.
+        """
+        self._bind_event("click", handler)
 
     # ------------------------------------------------------------------
     # Values
@@ -159,17 +170,34 @@ class Form:
     # ------------------------------------------------------------------
 
     def show_field(self, field_id: str) -> None:
+        """Show a field, a :class:`FormButton`, a :class:`FormFieldset` (and
+        everything in it) or a :class:`FormSpacer` with an id."""
         self.form.showField(field_id)
 
     def hide_field(self, field_id: str) -> None:
+        """Hide a field, button, fieldset or spacer. Hidden fields (and every
+        field in a hidden fieldset) are skipped by validation but still appear
+        in ``get_values``."""
         self.form.hideField(field_id)
 
     def set_field_disabled(self, field_id: str, disabled: bool = True) -> None:
+        """Disable a field, a :class:`FormButton`, or a :class:`FormFieldset`
+        and everything in it. Disabled fields are skipped by validation, like
+        the browser's own forms skip disabled controls."""
         self.form.setFieldDisabled(field_id, disabled)
 
     def set_busy(self, busy: bool = True) -> None:
-        """Disable the buttons while an async submit is in flight."""
+        """Disable Submit, Cancel and every ``submit=True`` button while an
+        async submit is in flight."""
         self.form.setBusy(busy)
+
+    def set_button_text(self, button_id: str, text: str) -> None:
+        self.form.setButtonText(button_id, "" if text is None else str(text))
+
+    def set_button_loading(self, button_id: str, loading: bool = True) -> None:
+        """Show a spinner on a :class:`FormButton` and disable it, for an
+        action in flight (a "Test connection" button, say)."""
+        self.form.setButtonLoading(button_id, bool(loading))
 
     def focus_first(self) -> None:
         self.form.focusFirst()
@@ -199,4 +227,4 @@ class Form:
         return to_plain(result) or {}
 
 
-__all__ = ["Form", "FormConfig", "FieldConfig", "SelectOption"]
+__all__ = ["Form", "FormConfig", "FieldConfig", "FormButton", "FormFieldset", "FormSpacer", "SelectOption"]

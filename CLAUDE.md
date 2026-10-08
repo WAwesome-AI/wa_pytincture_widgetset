@@ -1141,6 +1141,101 @@ alignment for both kinds, set_values / clear / reset, disabled, label click,
 Tab order, submit, dark) passed, and the field-type, combo and clear suites
 still pass (23 + 30 + 10).
 
+### Buttons and label position (added 2026-10-08)
+
+**`FormButton`** goes in `FormConfig.fields` (its own `.wapyt-form-row`
+with `data-kind="button"`, so `span` works and left-label forms line it up
+with the controls) or in `FormConfig.buttons` (the action row, before Cancel
+and Submit). Buttons live in `this._buttons`, never `_controls`, so
+`get_values`, `validate`, `clear` and `focusFirst` ignore them; ids are
+unique across fields and buttons (`FormConfig.to_dict`).
+
+- `on_click` → `{id}`. A `submit=True` button validates first: on success
+  `click` carries `{id, values}`, otherwise `invalid` carries `{errors, id}`
+  and focus goes to the first bad field. It never fires `submit`, and it is
+  `type="button"`, so Enter still submits through the main Submit.
+- `_syncButton` derives `disabled` from the button's own state, its
+  `loading` flag and, for submit buttons only, `set_busy`, so turning one off
+  never re-enables a button another still holds. `set_button_loading` shows a
+  spinner (static under reduced motion) and sets `aria-busy`.
+- `show_field` / `hide_field` / `set_field_disabled` take button ids; an
+  action-row button has no row, so it hides itself.
+- Variants: `default` (outlined), `primary`, `danger`, `link`; `full`.
+- The action row now **wraps**: with several buttons it set the form's
+  minimum width, which also defeated the narrow fallback below. The dark
+  outlined button border moved to `--wapyt-divider-dark` (the border token is
+  invisible on the dark surface).
+
+**Label position.** `FormConfig(label_position="left", label_width=...)`,
+per field `label_position` / `label_width` / `hidden_label`. A left row is a
+grid (`--wapyt-form-label-width`, default 160px): label in column 1,
+everything else in column 2, `align-items: baseline` so the label sits on the
+control's text line (`center` for checkbox / toggle, `start` for ranges,
+which have no text baseline). Checkbox and toggle rows put the label first in
+left mode; the native checkbox's 4px left margin is zeroed there.
+
+- **The display rule must skip `[hidden]`.** It outranks
+  `.wapyt-form-row[hidden]`, and the first version left hidden left-label
+  rows on screen.
+- **Narrow fallback:** a row whose control column would be under 160px gets
+  `data-narrow` and goes back to top labels (`_watchNarrow`, a
+  ResizeObserver on the form, measuring the label track from
+  `gridTemplateColumns` while not narrow). Not a container query:
+  inline-size containment would collapse a form inside a shrink-to-fit
+  Popup.
+- `hidden_label` is the usual visually-hidden clip, so the label still names
+  the control; left rows keep their control in column 2 regardless.
+
+`tests/form_buttons_demo.py` (every field kind with left labels, field,
+full-width and action-row buttons, a narrow modal); a 38-check Playwright run
+(column alignment, baseline, help placement, checkbox column, per-field
+override, hidden label, escaping, label click, placement and order, variants,
+values, click / submit-button / invalid / Enter, loading, text, disabled,
+hidden, busy, narrow modal and viewport and back, dark) passed, and the
+field-type, combo, clear and range suites still pass (23 + 30 + 10 + 40).
+
+### Fieldsets, spacers and static fields (added 2026-10-08)
+
+`FormConfig.fields` now takes layout items besides fields; `_createItem`
+dispatches on `type` (`fieldset`, `spacer`, `button`, else a field) and
+passes an inherited label position down.
+
+- **`FormFieldset`** is a real `<fieldset>` + `<legend>` with its own grid
+  (`.wapyt-form-fieldset-body`, `columns` 1-3) and nests. Its `id` goes in
+  `_rows` (so `show_field` / `hide_field` work) and `_fieldsets`
+  (`set_field_disabled` sets `fieldset.disabled`). Its fields stay flat in
+  `get_values`; ids are unique across the whole form, nesting included
+  (`_collect_form_ids`). `label_position` / `label_width` on a fieldset are
+  defaults for everything inside.
+- **A disabled fieldset only disables native controls.** Three things needed
+  help: Combo checked `input.disabled`, which stays false under a disabled
+  fieldset, so it opened anyway (now `matches(":disabled")`); RangeSlider is
+  divs, so `_syncSliders` sets each slider to its own `selfDisabled` or any
+  disabled fieldset around it (a slider disabled on its own stays disabled
+  when its fieldset is re-enabled); group focus filters use `:disabled` too.
+- **Validation now skips inactive fields** (`_isInactive`): disabled, by
+  itself or a fieldset, or hidden, itself or any ancestor up to the form
+  element (not beyond: a form in a background tab must still validate).
+  **Behaviour change:** a hidden or disabled `required` field used to fail
+  validation; with conditional sections that blocked every submit invisibly.
+  The browser's own forms skip disabled controls the same way. They are
+  still in `get_values`. `focus_first` uses the same test.
+- **`FormSpacer`**: an empty grid cell (`span`) or a fixed gap (`height`);
+  hidable by `id`.
+- **`type="static"`**: an `<output>` (labelable, announced with its label,
+  not a tab stop). The value is kept as given in `entry.value` (string,
+  number) for `get_values`, shown via textContent, `placeholder` while
+  empty (`data-empty`). It cannot be `required`, is never validated, and
+  `clear()` empties it.
+- `set_values`, `clear` and `reset` stay silent, so an app that enables a
+  section from `on_change` must re-apply it after calling them.
+
+`tests/form_fieldsets_demo.py` (static values, a two-column fieldset, an
+SSH-key fieldset a radio shows, a proxy fieldset a toggle enables with a
+nested fieldset, slider, combo and button inside, spacers); a 38-check
+Playwright run passed, and the field-type, combo, clear, range and buttons
+suites still pass (23 + 30 + 10 + 40 + 38).
+
 ## Pagination (added 2026-10-06)
 
 `Pagination` (`assets/pagination.js`, `Layout.add_pagination`) replaces

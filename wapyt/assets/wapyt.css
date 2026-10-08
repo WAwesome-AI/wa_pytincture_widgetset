@@ -652,6 +652,78 @@
   grid-column: span 3;
 }
 
+/* Fieldset: a titled, bordered group with its own grid; a spacer is an
+   empty cell or a fixed gap. Both take `span` like a row. */
+.wapyt-form-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 10px 14px 14px;
+  border: 1px solid var(--wapyt-border);
+  border-radius: 8px;
+}
+
+.wapyt-form-fieldset[hidden],
+.wapyt-form-spacer[hidden] {
+  display: none;
+}
+
+.wapyt-form-legend {
+  padding: 0 6px;
+  margin-left: -6px;
+  font: 600 12px/1.3 system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  color: var(--wapyt-text);
+}
+
+.wapyt-form-fieldset-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.wapyt-form-fieldset-body[data-columns="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.wapyt-form-fieldset-body[data-columns="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wapyt-form-fieldset:disabled .wapyt-form-legend,
+.wapyt-form-fieldset:disabled .wapyt-form-label {
+  opacity: 0.55;
+}
+
+.wapyt-form-fieldset[data-span="2"],
+.wapyt-form-spacer[data-span="2"] {
+  grid-column: span 2;
+}
+
+.wapyt-form-fieldset[data-span="3"],
+.wapyt-form-spacer[data-span="3"] {
+  grid-column: span 3;
+}
+
+.wapyt-form-spacer {
+  min-width: 0;
+}
+
+/* Static: a read-only value set on the same line as an input's text (8px of
+   padding and a 1px border, without the box). */
+.wapyt-form-static {
+  display: block;
+  min-width: 0;
+  padding: 9px 0;
+  font: 13px/1.4 system-ui, sans-serif;
+  color: var(--wapyt-text);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.wapyt-form-static[data-empty="true"] {
+  opacity: 0.55;
+}
+
 .wapyt-form-label {
   font: 500 12px/1.3 system-ui, sans-serif;
   letter-spacing: 0.01em;
@@ -662,6 +734,64 @@
 .wapyt-form-required {
   margin-left: 3px;
   color: #dc2626;
+}
+
+/* Labels on the left: each row is a two-column grid, the label in the first
+   column and everything else (control, help, error) in the second. Baseline
+   alignment puts the label on the control's first line of text. The display
+   rule skips [hidden] rows: it outranks `.wapyt-form-row[hidden]`, and
+   hide_field left them showing. */
+.wapyt-form-row[data-label-position="left"]:not([data-narrow="true"]):not([hidden]) {
+  display: grid;
+  grid-template-columns: var(--wapyt-form-label-width, 160px) minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 5px;
+  align-items: baseline;
+}
+
+.wapyt-form-row[data-label-position="left"]:not([data-narrow="true"]) > .wapyt-form-label {
+  grid-column: 1;
+  overflow-wrap: anywhere;
+}
+
+.wapyt-form-row[data-label-position="left"]:not([data-narrow="true"]) > :not(.wapyt-form-label) {
+  grid-column: 2;
+}
+
+/* Controls without text of their own have no useful baseline. */
+.wapyt-form-row[data-label-position="left"]:not([data-narrow="true"])[data-kind="boolean"] {
+  align-items: center;
+}
+
+.wapyt-form-row[data-label-position="left"]:not([data-narrow="true"])[data-kind="range"] {
+  align-items: start;
+}
+
+.wapyt-form-row[data-label-position="left"]:not([data-narrow="true"])[data-kind="range"] > .wapyt-form-label {
+  padding-top: 3px;
+}
+
+.wapyt-form-row[data-kind="boolean"] > .wapyt-form-control {
+  width: auto;
+  justify-self: start;
+}
+
+/* The native checkbox's default left margin would push it off the column. */
+.wapyt-form-row[data-label-position="left"][data-kind="boolean"] > .wapyt-form-control {
+  margin-left: 0;
+}
+
+/* A visually hidden label still names the control. */
+.wapyt-form-label.wapyt-form-label-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .wapyt-form-control {
@@ -1130,8 +1260,11 @@ input[type="color"].wapyt-form-control {
   border: 1px solid rgba(220, 38, 38, 0.3);
 }
 
+/* Wraps: with custom buttons the row can outgrow a narrow form, and a row
+   that cannot wrap sets the whole form's minimum width. */
 .wapyt-form-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   padding-top: 4px;
@@ -1146,6 +1279,10 @@ input[type="color"].wapyt-form-control {
 }
 
 .wapyt-form-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 8px 16px;
   font: 500 13px/1 system-ui, sans-serif;
   border-radius: 6px;
@@ -1153,8 +1290,85 @@ input[type="color"].wapyt-form-control {
   cursor: pointer;
 }
 
+.wapyt-form-button[hidden] {
+  display: none;
+}
+
+.wapyt-form-row[data-kind="button"] {
+  align-items: flex-start;
+}
+
+.wapyt-form-button[data-full="true"] {
+  width: 100%;
+  align-self: stretch;
+}
+
+.wapyt-form-button-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.wapyt-form-button-spinner {
+  display: none;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: wapyt-form-spin 0.7s linear infinite;
+}
+
+.wapyt-form-button[data-loading="true"] .wapyt-form-button-spinner {
+  display: inline-block;
+}
+
+.wapyt-form-button[data-loading="true"] .wapyt-form-button-icon {
+  display: none;
+}
+
+@keyframes wapyt-form-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wapyt-form-button-spinner { animation: none; opacity: 0.6; }
+}
+
+.wapyt-form-button-danger {
+  color: #ffffff;
+  background: #dc2626;
+}
+
+.wapyt-form-button-danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.wapyt-form-button-link {
+  padding-left: 4px;
+  padding-right: 4px;
+  color: #2563eb;
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.wapyt-form-button-link:hover:not(:disabled) {
+  color: #1d4ed8;
+}
+
+.wapyt-form-button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
 .wapyt-form-button:disabled {
   opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wapyt-form-button[data-loading="true"],
+.wapyt-form[data-busy="true"] .wapyt-form-button:disabled {
   cursor: progress;
 }
 
@@ -1187,13 +1401,23 @@ input[type="color"].wapyt-form-control {
 }
 
 [data-wapyt-theme="dark"] .wapyt-form-label,
+[data-wapyt-theme="dark"] .wapyt-form-legend,
+[data-wapyt-theme="dark"] .wapyt-form-static,
 [data-wapyt-theme="dark"] .wapyt-form-help,
 [data-wapyt-theme="dark"] .wapyt-form-button-ghost {
   color: var(--wapyt-text-dark);
 }
 
 [data-wapyt-theme="dark"] .wapyt-form-button-ghost {
-  border-color: var(--wapyt-border-dark);
+  border-color: var(--wapyt-divider-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-fieldset {
+  border-color: var(--wapyt-divider-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-button-link {
+  color: #60a5fa;
 }
 
 [data-wapyt-theme="dark"] .wapyt-form-button-ghost:hover:not(:disabled) {
