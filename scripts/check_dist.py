@@ -68,6 +68,12 @@ def check_wheel(path: Path) -> str:
         text = wheel.read(metadata).decode("utf-8")
         if re.search(r"^Requires-Dist:", text, re.MULTILINE):
             fail(f"{path.name}: declares runtime dependencies; micropip would resolve them in the browser")
+        # Everything installs under wapyt/ (plus the dist-info): a stray
+        # top-level package such as tests/ lands in every user's
+        # site-packages.
+        stray = sorted({n.split("/", 1)[0] for n in names} - {"wapyt", f"wapyt-{version}.dist-info"})
+        if stray:
+            fail(f"{path.name}: installs top-level names besides wapyt: {', '.join(stray)}")
     return version
 
 
