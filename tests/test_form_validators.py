@@ -85,3 +85,29 @@ def test_replacing_and_removing_destroys_old_proxy(bare_form):
 def test_set_validator_rejects_non_callables(bare_form):
     with pytest.raises(ValueError, match="callable or None"):
         bare_form.set_validator("x", 42)
+
+
+def test_async_validator_returns_an_awaitable(bare_form):
+    import asyncio
+    import inspect
+
+    async def taken(value, values):
+        await asyncio.sleep(0)
+        return "Taken" if value == "ada" else None
+
+    bare_form.set_validator("user", taken)
+    pending = bare_form.form.validators["user"]("ada", {})
+    assert inspect.isawaitable(pending)
+    assert asyncio.run(pending) == "Taken"
+    assert asyncio.run(bare_form.form.validators["user"]("bob", {})) is None
+
+
+def test_async_validator_exception_becomes_invalid_value(bare_form, capsys):
+    import asyncio
+
+    async def broken(value, values):
+        raise RuntimeError("backend down")
+
+    bare_form.set_validator("user", broken)
+    assert asyncio.run(bare_form.form.validators["user"]("x", {})) == "Invalid value"
+    assert "backend down" in capsys.readouterr().err

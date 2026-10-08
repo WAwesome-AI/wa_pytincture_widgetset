@@ -627,6 +627,29 @@
     }
   }
 
+  // Messages that blur validation shows (validate_field from on_blur) wait
+  // while a pointer is held down: pressing a button blurs the field first,
+  // and a new message line pushed the button down before the release, so
+  // the click never happened. Updates queued here run after the release, by
+  // which time the click has been dispatched (same task as pointerup).
+  let pointerHeld = false;
+  const afterRelease = [];
+  if (typeof document !== "undefined") {
+    document.addEventListener("pointerdown", () => { pointerHeld = true; }, true);
+    const release = () => {
+      if (!pointerHeld) return;
+      pointerHeld = false;
+      setTimeout(() => afterRelease.splice(0).forEach((fn) => fn()), 0);
+    };
+    document.addEventListener("pointerup", release, true);
+    document.addEventListener("pointercancel", release, true);
+  }
+
+  function whenPointerFree(fn) {
+    if (pointerHeld) afterRelease.push(fn);
+    else fn();
+  }
+
   // A label width as CSS: numbers are pixels, strings pass through.
   function cssLength(value) {
     if (value == null || value === "") return null;
@@ -920,7 +943,7 @@
     // A button is unusable while disabled, loading, or (for submit buttons)
     // while the form is busy.
     _syncButton(entry) {
-      const busy = this._busy && entry.spec.submit;
+      const busy = (this._busy || this._checking) && entry.spec.submit;
       entry.el.disabled = entry.disabled || entry.loading || Boolean(busy);
       if (entry.loading) {
         entry.el.dataset.loading = "true";
@@ -937,14 +960,14 @@
         this._emit("click", { id });
         return;
       }
-      if (this._busy) return;
+      if (this._busy || this._checking) return;
       const errors = this.validate();
       if (Object.keys(errors).length) {
         this._focusInvalid(errors);
         this._emit("invalid", { errors, id });
         return;
       }
-      this._emit("click", { id, values: this.getValues() });
+      this._afterPending(() => this._emit("click", { id, values: this.getValues() }), { id });
     }
 
     _button(id) {
@@ -1128,6 +1151,9 @@
 
       const emitChange = () => {
         this._syncOutput(entry);
+        // A new value outdates any async check still running for this field.
+        entry.checks = (entry.checks || 0) + 1;
+        this._setPending(field.id, false);
         this.clearError(field.id);
         this._emit("change", { id: field.id, value: this._readControl(field.id) });
       };
@@ -1626,7 +1652,7 @@
     setBusy(busy) {
       this._busy = Boolean(busy);
       this._host.dataset.busy = this._busy ? "true" : "false";
-      if (this._submitBtn) this._submitBtn.disabled = this._busy;
+      if (this._submitBtn) this._submitBtn.disabled = this._busy || Boolean(this._checking);
       if (this._cancelBtn) this._cancelBtn.disabled = this._busy;
       if (this._buttons) this._buttons.forEach((entry) => this._syncButton(entry));
     }
@@ -1678,14 +1704,19 @@
     // built-in bounds / length / pattern / matches checks, then the field's
     // validator. Hidden and disabled fields are skipped. Fields that pass and
     // carry a successMessage show it.
+    // Synchronous: async validators are started (their fields show
+    // "Checking…" and their results arrive later) but not waited for; their
+    // checks are kept in this._pending for validateAsync / submit.
     validate() {
       const errors = {};
       const passed = [];
+      const pending = [];
       let snapshot = null;
       const values = () => (snapshot = snapshot || this.getValues());
       this._controls.forEach((entry, id) => {
         const result = this._checkField(entry, values);
         if (result.message) errors[id] = result.message;
+        else if (result.pending) pending.push({ id, entry, token: entry.checks, promise: result.pending });
         else if (result.passed) passed.push(id);
       });
       this.setErrors(errors);
@@ -1693,7 +1724,86 @@
         const message = this._controls.get(id).field.successMessage;
         if (message) this._setSuccess(id, message);
       });
+      pending.forEach((check) => this._showWhenDone(check));
+      this._pending = pending;
       return errors;
+    }
+
+    // Every check, async ones included: resolves to the full errors map.
+    validateAsync() {
+      const errors = this.validate();
+      return Promise.all(this._pending.map((check) => check.promise.then((message) => {
+        if (message && check.entry.checks === check.token) errors[check.id] = message;
+      }))).then(() => errors);
+    }
+
+    validateFieldAsync(id) {
+      const message = this.validateField(id);
+      const check = this._fieldPending;
+      if (!check) return Promise.resolve(message);
+      return check.promise.then((result) => (check.entry.checks === check.token ? result || null : null));
+    }
+
+    // A check in flight shows as a spinner after the label and aria-busy on
+    // the control, never as a new line of text: a line appearing on blur
+    // pushed the button being pressed down before mouseup, so the click was
+    // lost. The message slot changes once, when the answer arrives.
+    _setPending(id, pending = true) {
+      const entry = this._controls.get(id);
+      if (!entry) return;
+      if (pending) {
+        this._rows.get(id).dataset.checking = "true";
+        entry.el.setAttribute("aria-busy", "true");
+      } else {
+        delete this._rows.get(id).dataset.checking;
+        entry.el.removeAttribute("aria-busy");
+      }
+    }
+
+    // Shows an async result when it arrives, unless the field changed (or was
+    // checked again) in the meantime.
+    _showWhenDone(check) {
+      this._setPending(check.id);
+      check.promise.then((message) => whenPointerFree(() => {
+        if (check.entry.checks !== check.token) return;
+        this._setPending(check.id, false);
+        this.setError(check.id, message || "");
+        if (!message && check.entry.field.successMessage) this._setSuccess(check.id, check.entry.field.successMessage);
+      }));
+    }
+
+    // Submit (or a submit button) with async checks outstanding: wait for
+    // them with the submit buttons disabled, then emit. An edit during the
+    // wait abandons this submit rather than sending a value nobody checked.
+    _afterPending(onValid, extra) {
+      const pending = this._pending || [];
+      if (!pending.length) {
+        onValid();
+        return;
+      }
+      this._setChecking(true);
+      Promise.all(pending.map((check) => check.promise)).then((messages) => {
+        this._setChecking(false);
+        if (pending.some((check) => check.entry.checks !== check.token)) return;
+        const errors = {};
+        pending.forEach((check, index) => {
+          if (messages[index]) errors[check.id] = messages[index];
+        });
+        if (Object.keys(errors).length) {
+          this._focusInvalid(errors);
+          this._emit("invalid", Object.assign({ errors }, extra || {}));
+          return;
+        }
+        onValid();
+      });
+    }
+
+    _setChecking(checking) {
+      this._checking = Boolean(checking);
+      if (this._checking) this._host.dataset.checking = "true";
+      else delete this._host.dataset.checking;
+      if (this._submitBtn) this._submitBtn.disabled = this._busy || this._checking;
+      this._buttons.forEach((entry) => this._syncButton(entry));
     }
 
     // One field's checks: {message} when it fails, {passed: true} when it
@@ -1711,8 +1821,12 @@
         return { message: field.requiredMessage || `${field.label || field.id} is required` };
       }
       if (empty) return {};
-      const message = this._builtinError(entry, value) || this._validatorError(entry, value, values);
-      return message ? { message } : { passed: true };
+      entry.checks = (entry.checks || 0) + 1;
+      const builtin = this._builtinError(entry, value);
+      if (builtin) return { message: builtin };
+      const custom = this._validatorError(entry, value, values);
+      if (custom && typeof custom.then === "function") return { pending: custom };
+      return custom ? { message: custom } : { passed: true };
     }
 
     // Validate a single field and show the result under it, leaving the
@@ -1723,8 +1837,17 @@
       if (!entry) throw new Error(`Form has no field '${id}'`);
       let snapshot = null;
       const result = this._checkField(entry, () => (snapshot = snapshot || this.getValues()));
-      this.setError(entry.field.id, result.message || "");
-      if (result.passed && entry.field.successMessage) this._setSuccess(entry.field.id, entry.field.successMessage);
+      const token = entry.checks;
+      whenPointerFree(() => {
+        if (entry.checks !== token) return; // edited since
+        this.setError(entry.field.id, result.message || "");
+        if (result.passed && entry.field.successMessage) this._setSuccess(entry.field.id, entry.field.successMessage);
+      });
+      this._fieldPending = null;
+      if (result.pending) {
+        this._fieldPending = { id: entry.field.id, entry, token, promise: result.pending };
+        this._showWhenDone(this._fieldPending);
+      }
       return result.message || null;
     }
 
@@ -1821,18 +1944,37 @@
     // gets (value, values) and returns nothing / "" / true when the value is
     // fine, a message when it is not, or false for the generic message. One
     // that throws counts as invalid rather than breaking the submit.
+    // Returns null, a message, or (for an async validator: a Python
+    // coroutine arrives as a thenable proxy) a Promise of null or a message.
     _validatorError(entry, value, values) {
       if (typeof entry.validator !== "function") return null;
+      const normalise = (result) => {
+        if (result == null || result === "" || result === true) return null;
+        if (result === false) return "Invalid value";
+        return String(result);
+      };
+      const failed = (error) => {
+        console.error(`[wapyt] Form validator for '${entry.field.id}' failed`, error);
+        return "Invalid value";
+      };
       let result;
       try {
         result = entry.validator(value, values());
       } catch (error) {
-        console.error(`[wapyt] Form validator for '${entry.field.id}' failed`, error);
-        return "Invalid value";
+        return failed(error);
       }
-      if (result == null || result === "" || result === true) return null;
-      if (result === false) return "Invalid value";
-      return String(result);
+      if (result && typeof result.then === "function") {
+        return Promise.resolve(result).then(normalise, failed).finally(() => {
+          if (typeof result.destroy === "function") {
+            try {
+              result.destroy();
+            } catch (error) {
+              /* already released */
+            }
+          }
+        });
+      }
+      return normalise(result);
     }
 
     setValidator(id, fn) {
@@ -1878,14 +2020,14 @@
     }
 
     submit() {
-      if (this._busy || this._frame.disabled) return;
+      if (this._busy || this._checking || this._frame.disabled) return;
       const errors = this.validate();
       if (Object.keys(errors).length) {
         this._focusInvalid(errors);
         this._emit("invalid", { errors });
         return;
       }
-      this._emit("submit", this.getValues());
+      this._afterPending(() => this._emit("submit", this.getValues()));
     }
 
     _focusInvalid(errors) {

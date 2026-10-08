@@ -1316,6 +1316,26 @@ input[type="color"].wapyt-form-control {
   color: #15803d;
 }
 
+/* An async validator still running: a spinner after the label, which
+   changes no layout (a line of text here moved the button being clicked). */
+.wapyt-form-row[data-checking="true"] > .wapyt-form-label::after {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-left: 6px;
+  vertical-align: -1px;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: wapyt-form-spin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wapyt-form-row[data-checking="true"] > .wapyt-form-label::after { animation: none; opacity: 0.6; }
+}
+
 [data-wapyt-theme="dark"] .wapyt-form-error[data-state="success"] {
   color: #4ade80;
 }

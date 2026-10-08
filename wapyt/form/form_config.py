@@ -145,8 +145,10 @@ class FieldConfig:
             shown and enabled. ``values`` is the whole form. Return ``None``
             (or ``""`` / ``True``) when the value is fine, or the error
             message; ``False`` shows "Invalid value", as does an exception
-            (its traceback goes to the console). It runs in the browser
-            under Pyodide, so the BFF must still check. Not sent to JS: the
+            (its traceback goes to the console). It may be an ``async def``
+            that asks the BFF: the field shows "Checking…" until it answers,
+            and submitting waits for it. It runs in the browser under
+            Pyodide, so the BFF must still check. Not sent to JS: the
             :class:`Form` registers it (see ``Form.set_validator``).
         success_message: Shown under the field, in place of an error, once
             it passes validation; cleared when the field is edited.

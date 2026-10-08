@@ -3,6 +3,7 @@ Form widget: declarative inputs with validation and error slots.
 """
 from __future__ import annotations
 
+import inspect
 import json
 import traceback
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union
@@ -326,7 +327,9 @@ class Form:
         """
         Set or replace a field's validator (``None`` removes it); the same
         contract as ``FieldConfig(validate=...)``: ``validator(value,
-        values)`` returns ``None`` when fine, else the message.
+        values)`` returns ``None`` when fine, else the message. It may be an
+        ``async def`` (to ask the BFF, say): the field shows "Checking…"
+        until it answers, and submitting waits for it.
         """
         if validator is not None and not callable(validator):
             raise ValueError("validator must be callable or None")
@@ -336,10 +339,23 @@ class Form:
         else:
             def call(value: Any, values: Any) -> Any:
                 try:
-                    return validator(to_plain(value), to_plain(values) or {})
+                    result = validator(to_plain(value), to_plain(values) or {})
                 except Exception:
                     traceback.print_exc()
                     return "Invalid value"
+                if not inspect.isawaitable(result):
+                    return result
+
+                # An async validator: hand the JS an awaitable that cannot
+                # raise either. Pyodide passes a coroutine as a thenable.
+                async def finish() -> Any:
+                    try:
+                        return await result
+                    except Exception:
+                        traceback.print_exc()
+                        return "Invalid value"
+
+                return finish()
 
             proxy = create_proxy(call)
             self._validator_proxies[field_id] = proxy
@@ -363,7 +379,22 @@ class Form:
         value = to_plain(self.form.validateField(field_id))
         return str(value) if value else None
 
+    async def validate_async(self) -> Dict[str, str]:
+        """Like :meth:`validate`, but also waits for async validators and
+        includes their errors."""
+        return to_plain(await self.form.validateAsync()) or {}
+
+    async def validate_field_async(self, field_id: str) -> Optional[str]:
+        """Like :meth:`validate_field`, waiting for an async validator."""
+        value = to_plain(await self.form.validateFieldAsync(field_id))
+        return str(value) if value else None
+
     def validate(self) -> Dict[str, str]:
+        """
+        Run every check now and show the results. Async validators are
+        started (their fields show "Checking…" and update when they answer)
+        but not waited for; use :meth:`validate_async` for the full result.
+        """
         result = self.form.validate()
         return to_plain(result) or {}
 

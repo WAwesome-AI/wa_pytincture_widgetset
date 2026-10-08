@@ -1368,6 +1368,41 @@ lessons: Playwright will not click an element with `pointer-events: none` or
 `aria-disabled`, which is the behaviour being tested; click by coordinates or
 with `force=True`.)
 
+### Async validators (added 2026-10-08)
+
+A validator may be an `async def` (to ask the BFF). The wrapper's `call`
+checks `inspect.isawaitable` on the result and returns an inner coroutine
+that also turns an exception into "Invalid value"; Pyodide hands a
+coroutine to JS as a **thenable proxy**, so `_validatorError` returns
+`Promise.resolve(result).then(normalise, failed)` and destroys the proxy
+afterwards.
+
+- `_checkField` bumps `entry.checks` on every check, and `emitChange` bumps
+  it on every edit; a check's `token` is that count, and a result whose token
+  is stale is dropped. `validate()` stays synchronous: it starts async checks
+  (`_showWhenDone`), keeps them in `this._pending`, and returns the errors it
+  has. `validateAsync()` / `validateFieldAsync()` (Python
+  `validate_async` / `validate_field_async`) wait for them.
+- `submit()` and `submit=True` buttons: sync errors fail at once; otherwise
+  `_afterPending` waits with `_checking` set (Submit and submit buttons
+  disabled, `data-checking` on the host, second submits ignored), then emits
+  `submit` / `click` or `invalid`. An edit during the wait abandons that
+  submit.
+- **Pending shows as a spinner after the label** (`data-checking` on the
+  row, `aria-busy` on the control), not as "Checking…" text. A text line
+  appearing on blur moved the button being pressed down before mouseup, so
+  the click was lost.
+- **That was a general bug, also with sync `validate_field` on blur (#56's
+  recipe):** an error line appearing on blur moves the button under the
+  pointer. `whenPointerFree` (module level: capture `pointerdown` /
+  `pointerup` / `pointercancel` on document) queues the message updates of
+  `validate_field` and of async results while a pointer is held, and runs
+  them in a `setTimeout(0)` after release, which is after the click (same
+  task as pointerup). Keyboard use is unaffected.
+
+`tests/form_async_validators_demo.py` (an `asyncio.sleep` validator with a
+settable delay); a 19-check Playwright run passed.
+
 ## Pagination (added 2026-10-06)
 
 `Pagination` (`assets/pagination.js`, `Layout.add_pagination`) replaces
