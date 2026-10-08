@@ -30,3 +30,6 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
+# Only wapyt: without this, tests/ (demo apps and unit tests) was packed as a
+# top-level `tests` package and installed into site-packages.
+include = ["wapyt*"]
