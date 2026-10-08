@@ -1,3 +1,4 @@
+/* CI autofix test: throwaway, do not merge */
 (function () {
   // Pagination: first / previous / next / last, a page box or numbered
   // buttons, a page-size selector and a "1–50 of 1,234" summary. Monguana
