@@ -425,6 +425,8 @@ class FormConfig:
             such as ``"30%"``); default 160px.
         columns: Grid column count (1 stacks the fields).
         busy: Start with the buttons disabled.
+        disabled: Start with the whole form disabled (``Form.enable()``).
+        hidden: Start with the form hidden (``Form.show()``).
         autocomplete: Form-level ``autocomplete`` attribute.
         extra: Additional properties forwarded to JS verbatim.
     """
@@ -437,6 +439,8 @@ class FormConfig:
     label_width: Optional[Union[int, float, str]] = None
     columns: int = 1
     busy: bool = False
+    disabled: bool = False
+    hidden: bool = False
     autocomplete: str = "off"
     extra: Dict[str, Any] = field(default_factory=dict)
 
@@ -459,6 +463,8 @@ class FormConfig:
             "cancelText": self.cancel_text,
             "columns": self.columns,
             "busy": self.busy,
+            "disabled": self.disabled or None,
+            "hidden": self.hidden or None,
             "autocomplete": self.autocomplete,
         }
         payload.update(self.extra or {})

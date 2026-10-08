@@ -619,6 +619,21 @@
   align-content: start;
 }
 
+.wapyt-form-body[hidden] {
+  display: none;
+}
+
+/* Wraps every row and the action row so disable() can disable them all.
+   display: contents keeps the rows as items of the form's grid. */
+.wapyt-form-frame {
+  display: contents;
+}
+
+.wapyt-form-frame:disabled .wapyt-form-label,
+.wapyt-form-frame:disabled .wapyt-form-static {
+  opacity: 0.55;
+}
+
 .wapyt-form-body[data-columns="2"] {
   grid-template-columns: 1fr 1fr;
 }

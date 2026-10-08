@@ -1323,6 +1323,24 @@ the wrapper checks names against `_FIELD_PROPERTIES` / `_BUTTON_PROPERTIES`
 `get_properties(id)` returns the same names. `tests/form_properties_demo.py`;
 a 30-check Playwright run passed, and the earlier Form suites still pass.
 
+### Whole-form disable and hide (added 2026-10-08)
+
+Every row, the form-wide error and the action row now sit inside one
+`<fieldset class="wapyt-form-frame">` with **`display: contents`**, so the
+rows are still items of the form's grid (spans, columns and left labels are
+unchanged; the Playwright run compares positions) while `disable()` sets
+`frame.disabled` and the browser disables every native control at once,
+Submit and Cancel included. A field or fieldset disabled on its own stays
+disabled after `enable()`, because nothing is written to the controls.
+`_syncSliders` counts the frame as a disabling ancestor, and `submit()`
+returns early while the frame is disabled. `hide()` / `show()` set `hidden`
+on the `<form>` (`.wapyt-form-body[hidden]` keeps it out of the grid
+display rule). `FormConfig(disabled=, hidden=)` set the initial state.
+
+Nothing in wapyt or the apps used a child selector under `.wapyt-form-body`
+(checked), so the extra wrapper broke no styles. `tests/form_disable_demo.py`;
+a 17-check Playwright run passed.
+
 ## Pagination (added 2026-10-06)
 
 `Pagination` (`assets/pagination.js`, `Layout.add_pagination`) replaces

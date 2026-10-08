@@ -213,6 +213,30 @@ class Form:
         the browser's own forms skip disabled controls."""
         self.form.setFieldDisabled(field_id, disabled)
 
+    def disable(self) -> None:
+        """
+        Disable the whole form: every field and button, Submit and Cancel
+        included. Fields keep their own disabled state for when the form is
+        enabled again. ``submit()`` does nothing while it is disabled.
+        """
+        self.form.disable()
+
+    def enable(self) -> None:
+        self.form.enable()
+
+    def is_disabled(self) -> bool:
+        return bool(self.form.isDisabled())
+
+    def hide(self) -> None:
+        """Hide the whole form (its values stay as they are)."""
+        self.form.hide()
+
+    def show(self) -> None:
+        self.form.show()
+
+    def is_visible(self) -> bool:
+        return bool(self.form.isVisible())
+
     def set_busy(self, busy: bool = True) -> None:
         """Disable Submit, Cancel and every ``submit=True`` button while an
         async submit is in flight."""

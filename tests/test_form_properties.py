@@ -63,3 +63,10 @@ def test_button_properties(form):
 
 def test_get_properties_uses_python_names(form):
     assert form.get_properties("host") == {"label": "Host", "min_length": 3, "success_message": None, "required": True}
+
+
+def test_form_disabled_and_hidden_flags():
+    from wapyt import FormConfig
+    assert "disabled" not in FormConfig().to_dict() and "hidden" not in FormConfig().to_dict()
+    payload = FormConfig(disabled=True, hidden=True).to_dict()
+    assert payload["disabled"] is True and payload["hidden"] is True

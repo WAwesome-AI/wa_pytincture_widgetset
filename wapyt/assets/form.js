@@ -687,15 +687,22 @@
         this.submit();
       });
 
+      // Everything sits in one fieldset so disable() can disable every
+      // native control at once. display: contents keeps the rows as items of
+      // the form's grid.
+      this._frame = document.createElement("fieldset");
+      this._frame.className = "wapyt-form-frame";
+      this._formEl.appendChild(this._frame);
+
       (this.options.fields || []).forEach((field) => {
         const item = this._createItem(field, null);
-        if (item) this._formEl.appendChild(item);
+        if (item) this._frame.appendChild(item);
       });
 
       this._formError = document.createElement("div");
       this._formError.className = "wapyt-form-error wapyt-form-error-global";
       this._formError.hidden = true;
-      this._formEl.appendChild(this._formError);
+      this._frame.appendChild(this._formError);
 
       this._actions = document.createElement("div");
       this._actions.className = "wapyt-form-actions";
@@ -720,8 +727,10 @@
         this._actions.appendChild(this._submitBtn);
       }
 
-      this._formEl.appendChild(this._actions);
+      this._frame.appendChild(this._actions);
       this._host.appendChild(this._formEl);
+      if (this.options.disabled) this._frame.disabled = true;
+      if (this.options.hidden) this._formEl.hidden = true;
       this.setBusy(Boolean(this.options.busy));
       this._syncSliders();
       this._watchNarrow();
@@ -813,7 +822,7 @@
     _syncSliders() {
       this._controls.forEach((entry) => {
         if (!entry.slider) return;
-        const inherited = Boolean(entry.slider.root.closest("fieldset.wapyt-form-fieldset:disabled"));
+        const inherited = Boolean(entry.slider.root.closest("fieldset.wapyt-form-fieldset:disabled, fieldset.wapyt-form-frame:disabled"));
         entry.slider.setDisabled(Boolean(entry.selfDisabled) || inherited);
       });
     }
@@ -1775,8 +1784,36 @@
       el.dataset.state = "success";
     }
 
+    // ── Whole form ───────────────────────────────────────────────────────────
+
+    disable() {
+      this._frame.disabled = true;
+      this._syncSliders();
+    }
+
+    enable() {
+      this._frame.disabled = false;
+      this._syncSliders();
+    }
+
+    isDisabled() {
+      return this._frame.disabled;
+    }
+
+    hide() {
+      this._formEl.hidden = true;
+    }
+
+    show() {
+      this._formEl.hidden = false;
+    }
+
+    isVisible() {
+      return !this._formEl.hidden;
+    }
+
     submit() {
-      if (this._busy) return;
+      if (this._busy || this._frame.disabled) return;
       const errors = this.validate();
       if (Object.keys(errors).length) {
         this._focusInvalid(errors);
