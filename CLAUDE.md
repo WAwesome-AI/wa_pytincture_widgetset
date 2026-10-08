@@ -289,6 +289,20 @@ tests, `node --check` on every asset, the manifest `--check`, `uv build`, and
 manifest version and every asset hash the way pytincture does, and that the
 wheel declares no runtime dependencies.
 
+**Stale manifests on PRs are fixed by CI** (added 2026-10-08). Two open PRs
+that both touch `wapyt/assets/` leave the manifest stale as soon as one merges
+and the other is updated from main (#49 failed that way). The `manifest` job
+regenerates it, commits "Regenerate the asset manifest" as
+`github-actions[bot]` to the PR branch, and lets the new commit's own run do
+the testing (`test` stands down in the run that pushed). **Pull before pushing
+more work to that branch.** The push uses the **`MANIFEST_BOT_TOKEN`** repo
+secret (fine-grained PAT, this repo only, Contents: read and write).
+`GITHUB_TOKEN` was tried first: its push started a `pull_request` run that
+GitHub held as `action_required`, and the `workflow_dispatch` run used to work
+around that passed but was not linked to the PR, which showed no checks.
+Without the secret, on fork PRs, and on pushes to main, a stale manifest still
+fails, with the command to run.
+
 **Releasing** (`.github/workflows/release.yml`):
 
 1. Set the version in all three places (for the release, drop `.dev0`), run
