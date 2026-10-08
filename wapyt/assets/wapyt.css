@@ -775,7 +775,8 @@
 
 /* Controls without text of their own have no useful baseline. */
 .wapyt-form-row[data-label-position="left"]:not([data-narrow="true"])[data-kind="boolean"],
-.wapyt-form-row[data-label-position="left"]:not([data-narrow="true"])[data-kind="avatar"] {
+.wapyt-form-row[data-label-position="left"]:not([data-narrow="true"])[data-kind="avatar"],
+.wapyt-form-row[data-label-position="left"]:not([data-narrow="true"])[data-kind="toggles"] {
   align-items: center;
 }
 
@@ -1142,6 +1143,96 @@ textarea.wapyt-form-control {
 
 .wapyt-form-combo[data-icon="true"] > .wapyt-form-input-icon {
   margin: 0 2px 0 1px;
+}
+
+/* Toggle group: segmented buttons sharing borders; the chosen ones fill. */
+.wapyt-form-togglegroup {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-self: start;
+  justify-self: start;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.wapyt-form-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  margin-left: -1px;
+  border: 1px solid var(--wapyt-divider);
+  background: var(--wapyt-bg);
+  color: var(--wapyt-text);
+  font: 500 13px/1.2 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.wapyt-form-segment:first-child {
+  margin-left: 0;
+  border-radius: 6px 0 0 6px;
+}
+
+.wapyt-form-segment:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.wapyt-form-segment:only-child {
+  border-radius: 6px;
+}
+
+/* Hover tints unchosen segments only: on a chosen one it hid the fill. */
+.wapyt-form-segment:hover:not(:disabled):not([aria-checked="true"]):not([aria-pressed="true"]) {
+  background: var(--wapyt-surface);
+}
+
+.wapyt-form-segment[aria-checked="true"],
+.wapyt-form-segment[aria-pressed="true"] {
+  position: relative;
+  z-index: 1;
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.wapyt-form-segment:focus-visible {
+  position: relative;
+  z-index: 2;
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.wapyt-form-segment:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wapyt-form-segment-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.wapyt-form-togglegroup[aria-invalid="true"] .wapyt-form-segment {
+  border-color: #dc2626;
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-segment {
+  background: var(--wapyt-bg-dark);
+  border-color: var(--wapyt-divider-dark);
+  color: var(--wapyt-text-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-segment:hover:not(:disabled):not([aria-checked="true"]):not([aria-pressed="true"]) {
+  background: var(--wapyt-surface-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-segment[aria-checked="true"],
+[data-wapyt-theme="dark"] .wapyt-form-segment[aria-pressed="true"] {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
 }
 
 .wapyt-form-option[data-disabled="true"] {

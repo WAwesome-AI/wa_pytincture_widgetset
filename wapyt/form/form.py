@@ -185,8 +185,9 @@ class Form:
     def set_field_options(
         self, field_id: str, options: List[Union[str, SelectOption]]
     ) -> None:
-        """Replace a select, combo, radio or checkbox_group field's choices;
-        selected values that are still offered stay selected."""
+        """Replace a select, combo, radio, checkbox_group or toggle_group
+        field's choices; selected values that are still offered stay
+        selected."""
         payload = [
             option.to_dict() if hasattr(option, "to_dict") else option
             for option in options

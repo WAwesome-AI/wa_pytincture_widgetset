@@ -32,3 +32,14 @@ def test_icon_kinds(kind):
 def test_icon_refused_elsewhere(kind):
     with pytest.raises(ValueError, match="cannot show an icon"):
         FieldConfig(id="x", type=kind, icon="mdi-magnify").to_dict()
+
+
+def test_select_option_icon():
+    assert SelectOption("grid", "Grid", icon="mdi-view-grid").to_dict() == {"value": "grid", "label": "Grid", "icon": "mdi-view-grid"}
+
+
+def test_toggle_group_payload():
+    payload = FieldConfig(id="view", type="toggle_group", options=["list", SelectOption("grid", icon="mdi-view-grid")],
+                          value="list", multiple=False).to_dict()
+    assert payload["type"] == "toggle_group" and payload["options"][1] == {"value": "grid", "label": "grid", "icon": "mdi-view-grid"}
+    assert FieldConfig(id="days", type="toggle_group", multiple=True, options=["mon"], value=["mon"]).to_dict()["multiple"] is True
