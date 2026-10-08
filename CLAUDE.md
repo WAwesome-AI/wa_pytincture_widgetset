@@ -456,6 +456,66 @@ so one Escape closed a whole stack. The × button also gained
 `tests/modal_events_demo.py` (a reused modal and a disposable one stacked on
 it); a 12-check Playwright run passed.
 
+## Scheduler (added 2026-10-08)
+
+`Scheduler` (`assets/scheduler.js`, `wapyt/scheduler/`,
+`Layout.add_scheduler`) is the wapyt-only widget from the wiki's
+Spec-Scheduler, built to the decisions recorded there: **naive local times**
+(the app converts zones first; aware datetimes are refused), views **day,
+week, work week, month, agenda** plus a mini month (no resource timeline
+yet), overlaps shown side by side with the app deciding (act, then
+`revert(id)`), and **iCal export + a print view**.
+
+- **Times.** ISO strings cross the bridge (`2026-10-08T09:30`; all-day items
+  `2026-10-08` with an exclusive end); the Python wrapper turns event
+  payloads (top level, `old`, `item`) into `datetime` / `date`. JS positions
+  use clock fields (`minutesOfDay`, calendar `dayDiff`, `addDays` on date
+  fields), never millisecond differences, so a DST day still lays out
+  00:00-24:00 and a 9-17 item is 480 minutes.
+- **Layout.** Time views: a header, an all-day row and a scroll body, all the
+  same grid columns; the scroll body's scrollbar width is measured into
+  `--wapyt-sched-scrollbar` and padded onto the rows above it so columns line
+  up. Timed items split into per-day segments (`continuesBefore/After`) and
+  are column-packed within overlap clusters. Blocks are at least 18px.
+  Month folds overflowing chips into "+N more" after layout (a rAF), which
+  opens a `wapyt.Popup` with the day's items. The mini month hides under
+  640px via a container query (`.wapyt-sched` is `container-type:
+  inline-size`).
+- **First scroll to `scroll_to`** waits until the scroll box can scroll (a
+  ResizeObserver): layout cells are often sized after the widget is built,
+  and an early re-render "preserving" scrollTop 0 kept it at midnight, so a
+  position is only preserved once that first scroll happened (`_scrolled`).
+- **Pointer.** One drag machine (`_startDrag`, 5px threshold, Escape
+  cancels, auto-scroll at the edges): create across empty slots (ghost with a
+  live time label), move a block (keeps the grab offset, snaps to
+  `slot_minutes`, across days), resize from the bottom grip, move chips
+  between days in month and the all-day row (keeps the time). The click that
+  ends a drag is suppressed. `_render` never runs while dragging.
+- **Act then revert.** `_commit` applies the change, remembers the previous
+  spec in `_previous` (what `revert` restores), clears the item's error, and
+  emits `move` / `resize` with `old`; nothing fires if nothing changed.
+  `set_item_error` marks the item (red inset, tooltip, in its aria-label).
+- **Keyboard.** Time grid and month grid are each one tab stop (slot or day
+  cursor, kept across re-renders and navigation; falls back when the cursor
+  leaves the range); Enter creates. Items are in the tab order: Enter opens,
+  Delete asks the app (`on_delete`; the app removes it), arrows stage a move
+  (Shift+Up/Down the end) drawn dashed, Enter commits, Escape drops; moves
+  are announced in a live region. Locked items (`editable=False`,
+  `read_only`) ignore all of it.
+- **iCal** is generated in Python (`to_ics`, unit-tested: floating local
+  times, `VALUE=DATE` all-day, RFC 5545 escaping, 75-octet folding that never
+  splits a UTF-8 character) and downloaded by `scheduler.download`.
+- **Print:** `print()` marks `<html data-wapyt-print>` and the scheduler;
+  print CSS hides everything else (`visibility`), drops the nav, views,
+  mini month and now line, un-clips the scroll box and the folded chips, and
+  draws items black on white. `afterprint` clears the marks.
+- Item colours: the dataviz palette names (light / dark steps) or hex, as a
+  tint (`color-mix`) with a coloured left edge so text stays in the text
+  colour. A MutationObserver on `<html data-wapyt-theme>` re-renders.
+
+`tests/scheduler_demo.py` (a fixed week, 6-12 Oct 2026); a 51-check
+Playwright run passed, and the Popup suite (29) still passes.
+
 ## Chart (added 2026-10-08)
 
 `Chart` (`assets/chart.js`, `wapyt/chart/`, `Layout.add_chart`) wraps

@@ -24,6 +24,7 @@ from .sidebar.sidebar_config import SidebarConfig, SidebarHeading, SidebarItem, 
 from .modal.modal import ModalWindow, ModalConfig
 from .window.window import Window, WindowConfig
 from .chart import Chart, ChartConfig, ChartDataset
+from .scheduler import Scheduler, SchedulerConfig, ScheduleItem
 from .form.form import Form
 from .datatable.datatable import DataTable
 from . import filetransfer
@@ -88,6 +89,9 @@ __all__ = [
     "Chart",
     "ChartConfig",
     "ChartDataset",
+    "Scheduler",
+    "SchedulerConfig",
+    "ScheduleItem",
     "ModalConfig",
     "Form",
     "DataTable",
