@@ -835,6 +835,138 @@ textarea.wapyt-form-control {
   display: none;
 }
 
+/* Tick scale under a range (native or two-thumb). Marks are inset by half a
+   16px thumb at each end, the travel of the thumb centre, so a tick sits
+   under the thumb at that value. */
+.wapyt-form-range[data-ticks="true"] {
+  align-items: flex-start;
+}
+
+.wapyt-form-range[data-ticks="true"] .wapyt-form-range-value {
+  margin-top: 4px;
+}
+
+.wapyt-form-range-track {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.wapyt-form-range-track .wapyt-form-range-input {
+  width: 100%;
+}
+
+.wapyt-form-ticks {
+  position: relative;
+  height: 8px;
+  margin-top: 2px;
+}
+
+.wapyt-form-ticks[data-labels="true"] {
+  height: 24px;
+}
+
+.wapyt-form-tick {
+  position: absolute;
+  top: 0;
+  left: calc(8px + (100% - 16px) * var(--wapyt-tick-at, 0));
+  width: 1px;
+  height: 4px;
+  background: var(--wapyt-divider);
+}
+
+.wapyt-form-tick[data-major="true"] {
+  height: 8px;
+  background: #94a3b8;
+}
+
+.wapyt-form-tick-label {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  transform: translateX(-50%);
+  font: 11px/1.2 system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+/* Two-thumb slider: a 16px-high box with the track centred in it. Thumb
+   centres travel 8px..(width - 8px), the same as the native thumb. */
+.wapyt-form-slider {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 16px;
+  margin: 2px 0;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.wapyt-form-slider-track {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  right: 8px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--wapyt-divider);
+}
+
+.wapyt-form-slider-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(100% * var(--wapyt-slider-from, 0));
+  right: calc(100% * (1 - var(--wapyt-slider-to, 1)));
+  border-radius: 2px;
+  background: #2563eb;
+}
+
+.wapyt-form-slider-thumb {
+  position: absolute;
+  top: 0;
+  left: calc((100% - 16px) * var(--wapyt-slider-at, 0));
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid #2563eb;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+  z-index: 1;
+}
+
+/* Both thumbs at the minimum: the high one must stay on top to be grabbed. */
+.wapyt-form-slider-thumb[data-thumb="high"][data-top="true"] {
+  z-index: 2;
+}
+
+.wapyt-form-slider-thumb:focus {
+  outline: none;
+}
+
+.wapyt-form-slider-thumb:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35);
+  z-index: 3;
+}
+
+.wapyt-form-slider[data-dragging="true"],
+.wapyt-form-slider[data-dragging="true"] .wapyt-form-slider-thumb {
+  cursor: grabbing;
+}
+
+.wapyt-form-slider[data-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wapyt-form-slider[aria-invalid="true"] .wapyt-form-slider-track {
+  outline: 1px solid #dc2626;
+  outline-offset: 2px;
+}
+
 /* Combo: looks like a control; the input inside is borderless. The listbox is
    appended to <body> while open, so it is styled on its own, above modals. */
 .wapyt-form-combo {
@@ -1102,6 +1234,28 @@ input[type="color"].wapyt-form-control {
 [data-wapyt-theme="dark"] .wapyt-form-option,
 [data-wapyt-theme="dark"] .wapyt-form-range-value {
   color: var(--wapyt-text-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-slider-track,
+[data-wapyt-theme="dark"] .wapyt-form-tick {
+  background: var(--wapyt-divider-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-tick[data-major="true"] {
+  background: #64748b;
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-tick-label {
+  color: #94a3b8;
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-slider-thumb {
+  background: #0f172a;
+  border-color: #60a5fa;
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-slider-fill {
+  background: #3b82f6;
 }
 
 [data-wapyt-theme="dark"] .wapyt-form-row .wapyt-form-control.wapyt-form-toggle {

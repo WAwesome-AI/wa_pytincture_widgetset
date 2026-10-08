@@ -317,6 +317,295 @@
     }
   }
 
+  // Range geometry shared by the native slider and RangeSlider: a value's
+  // position along the track, snapping to the step, and the decimals the step
+  // implies (so 0.1 steps do not read back as 0.30000000000000004).
+  function rangeBounds(field) {
+    const min = field.min != null && field.min !== "" ? Number(field.min) : 0;
+    const max = field.max != null && field.max !== "" ? Number(field.max) : 100;
+    const step = Number(field.step) > 0 ? Number(field.step) : 1;
+    return { min, max: Math.max(min, max), step };
+  }
+
+  function stepDecimals(step) {
+    const text = String(step);
+    const dot = text.indexOf(".");
+    return dot < 0 ? 0 : text.length - dot - 1;
+  }
+
+  function snapValue(value, bounds) {
+    const { min, max, step } = bounds;
+    const n = Number(value);
+    if (!Number.isFinite(n)) return min;
+    const snapped = min + Math.round((n - min) / step) * step;
+    const clamped = Math.min(max, Math.max(min, snapped));
+    return Number(clamped.toFixed(stepDecimals(step)));
+  }
+
+  function rangeFraction(value, bounds) {
+    const span = bounds.max - bounds.min;
+    return span > 0 ? (value - bounds.min) / span : 0;
+  }
+
+  // Tick marks under a slider: a minor tick every `ticks` units, a major one
+  // (with its value as a label, unless tickLabels is false) every
+  // `majorTicks`. Positions use the same inset as the thumbs (half a thumb at
+  // each end), so a tick sits under the thumb centre at that value. Capped at
+  // 201 marks so a tiny interval cannot flood the DOM.
+  function buildTicks(field) {
+    const bounds = rangeBounds(field);
+    const minor = Number(field.ticks) > 0 ? Number(field.ticks) : 0;
+    const major = Number(field.majorTicks) > 0 ? Number(field.majorTicks) : 0;
+    if (!minor && !major) return null;
+    const span = bounds.max - bounds.min;
+    const unit = minor && major ? Math.min(minor, major) : minor || major;
+    if (span <= 0 || span / unit > 200) return null;
+    const decimals = Math.max(stepDecimals(unit), stepDecimals(bounds.step));
+    const near = (value, interval) => {
+      if (!interval) return false;
+      const ratio = (value - bounds.min) / interval;
+      return Math.abs(ratio - Math.round(ratio)) < 1e-6;
+    };
+    const scale = document.createElement("div");
+    scale.className = "wapyt-form-ticks";
+    scale.setAttribute("aria-hidden", "true");
+    const count = Math.round(span / unit);
+    for (let i = 0; i <= count; i += 1) {
+      const value = Number((bounds.min + i * unit).toFixed(decimals));
+      if (value > bounds.max + 1e-9) break;
+      const isMajor = near(value, major);
+      if (!isMajor && !near(value, minor)) continue;
+      const tick = document.createElement("span");
+      tick.className = "wapyt-form-tick";
+      if (isMajor) tick.dataset.major = "true";
+      tick.style.setProperty("--wapyt-tick-at", String(rangeFraction(value, bounds)));
+      if (isMajor && field.tickLabels !== false) {
+        const label = document.createElement("span");
+        label.className = "wapyt-form-tick-label";
+        label.textContent = String(value);
+        tick.appendChild(label);
+      }
+      scale.appendChild(tick);
+    }
+    if (major && field.tickLabels !== false) scale.dataset.labels = "true";
+    return scale;
+  }
+
+  // Two-thumb slider for FieldConfig(type="range", range=True), reading back
+  // [low, high]. One native input cannot have two thumbs, so this follows the
+  // WAI-ARIA multi-thumb slider pattern: each thumb is a focusable
+  // role="slider" whose aria-valuemin / max are the limits the other thumb
+  // sets, and the thumbs never cross.
+  class RangeSlider {
+    constructor(field, controlId, onChange) {
+      this.field = field;
+      this.bounds = rangeBounds(field);
+      this.onChange = onChange;
+      this.values = [this.bounds.min, this.bounds.max];
+      this.disabled = false;
+      this.readOnly = Boolean(field.readonly);
+      this.drag = null;
+
+      this.root = document.createElement("div");
+      this.root.className = "wapyt-form-slider";
+      this.root.id = controlId;
+      this.root.setAttribute("role", "group");
+      this.root.setAttribute("aria-labelledby", `${controlId}_label`);
+
+      this.track = document.createElement("div");
+      this.track.className = "wapyt-form-slider-track";
+      this.fill = document.createElement("div");
+      this.fill.className = "wapyt-form-slider-fill";
+      this.track.appendChild(this.fill);
+      this.root.appendChild(this.track);
+
+      const name = field.label || field.id;
+      this.thumbs = ["minimum", "maximum"].map((which, index) => {
+        const thumb = document.createElement("div");
+        thumb.className = "wapyt-form-slider-thumb";
+        thumb.dataset.thumb = index ? "high" : "low";
+        thumb.tabIndex = 0;
+        thumb.setAttribute("role", "slider");
+        thumb.setAttribute("aria-orientation", "horizontal");
+        thumb.setAttribute("aria-label", `${name} ${which}`);
+        thumb.addEventListener("keydown", (event) => this._onKey(event, index));
+        this.root.appendChild(thumb);
+        return thumb;
+      });
+
+      this.root.addEventListener("pointerdown", (event) => this._onDown(event));
+      this.root.addEventListener("pointermove", (event) => this._onMove(event));
+      this.root.addEventListener("pointerup", (event) => this._onUp(event));
+      this.root.addEventListener("pointercancel", (event) => this._onUp(event));
+      this.root.addEventListener("lostpointercapture", () => this._endDrag());
+      this.setDisabled(Boolean(field.disabled));
+      this._paint();
+    }
+
+    _valueAt(clientX) {
+      const box = this.track.getBoundingClientRect();
+      const fraction = box.width > 0 ? (clientX - box.left) / box.width : 0;
+      const { min, max } = this.bounds;
+      return snapValue(min + Math.min(1, Math.max(0, fraction)) * (max - min), this.bounds);
+    }
+
+    _interactive() {
+      return !this.disabled && !this.readOnly;
+    }
+
+    _onDown(event) {
+      if (event.button !== 0 || !this._interactive()) return;
+      event.preventDefault();
+      const value = this._valueAt(event.clientX);
+      const [low, high] = this.values;
+      let index;
+      const onThumb = event.target.closest(".wapyt-form-slider-thumb");
+      if (low === high && (onThumb || value === low)) {
+        // Stacked thumbs: wait for the first movement to say which one.
+        index = null;
+      } else if (onThumb) {
+        index = this.thumbs.indexOf(onThumb);
+      } else {
+        index = Math.abs(value - low) <= Math.abs(value - high) ? 0 : 1;
+        if (value < low) index = 0;
+        else if (value > high) index = 1;
+      }
+      this.drag = { pointerId: event.pointerId, index, startX: event.clientX };
+      this.root.setPointerCapture(event.pointerId);
+      this.root.dataset.dragging = "true";
+      if (index != null) {
+        this.thumbs[index].focus();
+        this._setThumb(index, value);
+      } else {
+        (onThumb || this.thumbs[0]).focus();
+      }
+    }
+
+    _onMove(event) {
+      const drag = this.drag;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      if (drag.index == null) {
+        if (event.clientX === drag.startX) return;
+        drag.index = event.clientX < drag.startX ? 0 : 1;
+        this.thumbs[drag.index].focus();
+      }
+      this._setThumb(drag.index, this._valueAt(event.clientX));
+    }
+
+    _onUp(event) {
+      if (!this.drag || event.pointerId !== this.drag.pointerId) return;
+      if (this.root.hasPointerCapture(event.pointerId)) {
+        this.root.releasePointerCapture(event.pointerId);
+      }
+      this._endDrag();
+    }
+
+    _endDrag() {
+      this.drag = null;
+      delete this.root.dataset.dragging;
+    }
+
+    _onKey(event, index) {
+      if (!this._interactive()) return;
+      const { min, max, step } = this.bounds;
+      const page = Math.max(step, snapValue(min + (max - min) / 10, this.bounds) - min);
+      const current = this.values[index];
+      let next;
+      switch (event.key) {
+        case "ArrowLeft":
+        case "ArrowDown":
+          next = current - step;
+          break;
+        case "ArrowRight":
+        case "ArrowUp":
+          next = current + step;
+          break;
+        case "PageDown":
+          next = current - page;
+          break;
+        case "PageUp":
+          next = current + page;
+          break;
+        case "Home":
+          next = index ? this.values[0] : min;
+          break;
+        case "End":
+          next = index ? max : this.values[1];
+          break;
+        default:
+          return;
+      }
+      event.preventDefault();
+      this._setThumb(index, next);
+    }
+
+    // Move one thumb, stopping at the other; fires change only on a real move.
+    _setThumb(index, value) {
+      let next = snapValue(value, this.bounds);
+      if (index === 0) next = Math.min(next, this.values[1]);
+      else next = Math.max(next, this.values[0]);
+      if (next === this.values[index]) return;
+      this.values[index] = next;
+      this._paint();
+      this.onChange();
+    }
+
+    _paint() {
+      const [low, high] = this.values;
+      const { min, max } = this.bounds;
+      const from = rangeFraction(low, this.bounds);
+      const to = rangeFraction(high, this.bounds);
+      this.root.style.setProperty("--wapyt-slider-from", String(from));
+      this.root.style.setProperty("--wapyt-slider-to", String(to));
+      const limits = [[min, high], [low, max]];
+      this.thumbs.forEach((thumb, index) => {
+        const value = this.values[index];
+        thumb.style.setProperty("--wapyt-slider-at", String(index ? to : from));
+        thumb.setAttribute("aria-valuemin", String(limits[index][0]));
+        thumb.setAttribute("aria-valuemax", String(limits[index][1]));
+        thumb.setAttribute("aria-valuenow", String(value));
+      });
+      // Equal values: keep the high thumb grabbable once both sit at min.
+      this.thumbs[1].dataset.top = low === high && low === min ? "true" : "false";
+    }
+
+    text() {
+      return `${this.values[0]} – ${this.values[1]}`;
+    }
+
+    getValue() {
+      return this.values.slice();
+    }
+
+    // Takes [low, high] (either may be null for its bound); a scalar or junk
+    // falls back to the whole range. Values are snapped and put in order.
+    setValue(value) {
+      const pair = Array.isArray(value) ? value : [];
+      const pick = (item, fallback) => (item == null || item === "" ? fallback : snapValue(item, this.bounds));
+      const low = pick(pair[0], this.bounds.min);
+      const high = pick(pair[1], this.bounds.max);
+      this.values = low <= high ? [low, high] : [high, low];
+      this._paint();
+    }
+
+    setDisabled(disabled) {
+      this.disabled = Boolean(disabled);
+      if (this.disabled) this.root.dataset.disabled = "true";
+      else delete this.root.dataset.disabled;
+      this.thumbs.forEach((thumb) => {
+        thumb.tabIndex = this.disabled ? -1 : 0;
+        if (this.disabled) thumb.setAttribute("aria-disabled", "true");
+        else thumb.removeAttribute("aria-disabled");
+        if (this.readOnly) thumb.setAttribute("aria-readonly", "true");
+      });
+      if (this.disabled && this.drag) this._endDrag();
+    }
+
+    focus() {
+      if (!this.disabled) this.thumbs[0].focus();
+    }
+  }
+
   // Every label, option and error string here reaches the DOM through
   // textContent, and every control is built with createElement. Nothing in this
   // widget interpolates a value into innerHTML, so field definitions coming
@@ -422,8 +711,12 @@
       const controlId = `wapyt_f_${field.id}_${Math.random().toString(16).slice(2, 8)}`;
       let control;
       let combo = null;
+      let slider = null;
 
-      if (type === "textarea") {
+      if (type === "range" && field.range) {
+        slider = new RangeSlider(field, controlId, () => emitChange());
+        control = slider.root;
+      } else if (type === "textarea") {
         control = document.createElement("textarea");
         control.rows = Number(field.rows) || 4;
       } else if (type === "select") {
@@ -448,7 +741,7 @@
           ? type
           : "text";
       }
-      if (BOUNDED.has(type)) {
+      if (BOUNDED.has(type) && !slider) {
         if (field.min != null) control.min = String(field.min);
         if (field.max != null) control.max = String(field.max);
         if (field.step != null) control.step = String(field.step);
@@ -456,18 +749,21 @@
 
       control.id = controlId;
       control.className =
-        type === "range" ? "wapyt-form-range-input"
+        slider ? "wapyt-form-slider"
+        : type === "range" ? "wapyt-form-range-input"
         : GROUPS.has(type) ? "wapyt-form-group"
         : type === "toggle" ? "wapyt-form-control wapyt-form-toggle"
         : type === "combo" ? "wapyt-form-combo-input"
         : "wapyt-form-control";
-      if (!GROUPS.has(type)) control.name = field.id;
-      if (field.placeholder) control.placeholder = field.placeholder;
-      if (field.autocomplete) control.autocomplete = field.autocomplete;
-      if (field.disabled) control.disabled = true;
-      if (field.readonly && "readOnly" in control) control.readOnly = true;
+      if (!slider) {
+        if (!GROUPS.has(type)) control.name = field.id;
+        if (field.placeholder) control.placeholder = field.placeholder;
+        if (field.autocomplete) control.autocomplete = field.autocomplete;
+        if (field.disabled) control.disabled = true;
+        if (field.readonly && "readOnly" in control) control.readOnly = true;
+      }
 
-      const entry = { field, el: control, type, name: controlId, combo };
+      const entry = { field, el: control, type, name: controlId, combo, slider };
       if (GROUPS.has(type)) {
         this._fillGroup(entry, field.options);
       } else if (type === "range") {
@@ -475,15 +771,26 @@
         entry.output.className = "wapyt-form-range-value";
         entry.output.htmlFor = controlId;
         entry.output.hidden = field.showValue === false;
+        // Reserve the widest readout up front: as a flex sibling, a readout
+        // that grew with its text ("0 – 500" to "150 – 500") would shrink the
+        // track under the pointer mid-drag.
+        const bounds = rangeBounds(field);
+        const decimals = stepDecimals(bounds.step);
+        const widest = Math.max(...[bounds.min, bounds.max].map((n) => n.toFixed(decimals).length));
+        entry.output.style.minWidth = `${slider ? widest * 2 + 3 : widest}ch`;
       }
       this._writeControl(entry, field.value);
 
       // A group has no single control to point a <label for> at, so its
       // caption is a plain element the fieldset names through aria-labelledby.
-      const label = document.createElement(GROUPS.has(type) ? "div" : "label");
+      // A two-thumb slider is a group too: the label names it, and a click on
+      // the label focuses the low thumb.
+      const plainLabel = GROUPS.has(type) || slider;
+      const label = document.createElement(plainLabel ? "div" : "label");
       label.className = "wapyt-form-label";
       label.id = `${controlId}_label`;
-      if (!GROUPS.has(type)) label.htmlFor = controlId;
+      if (!plainLabel) label.htmlFor = controlId;
+      if (slider) label.addEventListener("click", () => slider.focus());
       label.textContent = field.label || field.id;
       if (field.required) {
         const mark = document.createElement("span");
@@ -507,7 +814,18 @@
       } else if (type === "range") {
         const wrap = document.createElement("div");
         wrap.className = "wapyt-form-range";
-        wrap.appendChild(control);
+        const scale = buildTicks(field);
+        if (scale) {
+          // The slider and its scale stack in one column beside the readout.
+          const column = document.createElement("div");
+          column.className = "wapyt-form-range-track";
+          column.appendChild(control);
+          column.appendChild(scale);
+          wrap.appendChild(column);
+          wrap.dataset.ticks = "true";
+        } else {
+          wrap.appendChild(control);
+        }
         wrap.appendChild(entry.output);
         row.appendChild(label);
         row.appendChild(wrap);
@@ -525,14 +843,14 @@
       row.appendChild(error);
 
       const emitChange = () => {
-        if (entry.output) entry.output.textContent = control.value;
+        this._syncOutput(entry);
         this.clearError(field.id);
         this._emit("change", { id: field.id, value: this._readControl(field.id) });
       };
       // Group inputs bubble their change events up to the fieldset.
       // A combo reports its own picks; its typing is only a filter.
       const discrete = type === "select" || BOOLEAN.has(type) || GROUPS.has(type);
-      if (!combo) control.addEventListener(discrete ? "change" : "input", emitChange);
+      if (!combo && !slider) control.addEventListener(discrete ? "change" : "input", emitChange);
 
       this._controls.set(field.id, entry);
       this._errorEls.set(field.id, error);
@@ -585,6 +903,9 @@
       if (entry.combo) {
         return entry.combo.getValue();
       }
+      if (entry.slider) {
+        return entry.slider.getValue();
+      }
       if (type === "radio") {
         const picked = this._groupInputs(entry).find((input) => input.checked);
         return picked ? picked.value : null;
@@ -610,6 +931,8 @@
         el.checked = Boolean(value);
       } else if (entry.combo) {
         entry.combo.setValue(value);
+      } else if (entry.slider) {
+        entry.slider.setValue(value);
       } else if (type === "radio") {
         this._groupInputs(entry).forEach((input) => {
           input.checked = value != null && input.value === String(value);
@@ -628,10 +951,19 @@
       } else {
         el.value = value == null ? "" : String(value);
       }
-      if (entry.output) entry.output.textContent = el.value;
+      this._syncOutput(entry);
+    }
+
+    _syncOutput(entry) {
+      if (!entry.output) return;
+      entry.output.textContent = entry.slider ? entry.slider.text() : entry.el.value;
     }
 
     _focusEntry(entry) {
+      if (entry.slider) {
+        entry.slider.focus();
+        return;
+      }
       if (!GROUPS.has(entry.type)) {
         entry.el.focus();
         return;
@@ -672,6 +1004,7 @@
       const { type, field } = entry;
       if (BOOLEAN.has(type)) return false;
       if (type === "checkbox_group") return [];
+      if (entry.slider) return [null, null];
       if (type === "range") return field.min != null ? field.min : 0;
       if (type === "color") return "#000000";
       return null;
@@ -686,6 +1019,7 @@
     // A field configured without a value goes back to how a fresh form shows
     // it: a range at its midpoint, a select with nothing chosen, the rest empty.
     _defaultValue(entry) {
+      if (entry.slider) return [null, null];
       if (entry.type === "range") return this._rangeMidpoint(entry.field);
       return this._emptyValue(entry);
     }
@@ -729,7 +1063,9 @@
 
     setFieldDisabled(id, disabled) {
       const entry = this._controls.get(id);
-      if (entry) entry.el.disabled = Boolean(disabled);
+      if (!entry) return;
+      if (entry.slider) entry.slider.setDisabled(disabled);
+      else entry.el.disabled = Boolean(disabled);
     }
 
     setBusy(busy) {
@@ -741,7 +1077,8 @@
 
     focusFirst() {
       for (const [, entry] of this._controls) {
-        if (!entry.el.disabled && entry.type !== "hidden") {
+        const disabled = entry.slider ? entry.slider.disabled : entry.el.disabled;
+        if (!disabled && entry.type !== "hidden") {
           this._focusEntry(entry);
           return;
         }

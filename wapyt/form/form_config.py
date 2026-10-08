@@ -87,6 +87,15 @@ class FieldConfig:
         allow_custom: Let a ``combo`` keep typed text that is not an option.
         inline: Lay ``radio`` / ``checkbox_group`` options out in a row.
         show_value: Show a ``range`` field's current value beside it.
+        range: Give a ``range`` field two thumbs. It then reads back as
+            ``[low, high]`` and takes a two-item list or tuple as its value
+            (``None`` for either end means that bound); unset, it spans the
+            whole range. Keyboard: arrows step, Page Up / Down move a tenth,
+            Home / End go to the limit.
+        ticks / major_ticks: Draw a tick every ``ticks`` units and a longer
+            one every ``major_ticks`` units under a ``range`` field (one or
+            two thumbs), counted from ``min``.
+        tick_labels: Label the major ticks with their values (default on).
         rows: Row count for ``textarea``.
         min / max / step: Bounds for ``number``, ``range``, ``date``,
             ``time`` and ``datetime-local`` (dates as ISO strings or date
@@ -113,6 +122,10 @@ class FieldConfig:
     options: Optional[List[Union[str, SelectOption]]] = None
     inline: bool = False
     show_value: bool = True
+    range: bool = False
+    ticks: Optional[Union[int, float]] = None
+    major_ticks: Optional[Union[int, float]] = None
+    tick_labels: bool = True
     multiple: bool = False
     allow_custom: bool = False
     rows: Optional[int] = None
@@ -135,6 +148,21 @@ class FieldConfig:
                 f"FieldConfig {self.id!r}: unknown type {self.type!r}; "
                 f"expected one of {', '.join(sorted(FIELD_TYPES))}"
             )
+        if self.type != "range" and (self.range or self.ticks or self.major_ticks):
+            raise ValueError(
+                f"FieldConfig {self.id!r}: range, ticks and major_ticks need type='range'"
+            )
+        for name in ("ticks", "major_ticks"):
+            interval = getattr(self, name)
+            if interval is not None and not interval > 0:
+                raise ValueError(f"FieldConfig {self.id!r}: {name} must be greater than 0")
+        value = self.value
+        if self.range and value is not None:
+            if isinstance(value, (str, bytes)) or not hasattr(value, "__len__") or len(value) != 2:
+                raise ValueError(
+                    f"FieldConfig {self.id!r}: a two-thumb range takes [low, high] as its value"
+                )
+            value = list(value)
         options: Optional[List[Any]] = None
         if self.options is not None:
             options = [
@@ -145,7 +173,7 @@ class FieldConfig:
             "id": self.id,
             "label": self.label,
             "type": self.type,
-            "value": iso_value(self.value),
+            "value": iso_value(value),
             "placeholder": self.placeholder,
             "help": self.help,
             "required": self.required or None,
@@ -155,6 +183,10 @@ class FieldConfig:
             "options": options,
             "inline": self.inline or None,
             "showValue": None if self.show_value else False,
+            "range": self.range or None,
+            "ticks": self.ticks,
+            "majorTicks": self.major_ticks,
+            "tickLabels": None if self.tick_labels else False,
             "multiple": self.multiple or None,
             "allowCustom": self.allow_custom or None,
             "rows": self.rows,
