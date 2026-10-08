@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "package": "wapyt",
-  "version": "0.2.0.dev0",
+  "version": "0.2.0.dev1",
   "assets": [
     {
       "path": "wapyt/assets/wapyt.css",

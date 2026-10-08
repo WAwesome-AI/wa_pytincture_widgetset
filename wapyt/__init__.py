@@ -7,7 +7,7 @@ import re as _re
 __widgetset__ = "wapyt"
 # A plain string literal: pytincture reads it by parsing this file, and it must
 # match pyproject.toml and the asset manifest (CI and the release workflow check).
-__version__ = "0.2.0.dev0"
+__version__ = "0.2.0.dev1"
 # The numeric release part only, so pre-releases ("0.2.0.dev0", "0.2.0rc1")
 # do not break `int()`.
 __version_tuple__ = tuple(int(part) for part in _re.match(r"\d+(?:\.\d+)*", __version__).group(0).split("."))
