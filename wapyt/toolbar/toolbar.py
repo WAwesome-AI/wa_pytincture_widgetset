@@ -1,6 +1,6 @@
 """
-Toolbar widget: buttons, toggles, one-of-several groups, text, separators and
-spacers, dropping to icons when space runs out.
+Toolbar widget: buttons, toggles, one-of-several groups, dropdown and split
+buttons, text, separators and spacers, dropping to icons when space runs out.
 """
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from .._runtime import create_proxy, require_js, to_plain
+from ..contextmenu.contextmenu_config import MenuItem, check_unique_ids
 from .toolbar_config import (
     ToolbarButton,
     ToolbarConfig,
@@ -37,6 +38,9 @@ class Toolbar:
                           group="layout", active=True, show_label=False),
             ToolbarButton("tiled", icon="mdi-view-grid", tooltip="Tiles",
                           group="layout", show_label=False),
+            ToolbarButton("export", "Export", "mdi-export", items=[
+                MenuItem("csv", "CSV"), MenuItem("json", "JSON"),
+            ]),
             ToolbarSpacer(),
             ToolbarButton("update", "Update", "mdi-arrow-up-circle",
                           variant="accent", hidden=True),
@@ -44,6 +48,7 @@ class Toolbar:
             ToolbarButton("logout", "Logout", "mdi-logout"),
         ]))
         toolbar.on_click(lambda p: self.on_toolbar(p["id"]))
+        toolbar.on_select(lambda p: self.export(p["id"]))   # dropdown picks
         toolbar.set_text("user", me["username"])
 
     Labels, tooltips, badges and text are set as text, never markup.
@@ -107,6 +112,18 @@ class Toolbar:
         """
         self._bind_event("click", handler)
 
+    def on_select(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """
+        A dropdown item was chosen: ``{"id", "menu"}``, where ``menu`` is the
+        toolbar button's id, plus ``checked`` for checkable and group items.
+        """
+        self._bind_event("select", handler)
+
+    def on_open(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """A dropdown opened: ``{"id"}`` (the button's id). Use it to refresh
+        the menu with :meth:`set_menu_items` or :meth:`set_disabled` first."""
+        self._bind_event("open", handler)
+
     # ------------------------------------------------------------------
     # Items
     # ------------------------------------------------------------------
@@ -131,10 +148,46 @@ class Toolbar:
         self.toolbar.setBadge(item_id, js.undefined if badge is None else badge)
 
     def set_disabled(self, item_id: str, disabled: bool = True) -> None:
+        """Disable a button (both parts of a split one) or a dropdown item."""
         self.toolbar.setDisabled(item_id, bool(disabled))
 
     def set_hidden(self, item_id: str, hidden: bool = True) -> None:
+        """Hide a button or a dropdown item."""
         self.toolbar.setHidden(item_id, bool(hidden))
+
+    def is_disabled(self, item_id: str) -> bool:
+        return bool(self.toolbar.isDisabled(item_id))
+
+    def is_hidden(self, item_id: str) -> bool:
+        return bool(self.toolbar.isHidden(item_id))
+
+    # ------------------------------------------------------------------
+    # Dropdowns
+    # ------------------------------------------------------------------
+
+    def set_menu_items(self, item_id: str, items: List[MenuItem]) -> None:
+        """Replace a dropdown button's menu (for example, recent files)."""
+        payload = [item.to_dict() if hasattr(item, "to_dict") else item for item in items]
+        check_unique_ids(payload)
+        self.toolbar.setMenuItems(item_id, js.JSON.parse(json.dumps(payload)))
+
+    def set_checked(self, item_id: str, checked: bool = True) -> None:
+        """Tick a checkable dropdown item, or pick a group item; no event."""
+        self.toolbar.setChecked(item_id, bool(checked))
+
+    def is_checked(self, item_id: str) -> bool:
+        return bool(self.toolbar.isChecked(item_id))
+
+    def open_menu(self, item_id: str) -> None:
+        """Open a dropdown button's menu, focusing its first item."""
+        self.toolbar.openMenu(item_id)
+
+    def close_menu(self) -> None:
+        self.toolbar.closeMenu()
+
+    def is_menu_open(self, item_id: Optional[str] = None) -> bool:
+        """Whether that button's menu (or, without an id, any) is open."""
+        return bool(self.toolbar.isMenuOpen(js.undefined if item_id is None else item_id))
 
     # ------------------------------------------------------------------
     # Pressed state
@@ -158,6 +211,7 @@ class Toolbar:
 
 __all__ = [
     "Toolbar",
+    "MenuItem",
     "ToolbarConfig",
     "ToolbarButton",
     "ToolbarText",

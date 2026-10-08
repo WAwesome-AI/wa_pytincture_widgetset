@@ -788,6 +788,46 @@ replaces the toolbars Monguana and IguanaXterm built from HTML. Items:
 `tests/toolbar_demo.py` reproduces IguanaXterm's toolbar; a 26-check
 Playwright run against it passed.
 
+### Dropdown and split buttons (added 2026-10-08)
+
+`ToolbarButton(items=[MenuItem...])` is a WAI-ARIA menu button: it opens a
+`wapyt.ContextMenu` (class `wapyt-toolbar-menu`) under itself instead of
+firing `click`, so submenus, shortcuts, separators, checkable and group items
+come from ContextMenu. `split=True` keeps the button a command and adds an
+arrow button (`.wapyt-toolbar-arrow`, `data-part="arrow"`, same `data-id`)
+inside a `.wapyt-toolbar-split` wrapper; the wrapper is what hides, and the
+menu is placed under the whole wrapper.
+
+- The element that opens the menu is `entry.opener` (the button, or the
+  arrow) and is the menu's `owner`, so pressing it while open closes the menu
+  instead of the document listener closing it and the click reopening it.
+  The opener is focused **before** `showAt`, which is what ContextMenu
+  returns focus to on close.
+- Keys on an opener: Enter / Space / ArrowDown open on the first item,
+  ArrowUp on the last. Inside the menu, Left / Right at the top level
+  (`onEdge`) close it and move along the toolbar, opening the neighbour if it
+  is also an opener (a split arrow counts), as in MenuBar.
+- Events: `select` → `{id, menu, checked?}` (`menu` is the button id),
+  `open` → `{id}`. Dropdown buttons never fire `click`; a split's main part
+  does.
+- Button ids and every menu item id share one namespace (checked in
+  `ToolbarConfig.to_dict`), so `set_disabled` / `set_hidden` / `is_*` route an
+  unknown toolbar id to the dropdown holding it (`_menuFor`). Plus
+  `set_checked`, `set_menu_items` (an empty menu does not open),
+  `open_menu`, `close_menu`, `is_menu_open`.
+- A dropdown cannot be `toggle` / `group` unless split; `split` needs `items`.
+- The chevron (`mdi-menu-down`) stays in compact mode.
+
+`tests/toolbar_dropdown_demo.py`; a 48-check Playwright run (ARIA,
+escaping, open / close / reopen, focus return, every key, submenus, Left /
+Right across dropdowns and a split arrow, checkable and radio items, split
+click vs arrow, outside press, switching menus, empty and refilled menus,
+disabled and hidden menu items, hidden split, open_menu, one tab stop,
+viewport clamp at the right edge, compact, dark) passed, and the Toolbar (26),
+ContextMenu (29) and MenuBar (26) suites still pass. The Toolbar suite's
+"tooltip keeps label" check read `title`, which tooltip.js (#36) moves into
+`data-wapyt-tooltip` on first hover; it now accepts either.
+
 ## ContextMenu (added 2026-10-06)
 
 `ContextMenu` (`assets/contextmenu.js`) is a standalone right-click menu:

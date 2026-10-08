@@ -1,7 +1,12 @@
 (function () {
   // Toolbar: a row of buttons, separators, spacers and text, with toggle
-  // buttons, one-of-several groups, and an icon-only mode when it runs out of
-  // room. Monguana and IguanaXterm each built this by hand from HTML.
+  // buttons, one-of-several groups, dropdown and split buttons, and an
+  // icon-only mode when it runs out of room. Monguana and IguanaXterm each
+  // built this by hand from HTML.
+  //
+  // A button with `items` opens a wapyt.ContextMenu under it (the WAI-ARIA
+  // menu button pattern); with `split` the button stays a command and a
+  // separate arrow part opens the menu.
   //
   // Labels, tooltips, badges and text reach the DOM through textContent and
   // setAttribute; icons only ever receive a class name.
@@ -41,7 +46,9 @@
         options || {}
       );
       this._events = {};
-      this._items = new Map(); // id -> {spec, el, labelEl, badgeEl, iconEl}
+      this._items = new Map(); // id -> {spec, el, labelEl, badgeEl, iconEl, menu, arrow}
+      this._menus = []; // {id, menu, opener}
+      this._openMenu = null;
       this._naturalWidth = 0;
 
       this._host = resolveHost(target);
@@ -68,6 +75,7 @@
     // ── Rendering ──────────────────────────────────────────────────────────
 
     setItems(items) {
+      this._destroyMenus();
       this._host.textContent = "";
       this._items.clear();
       (items || []).forEach((spec) => this._host.appendChild(this._renderItem(spec || {})));
@@ -134,8 +142,145 @@
       this._setBadgeText(badgeEl, spec.badge);
       button.appendChild(badgeEl);
 
-      this._items.set(String(spec.id), { spec, el: button, labelEl, badgeEl, iconEl });
-      return button;
+      const entry = { spec, el: button, labelEl, badgeEl, iconEl, menu: null, arrow: null };
+      this._items.set(String(spec.id), entry);
+      if (!Array.isArray(spec.items)) return button;
+
+      // Dropdown: the button itself opens the menu. Split: the button stays a
+      // command and an arrow button beside it opens the menu; both sit in a
+      // wrapper so they hide and lay out as one item.
+      let opener = button;
+      let node = button;
+      if (spec.split) {
+        const wrap = document.createElement("span");
+        wrap.className = "wapyt-toolbar-split";
+        if (spec.hidden) wrap.hidden = true;
+        button.hidden = false;
+        opener = document.createElement("button");
+        opener.type = "button";
+        opener.className = "wapyt-toolbar-btn wapyt-toolbar-arrow";
+        opener.dataset.id = String(spec.id);
+        opener.dataset.part = "arrow";
+        opener.dataset.variant = button.dataset.variant;
+        opener.setAttribute("aria-label", `${spec.label || tooltip || spec.id} options`);
+        if (spec.disabled) opener.disabled = true;
+        wrap.appendChild(button);
+        wrap.appendChild(opener);
+        entry.arrow = opener;
+        node = wrap;
+        entry.wrap = wrap;
+      } else {
+        button.dataset.dropdown = "true";
+      }
+      const chevron = document.createElement("i");
+      chevron.className = `wapyt-toolbar-chevron ${iconClass("mdi-menu-down")}`;
+      chevron.setAttribute("aria-hidden", "true");
+      opener.appendChild(chevron);
+      opener.setAttribute("aria-haspopup", "menu");
+      opener.setAttribute("aria-expanded", "false");
+      entry.opener = opener;
+      entry.menu = this._createMenu(entry);
+      return node;
+    }
+
+    // ── Dropdown menus ─────────────────────────────────────────────────────
+
+    _createMenu(entry) {
+      const { spec } = entry;
+      const id = String(spec.id);
+      const menu = new globalNS.ContextMenu({
+        items: spec.items || [],
+        label: spec.label || spec.tooltip || id,
+        menuClass: "wapyt-toolbar-menu",
+        owner: entry.opener,
+        // Left / Right at the top of the menu close it and move along the
+        // toolbar, as in a menu bar.
+        onEdge: (dir) => this._stepFromMenu(entry, dir),
+      });
+      menu.on("select", (payload) => {
+        const out = { id: payload.id, menu: id };
+        if (payload.checked !== undefined) out.checked = payload.checked;
+        this._emit("select", out);
+      });
+      menu.on("hide", () => {
+        entry.opener.setAttribute("aria-expanded", "false");
+        delete entry.opener.dataset.open;
+        if (this._openMenu === entry) this._openMenu = null;
+      });
+      this._menus.push({ id, menu, entry });
+      return menu;
+    }
+
+    _destroyMenus() {
+      this._menus.forEach(({ menu }) => menu.destroy());
+      this._menus = [];
+      this._openMenu = null;
+    }
+
+    _openDropdown(entry, last = false) {
+      if (!entry.menu || entry.opener.disabled) return;
+      if (this._openMenu && this._openMenu !== entry) this._openMenu.menu.hide(false);
+      // Focus first, so the menu hands focus back to the opener on close.
+      entry.opener.focus();
+      this._syncTabStops(entry.opener);
+      const anchor = (entry.wrap || entry.el).getBoundingClientRect();
+      entry.menu.showAt(anchor.left, anchor.bottom + 2, { context: String(entry.spec.id) });
+      if (!entry.menu.isOpen()) return; // every item hidden
+      this._openMenu = entry;
+      entry.opener.setAttribute("aria-expanded", "true");
+      entry.opener.dataset.open = "true";
+      if (last) {
+        const items = document.querySelectorAll(".wapyt-toolbar-menu .wapyt-cmenu-item");
+        const enabled = Array.from(items).filter((el) => el.getAttribute("aria-disabled") !== "true");
+        if (enabled.length) enabled[enabled.length - 1].focus();
+      }
+      this._emit("open", { id: String(entry.spec.id) });
+    }
+
+    _stepFromMenu(entry, dir) {
+      entry.menu.hide(false);
+      const buttons = this._buttons();
+      const index = buttons.indexOf(entry.opener);
+      if (index < 0 || !buttons.length) return;
+      const next = buttons[(index + dir + buttons.length) % buttons.length];
+      this._syncTabStops(next);
+      next.focus();
+      // Moving onto another dropdown opens it, like a menu bar.
+      const target = this._entryForOpener(next);
+      if (target) this._openDropdown(target);
+    }
+
+    _entryForOpener(el) {
+      const entry = this._items.get(el.dataset.id);
+      return entry && entry.opener === el ? entry : null;
+    }
+
+    openMenu(id) {
+      const entry = this._entry(id);
+      if (entry.menu) this._openDropdown(entry);
+    }
+
+    closeMenu() {
+      if (this._openMenu) this._openMenu.menu.hide(true);
+    }
+
+    isMenuOpen(id) {
+      if (id === undefined || id === null) return Boolean(this._openMenu);
+      return Boolean(this._openMenu && String(this._openMenu.spec.id) === String(id));
+    }
+
+    setMenuItems(id, items) {
+      const entry = this._entry(id);
+      if (!entry.menu) throw new Error(`Toolbar item '${id}' has no menu`);
+      entry.spec.items = items || [];
+      entry.menu.setItems(entry.spec.items);
+    }
+
+    // The dropdown that holds a menu item id, or null.
+    _menuFor(id) {
+      const key = String(id);
+      const found = this._menus.find(({ menu }) => menu.hasItem(key));
+      return found ? found.menu : null;
     }
 
     _setBadgeText(badgeEl, badge) {
@@ -189,6 +334,12 @@
       const id = button.dataset.id;
       const entry = this._items.get(id);
       if (!entry) return;
+      if (entry.opener === button) {
+        // A dropdown or split arrow: toggle the menu, no click event.
+        if (this._openMenu === entry) entry.menu.hide(true);
+        else this._openDropdown(entry);
+        return;
+      }
       const { spec } = entry;
       if (spec.group) {
         this.setActive(id, true);
@@ -206,7 +357,7 @@
     // WAI-ARIA toolbar pattern: one tab stop, arrow keys move between buttons.
     _buttons() {
       return Array.from(this._host.querySelectorAll(".wapyt-toolbar-btn")).filter(
-        (b) => !b.hidden && !b.disabled
+        (b) => !b.hidden && !b.disabled && !(b.parentElement && b.parentElement.hidden)
       );
     }
 
@@ -219,6 +370,15 @@
     }
 
     _onKeydown(event) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        const opener = event.target.closest && event.target.closest(".wapyt-toolbar-btn");
+        const entry = opener && this._entryForOpener(opener);
+        if (entry) {
+          event.preventDefault();
+          this._openDropdown(entry, event.key === "ArrowUp");
+        }
+        return;
+      }
       const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
       if (!keys.includes(event.key)) return;
       const buttons = this._buttons();
@@ -267,12 +427,60 @@
     }
 
     setDisabled(id, disabled = true) {
-      this._entry(id).el.disabled = Boolean(disabled);
+      if (!this._items.has(String(id))) {
+        const menu = this._menuFor(id);
+        if (!menu) this._entry(id); // throws: no such item
+        menu.setDisabled(String(id), disabled);
+        return;
+      }
+      const entry = this._entry(id);
+      entry.el.disabled = Boolean(disabled);
+      if (entry.arrow) entry.arrow.disabled = Boolean(disabled);
+      if (disabled && this._openMenu === entry) entry.menu.hide(false);
       this._syncTabStops(document.activeElement);
     }
 
+    isDisabled(id) {
+      if (!this._items.has(String(id))) {
+        const menu = this._menuFor(id);
+        if (!menu) this._entry(id);
+        return menu.isDisabled(String(id));
+      }
+      return Boolean(this._entry(id).el.disabled);
+    }
+
+    isHidden(id) {
+      if (!this._items.has(String(id))) {
+        const menu = this._menuFor(id);
+        if (!menu) this._entry(id);
+        return menu.isHidden(String(id));
+      }
+      const entry = this._entry(id);
+      return Boolean((entry.wrap || entry.el).hidden);
+    }
+
+    setChecked(id, checked = true) {
+      const menu = this._menuFor(id);
+      if (!menu) throw new Error(`Toolbar has no menu item '${id}'`);
+      menu.setChecked(String(id), checked);
+    }
+
+    isChecked(id) {
+      const menu = this._menuFor(id);
+      if (!menu) throw new Error(`Toolbar has no menu item '${id}'`);
+      return menu.isChecked(String(id));
+    }
+
     setHidden(id, hidden = true) {
-      this._entry(id).el.hidden = Boolean(hidden);
+      if (!this._items.has(String(id))) {
+        const menu = this._menuFor(id);
+        if (!menu) this._entry(id);
+        menu.setHidden(String(id), hidden);
+        return;
+      }
+      const entry = this._entry(id);
+      (entry.wrap || entry.el).hidden = Boolean(hidden);
+      if (hidden && this._openMenu === entry) entry.menu.hide(false);
       this._naturalWidth = 0;
       this._syncTabStops(document.activeElement);
       if (this._host.dataset.compact === "true" && this.options.compact === "auto") {
@@ -291,7 +499,7 @@
         entry.labelEl.hidden = !value || entry.spec.showLabel === false;
         if (!entry.spec.tooltip) entry.el.title = value || entry.spec.id;
       }
-      this.setHidden(id, entry.el.hidden);
+      this.setHidden(id, (entry.wrap || entry.el).hidden);
     }
 
     setTooltip(id, tooltip) {
@@ -316,6 +524,7 @@
     }
 
     destroy() {
+      this._destroyMenus();
       if (this._observer) this._observer.disconnect();
       this._host.removeEventListener("click", this._onClick);
       this._host.removeEventListener("keydown", this._onKeydown);
