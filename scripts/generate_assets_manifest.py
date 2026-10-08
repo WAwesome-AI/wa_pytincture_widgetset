@@ -41,6 +41,7 @@ ASSETS: list[tuple[str, str]] = [
     ("assets/window.js", "javascript"),
     ("assets/vendor-chartjs.min.js", "javascript"),
     ("assets/chart.js", "javascript"),
+    ("assets/scheduler.js", "javascript"),
     ("assets/message.js", "javascript"),
     ("assets/toolbar.js", "javascript"),
     ("assets/contextmenu.js", "javascript"),

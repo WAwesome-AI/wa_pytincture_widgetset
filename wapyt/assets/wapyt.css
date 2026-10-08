@@ -3377,3 +3377,761 @@ html[data-wapyt-window-drag="move"] * {
   color: var(--wapyt-text-dark);
   border-color: var(--wapyt-divider-dark);
 }
+
+/* ── Scheduler ─────────────────────────────────────────────────────────────
+   Fills its container (or `height`). Items are tinted blocks with a coloured
+   left edge (--wapyt-sched-color), so their text stays in the text colour
+   on any item colour, light or dark. */
+.wapyt-sched {
+  --wapyt-sched-line: rgba(15, 23, 42, 0.08);
+  --wapyt-sched-line-strong: rgba(15, 23, 42, 0.14);
+  --wapyt-sched-muted: #64748b;
+  --wapyt-sched-today: #2563eb;
+  /* the mini month hides below 640px of scheduler width */
+  container-type: inline-size;
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  color: var(--wapyt-text);
+  background: var(--wapyt-bg);
+  font: 13px/1.35 var(--wapyt-font-family);
+}
+
+.wapyt-sched *,
+.wapyt-sched *::before,
+.wapyt-sched *::after {
+  box-sizing: border-box;
+}
+
+.wapyt-sched-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--wapyt-border);
+}
+
+.wapyt-sched-nav,
+.wapyt-sched-views {
+  display: flex;
+  gap: 4px;
+}
+
+.wapyt-sched-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wapyt-sched-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid var(--wapyt-divider);
+  border-radius: 6px;
+  background: var(--wapyt-bg);
+  color: inherit;
+  font: 500 12.5px/1 var(--wapyt-font-family);
+  cursor: pointer;
+}
+
+.wapyt-sched-btn.wapyt-sched-icon {
+  width: 30px;
+  padding: 0;
+  font-size: 18px;
+}
+
+.wapyt-sched-btn:hover {
+  background: var(--wapyt-surface);
+}
+
+.wapyt-sched-btn[aria-pressed="true"] {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.wapyt-sched-btn:focus-visible,
+.wapyt-sched-mini-day:focus-visible,
+.wapyt-sched-mini-nav:focus-visible,
+.wapyt-sched-daynum:focus-visible,
+.wapyt-sched-month-num:focus-visible,
+.wapyt-sched-more:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 1px;
+}
+
+.wapyt-sched-main {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.wapyt-sched-view-area {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Mini month: hidden when the scheduler is narrow. */
+.wapyt-sched-mini {
+  flex: none;
+  width: 212px;
+  padding: 10px;
+  border-right: 1px solid var(--wapyt-border);
+}
+
+@container (max-width: 640px) {
+  .wapyt-sched-mini { display: none; }
+}
+
+.wapyt-sched-mini-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+.wapyt-sched-mini-nav {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.wapyt-sched-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
+
+.wapyt-sched-mini-dow {
+  font-size: 10.5px;
+  color: var(--wapyt-sched-muted);
+  padding: 2px 0;
+}
+
+.wapyt-sched-mini-day {
+  height: 26px;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
+  color: inherit;
+  font: 12px/1 var(--wapyt-font-family);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.wapyt-sched-mini-day[data-in-range="true"] {
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.wapyt-sched-mini-day[data-outside="true"] {
+  color: var(--wapyt-sched-muted);
+}
+
+.wapyt-sched-mini-day[data-today="true"] {
+  color: var(--wapyt-sched-today);
+  font-weight: 700;
+}
+
+.wapyt-sched-mini-day[aria-current="date"] {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+/* Time grid: a gutter column and one column per day. */
+.wapyt-sched-time {
+  --wapyt-sched-gutter: 56px;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.wapyt-sched-head,
+.wapyt-sched-allday,
+.wapyt-sched-body {
+  display: grid;
+  grid-template-columns: var(--wapyt-sched-gutter) repeat(var(--wapyt-sched-days), minmax(0, 1fr));
+}
+
+.wapyt-sched-head {
+  border-bottom: 1px solid var(--wapyt-border);
+  /* line up with the scroll area below, which carries a scrollbar */
+  padding-right: var(--wapyt-sched-scrollbar, 0px);
+}
+
+.wapyt-sched-dayhead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 0 4px;
+  border-left: 1px solid var(--wapyt-sched-line);
+}
+
+.wapyt-sched-dayname {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--wapyt-sched-muted);
+}
+
+.wapyt-sched-daynum {
+  min-width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  font: 600 16px/1 var(--wapyt-font-family);
+  cursor: pointer;
+}
+
+.wapyt-sched-dayhead[data-today="true"] .wapyt-sched-daynum {
+  background: var(--wapyt-sched-today);
+  color: #ffffff;
+}
+
+.wapyt-sched-allday {
+  border-bottom: 1px solid var(--wapyt-sched-line-strong);
+  min-height: 28px;
+  padding-right: var(--wapyt-sched-scrollbar, 0px);
+}
+
+.wapyt-sched-allday-label {
+  font-size: 10.5px;
+  color: var(--wapyt-sched-muted);
+  padding: 6px 6px 0 0;
+  text-align: right;
+}
+
+.wapyt-sched-allday-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  min-width: 0;
+  border-left: 1px solid var(--wapyt-sched-line);
+}
+
+.wapyt-sched-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+.wapyt-sched-body {
+  position: relative;
+}
+
+.wapyt-sched-hours {
+  position: relative;
+}
+
+.wapyt-sched-hour {
+  position: absolute;
+  right: 6px;
+  transform: translateY(-50%);
+  font-size: 10.5px;
+  color: var(--wapyt-sched-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wapyt-sched-col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-left: 1px solid var(--wapyt-sched-line);
+}
+
+.wapyt-sched-col[data-today="true"] {
+  background: rgba(37, 99, 235, 0.03);
+}
+
+.wapyt-sched-slot {
+  flex: 1 1 0;
+  min-height: 0;
+  border-top: 1px dashed var(--wapyt-sched-line);
+  outline: none;
+}
+
+.wapyt-sched-slot[data-hour="true"] {
+  border-top-style: solid;
+}
+
+.wapyt-sched-slot:focus-visible {
+  box-shadow: inset 0 0 0 2px #3b82f6;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.wapyt-sched-now {
+  position: absolute;
+  left: -1px;
+  right: 0;
+  height: 2px;
+  background: #e34948;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.wapyt-sched-now::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e34948;
+}
+
+/* Items */
+.wapyt-sched-item {
+  --wapyt-sched-tint: color-mix(in srgb, var(--wapyt-sched-color) 16%, var(--wapyt-bg));
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 3px solid var(--wapyt-sched-color);
+  border-radius: 5px;
+  background: var(--wapyt-sched-tint);
+  color: var(--wapyt-text);
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.wapyt-sched-item:focus-visible {
+  box-shadow: 0 0 0 2px #3b82f6;
+  z-index: 4;
+}
+
+.wapyt-sched-item:hover {
+  --wapyt-sched-tint: color-mix(in srgb, var(--wapyt-sched-color) 24%, var(--wapyt-bg));
+}
+
+.wapyt-sched-item[data-locked="true"] {
+  cursor: default;
+}
+
+.wapyt-sched-item[data-error="true"] {
+  box-shadow: inset 0 0 0 1.5px #dc2626;
+}
+
+.wapyt-sched-item[data-pending="true"] {
+  outline: 2px dashed var(--wapyt-sched-color);
+  outline-offset: 1px;
+}
+
+.wapyt-sched-item[data-dragging="true"] {
+  opacity: 0.35;
+}
+
+.wapyt-sched-block {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  padding: 3px 6px;
+  touch-action: none;
+}
+
+.wapyt-sched-block[data-short="true"] {
+  flex-direction: row;
+  gap: 6px;
+  align-items: baseline;
+  padding-top: 1px;
+}
+
+.wapyt-sched-block[data-continues-before="true"] {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.wapyt-sched-block[data-continues-after="true"] {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.wapyt-sched-item-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wapyt-sched-item-time {
+  color: var(--wapyt-sched-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wapyt-sched-grip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 7px;
+  cursor: ns-resize;
+}
+
+.wapyt-sched-chip {
+  display: flex;
+  gap: 5px;
+  align-items: baseline;
+  flex: none;
+  padding: 2px 6px;
+  touch-action: none;
+}
+
+.wapyt-sched-ghost {
+  position: absolute;
+  left: 2px;
+  right: 4px;
+  z-index: 5;
+  border: 2px dashed var(--wapyt-sched-color, #2563eb);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--wapyt-sched-color, #2563eb) 18%, transparent);
+  pointer-events: none;
+}
+
+.wapyt-sched-ghost[data-floating="true"] {
+  position: fixed;
+  left: auto;
+  right: auto;
+  z-index: 10060;
+  padding: 3px 8px;
+  background: var(--wapyt-bg);
+}
+
+.wapyt-sched-ghost-label {
+  display: block;
+  padding: 2px 6px;
+  font: 600 11px/1.3 var(--wapyt-font-family);
+  color: var(--wapyt-text);
+  white-space: nowrap;
+}
+
+.wapyt-sched[data-dragging] {
+  cursor: grabbing;
+}
+
+.wapyt-sched[data-dragging="resize"] {
+  cursor: ns-resize;
+}
+
+/* Month */
+.wapyt-sched-month {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.wapyt-sched-month-dow {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-bottom: 1px solid var(--wapyt-border);
+}
+
+.wapyt-sched-month-dow > div {
+  padding: 6px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--wapyt-sched-muted);
+}
+
+.wapyt-sched-month-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: repeat(6, minmax(64px, 1fr));
+}
+
+.wapyt-sched-month-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 3px;
+  border-left: 1px solid var(--wapyt-sched-line);
+  border-top: 1px solid var(--wapyt-sched-line);
+  outline: none;
+}
+
+.wapyt-sched-month-cell:focus-visible {
+  box-shadow: inset 0 0 0 2px #3b82f6;
+}
+
+.wapyt-sched-month-cell[data-outside="true"] {
+  background: var(--wapyt-surface);
+}
+
+.wapyt-sched-month-cell[data-outside="true"] .wapyt-sched-month-num {
+  color: var(--wapyt-sched-muted);
+}
+
+.wapyt-sched-month-cell[data-drop="true"],
+.wapyt-sched-allday-cell[data-drop="true"] {
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.wapyt-sched-month-num {
+  align-self: flex-start;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: inherit;
+  font: 600 12px/1 var(--wapyt-font-family);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.wapyt-sched-month-cell[data-today="true"] .wapyt-sched-month-num {
+  background: var(--wapyt-sched-today);
+  color: #ffffff;
+}
+
+.wapyt-sched-month-items {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.wapyt-sched-month-items .wapyt-sched-chip[hidden] {
+  display: none;
+}
+
+.wapyt-sched-more {
+  align-self: flex-start;
+  padding: 1px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--wapyt-sched-muted);
+  font: 600 11px/1.4 var(--wapyt-font-family);
+  cursor: pointer;
+}
+
+.wapyt-sched-more:hover {
+  background: var(--wapyt-surface);
+}
+
+.wapyt-sched-popup .wapyt-popup-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wapyt-sched-popup-head {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+/* Agenda */
+.wapyt-sched-agenda {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 12px 12px;
+}
+
+.wapyt-sched-agenda-day {
+  margin-bottom: 10px;
+}
+
+.wapyt-sched-agenda-head {
+  margin: 8px 0 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--wapyt-sched-muted);
+}
+
+.wapyt-sched-agenda-head[data-today="true"] {
+  color: var(--wapyt-sched-today);
+}
+
+.wapyt-sched-agenda-item {
+  display: grid;
+  grid-template-columns: 9.5em minmax(0, 1fr);
+  column-gap: 12px;
+  padding: 6px 10px;
+  margin-bottom: 3px;
+}
+
+.wapyt-sched-item-desc {
+  grid-column: 2;
+  color: var(--wapyt-sched-muted);
+  font-size: 11.5px;
+}
+
+.wapyt-sched-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--wapyt-sched-muted);
+}
+
+.wapyt-sched-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Dark */
+[data-wapyt-theme="dark"] .wapyt-sched {
+  --wapyt-sched-line: rgba(148, 163, 184, 0.12);
+  --wapyt-sched-line-strong: rgba(148, 163, 184, 0.22);
+  --wapyt-sched-muted: #94a3b8;
+  --wapyt-sched-today: #3b82f6;
+  color: var(--wapyt-text-dark);
+  background: var(--wapyt-bg-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-sched-bar,
+[data-wapyt-theme="dark"] .wapyt-sched-head,
+[data-wapyt-theme="dark"] .wapyt-sched-month-dow,
+[data-wapyt-theme="dark"] .wapyt-sched-mini {
+  border-color: var(--wapyt-divider-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-sched-btn {
+  background: var(--wapyt-bg-dark);
+  border-color: var(--wapyt-divider-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-sched-btn:hover,
+[data-wapyt-theme="dark"] .wapyt-sched-more:hover {
+  background: var(--wapyt-surface-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-sched-btn[aria-pressed="true"] {
+  background: #2563eb;
+  border-color: #3b82f6;
+}
+
+[data-wapyt-theme="dark"] .wapyt-sched-item {
+  --wapyt-sched-tint: color-mix(in srgb, var(--wapyt-sched-color) 26%, var(--wapyt-bg-dark));
+  color: var(--wapyt-text-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-sched-item:hover {
+  --wapyt-sched-tint: color-mix(in srgb, var(--wapyt-sched-color) 36%, var(--wapyt-bg-dark));
+}
+
+[data-wapyt-theme="dark"] .wapyt-sched-month-cell[data-outside="true"] {
+  background: var(--wapyt-surface-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-sched-ghost[data-floating="true"] {
+  background: var(--wapyt-bg-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-sched-ghost-label {
+  color: var(--wapyt-text-dark);
+}
+
+/* Print: Scheduler.print() marks <html> and the scheduler; only it prints,
+   expanded (no scroll box), without its buttons, black on white. */
+@media print {
+  html[data-wapyt-print] body * {
+    visibility: hidden;
+  }
+
+  html[data-wapyt-print] .wapyt-sched[data-printing],
+  html[data-wapyt-print] .wapyt-sched[data-printing] * {
+    visibility: visible;
+  }
+
+  html[data-wapyt-print] .wapyt-sched[data-printing] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: auto;
+    color: #000000;
+    background: #ffffff;
+  }
+
+  .wapyt-sched[data-printing] .wapyt-sched-nav,
+  .wapyt-sched[data-printing] .wapyt-sched-views,
+  .wapyt-sched[data-printing] .wapyt-sched-mini,
+  .wapyt-sched[data-printing] .wapyt-sched-now,
+  .wapyt-sched[data-printing] .wapyt-sched-more {
+    display: none !important;
+  }
+
+  .wapyt-sched[data-printing] .wapyt-sched-scroll,
+  .wapyt-sched[data-printing] .wapyt-sched-agenda,
+  .wapyt-sched[data-printing] .wapyt-sched-month-items {
+    overflow: visible;
+    height: auto;
+    max-height: none;
+  }
+
+  .wapyt-sched[data-printing] .wapyt-sched-month-items .wapyt-sched-chip[hidden] {
+    display: flex;
+  }
+
+  .wapyt-sched[data-printing] .wapyt-sched-item {
+    background: #ffffff;
+    color: #000000;
+    border: 1px solid #000000;
+    border-left-width: 3px;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .wapyt-sched[data-printing] .wapyt-sched-item-time,
+  .wapyt-sched[data-printing] .wapyt-sched-dayname,
+  .wapyt-sched[data-printing] .wapyt-sched-hour {
+    color: #333333;
+  }
+
+  .wapyt-sched[data-printing] .wapyt-sched-daynum,
+  .wapyt-sched[data-printing] .wapyt-sched-month-num {
+    background: transparent !important;
+    color: #000000 !important;
+  }
+}

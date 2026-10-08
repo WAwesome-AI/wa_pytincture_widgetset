@@ -142,6 +142,11 @@ class Layout(object, metaclass=LoadUICaller):
 
         return ProgressBar(config=progressbar_config or ProgressBarConfig(), container=self.layout.getCell(id))
 
+    def add_scheduler(self, id: str = "mainwindow", scheduler_config: Optional["SchedulerConfig"] = None) -> "Scheduler":
+        from ..scheduler import Scheduler, SchedulerConfig
+
+        return Scheduler(config=scheduler_config or SchedulerConfig(), container=self.layout.getCell(id))
+
     def add_chart(self, id: str = "mainwindow", chart_config: Optional["ChartConfig"] = None) -> "Chart":
         from ..chart import Chart, ChartConfig
 
