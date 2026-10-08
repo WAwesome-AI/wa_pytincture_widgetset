@@ -142,6 +142,11 @@ class Layout(object, metaclass=LoadUICaller):
 
         return ProgressBar(config=progressbar_config or ProgressBarConfig(), container=self.layout.getCell(id))
 
+    def add_chart(self, id: str = "mainwindow", chart_config: Optional["ChartConfig"] = None) -> "Chart":
+        from ..chart import Chart, ChartConfig
+
+        return Chart(config=chart_config or ChartConfig(), container=self.layout.getCell(id))
+
     def add_pagination(self, id: str = "mainwindow", pagination_config: Optional["PaginationConfig"] = None) -> "Pagination":
         from ..pagination import Pagination, PaginationConfig
 
