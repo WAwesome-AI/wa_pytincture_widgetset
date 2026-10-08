@@ -8,8 +8,9 @@ FIELD_TYPES = frozenset({
     "text", "password", "email", "number", "url", "search", "tel", "textarea",
     "select", "checkbox", "hidden",
     "date", "time", "datetime-local", "color", "range",
-    "radio", "toggle", "checkbox_group", "combo", "static",
+    "radio", "toggle", "checkbox_group", "combo", "static", "file", "avatar",
 })
+FILE_TYPES = frozenset({"file", "avatar"})
 
 
 LABEL_POSITIONS = ("top", "left")
@@ -94,7 +95,12 @@ class FieldConfig:
             ``toggle`` (a switch) · ``checkbox_group``; and ``combo``, a
             searchable select; and ``static``, a read-only value shown as
             text (``get_values`` returns it as given, ``set_values`` changes
-            it; ``placeholder`` shows while it is empty).
+            it; ``placeholder`` shows while it is empty); ``file``, a drop
+            zone and Choose button (value: a list of ``{"name", "size",
+            "type"}``; the files themselves via ``Form.get_files`` /
+            ``Form.adopt_files``); and ``avatar``, a round picture picker
+            (value: the picture's URL as set, ``{"name", "size", "type"}``
+            once a new one is chosen, ``None`` when removed).
         value: Initial value. ``checkbox`` and ``toggle`` coerce it to a
             bool; ``checkbox_group`` takes a list of option values; ``date``,
             ``time`` and ``datetime-local`` take an ISO string or a
@@ -117,7 +123,13 @@ class FieldConfig:
             "confirm password" pairs.
         options: Choices for ``select``, ``combo``, ``radio`` and
             ``checkbox_group``; strings or :class:`SelectOption`.
-        multiple: Let a ``combo`` pick several values, shown as chips.
+        multiple: Let a ``combo`` pick several values, shown as chips, or a
+            ``file`` field hold several files.
+        accept: ``file`` / ``avatar``: accepted types, as for the native
+            attribute (``".csv,.tsv"``, ``"image/*"``); avatar defaults to
+            images.
+        max_size: ``file`` / ``avatar``: largest file in bytes.
+        max_files: ``file`` with ``multiple``: most files it holds.
         allow_custom: Let a ``combo`` keep typed text that is not an option.
         inline: Lay ``radio`` / ``checkbox_group`` options out in a row.
         show_value: Show a ``range`` field's current value beside it.
@@ -183,6 +195,9 @@ class FieldConfig:
     tick_labels: bool = True
     multiple: bool = False
     allow_custom: bool = False
+    accept: Optional[str] = None
+    max_size: Optional[int] = None
+    max_files: Optional[int] = None
     rows: Optional[int] = None
     min: Optional[Union[int, float, str, _dt.date, _dt.time]] = None
     max: Optional[Union[int, float, str, _dt.date, _dt.time]] = None
@@ -214,6 +229,17 @@ class FieldConfig:
             raise ValueError(f"FieldConfig {self.id!r}: a {self.type} field cannot show an icon")
         if self.max_length is not None and self.type not in LENGTH_TYPES:
             raise ValueError(f"FieldConfig {self.id!r}: max_length applies to text fields, not {self.type}")
+        if self.type not in FILE_TYPES and (self.accept or self.max_size or self.max_files):
+            raise ValueError(f"FieldConfig {self.id!r}: accept, max_size and max_files need type 'file' or 'avatar'")
+        if self.max_files is not None and not (self.type == "file" and self.multiple):
+            raise ValueError(f"FieldConfig {self.id!r}: max_files needs type='file' with multiple=True")
+        if self.type in FILE_TYPES and self.value not in (None, [], ()) and not (
+            self.type == "avatar" and isinstance(self.value, str)
+        ):
+            raise ValueError(
+                f"FieldConfig {self.id!r}: a {self.type} field cannot start with files "
+                "(an avatar may start with the URL of an existing picture)"
+            )
         if self.type == "static" and self.required:
             raise ValueError(f"FieldConfig {self.id!r}: a static field cannot be required")
         if self.type not in FIELD_TYPES:
@@ -264,6 +290,9 @@ class FieldConfig:
             "tickLabels": None if self.tick_labels else False,
             "multiple": self.multiple or None,
             "allowCustom": self.allow_custom or None,
+            "accept": self.accept,
+            "maxSize": self.max_size,
+            "maxFiles": self.max_files,
             "rows": self.rows,
             "min": iso_value(self.min),
             "max": iso_value(self.max),

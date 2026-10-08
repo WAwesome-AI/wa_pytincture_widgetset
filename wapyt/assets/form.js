@@ -416,6 +416,252 @@
   // WAI-ARIA multi-thumb slider pattern: each thumb is a focusable
   // role="slider" whose aria-valuemin / max are the limits the other thumb
   // sets, and the thumbs never cross.
+  function humanSize(bytes) {
+    const n = Number(bytes) || 0;
+    if (n < 1024) return `${n} B`;
+    const units = ["KB", "MB", "GB", "TB"];
+    let value = n / 1024;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit += 1;
+    }
+    return `${value >= 10 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+  }
+
+  // `accept` like the native attribute: ".csv", "text/plain", "image/*".
+  function acceptsFile(accept, file) {
+    if (!accept) return true;
+    const name = String(file.name || "").toLowerCase();
+    const mime = String(file.type || "").toLowerCase();
+    return accept.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean).some((token) => {
+      if (token.startsWith(".")) return name.endsWith(token);
+      if (token.endsWith("/*")) return mime.startsWith(token.slice(0, -1));
+      return mime === token;
+    });
+  }
+
+  // type="file" (a drop zone, a Choose button and a list of picked files)
+  // and type="avatar" (a round picture button). Files stay in the browser:
+  // get_values reports {name, size, type}, getFiles() hands over the File
+  // objects (for filetransfer.adopt / upload). Rules (accept, max_size,
+  // max_files) are applied as files arrive; rejected ones are reported, not
+  // added. Names reach the DOM as text.
+  class FilePicker {
+    constructor(field, controlId, onChange, report) {
+      this.avatar = field.type === "avatar";
+      this.multiple = !this.avatar && Boolean(field.multiple);
+      this.accept = field.accept || (this.avatar ? "image/*" : "");
+      this.maxSize = Number(field.maxSize) || 0;
+      this.maxFiles = this.multiple ? Number(field.maxFiles) || 0 : 1;
+      this.files = []; // {file, meta}
+      this.url = null; // avatar: the current picture's URL, set by the app
+      this.onChange = onChange;
+      this.report = report;
+
+      this.input = document.createElement("input");
+      this.input.type = "file";
+      this.input.hidden = true;
+      this.input.tabIndex = -1;
+      if (this.accept) this.input.accept = this.accept;
+      this.input.multiple = this.multiple;
+      this.input.addEventListener("change", () => {
+        this._add(this.input.files);
+        this.input.value = "";
+      });
+
+      this.root = document.createElement("div");
+      this.root.className = this.avatar ? "wapyt-form-avatar" : "wapyt-form-file";
+      this.root.appendChild(this.input);
+
+      this.button = document.createElement("button");
+      this.button.type = "button";
+      this.button.id = controlId;
+      this.button.addEventListener("click", () => {
+        if (!this.isDisabled()) this.input.click();
+      });
+
+      if (this.avatar) {
+        this.button.className = "wapyt-form-avatar-button";
+        this.img = document.createElement("img");
+        this.img.alt = "";
+        this.img.hidden = true;
+        this.placeholder = document.createElement("i");
+        this.placeholder.className = `wapyt-form-avatar-placeholder ${iconClass("mdi-account")}`;
+        this.placeholder.setAttribute("aria-hidden", "true");
+        this.button.appendChild(this.img);
+        this.button.appendChild(this.placeholder);
+        this.root.appendChild(this.button);
+        this.removeBtn = document.createElement("button");
+        this.removeBtn.type = "button";
+        this.removeBtn.className = "wapyt-form-button wapyt-form-button-link wapyt-form-avatar-remove";
+        this.removeBtn.textContent = "Remove";
+        this.removeBtn.addEventListener("click", () => {
+          if (this.isDisabled()) return;
+          this.files = [];
+          this.url = null;
+          this._render();
+          this.onChange();
+          this.button.focus();
+        });
+        this.root.appendChild(this.removeBtn);
+        this.dropTarget = this.button;
+      } else {
+        this.zone = document.createElement("div");
+        this.zone.className = "wapyt-form-file-zone";
+        const icon = document.createElement("i");
+        icon.className = `wapyt-form-file-icon ${iconClass("mdi-tray-arrow-up")}`;
+        icon.setAttribute("aria-hidden", "true");
+        const text = document.createElement("span");
+        text.className = "wapyt-form-file-text";
+        text.textContent = field.placeholder || (this.multiple ? "Drop files here or" : "Drop a file here or");
+        this.button.className = "wapyt-form-button wapyt-form-button-ghost wapyt-form-file-choose";
+        this.button.textContent = this.multiple ? "Choose files" : "Choose a file";
+        this.zone.appendChild(icon);
+        this.zone.appendChild(text);
+        this.zone.appendChild(this.button);
+        this.root.appendChild(this.zone);
+        this.list = document.createElement("ul");
+        this.list.className = "wapyt-form-file-list";
+        this.root.appendChild(this.list);
+        this.dropTarget = this.zone;
+      }
+
+      this.dropTarget.addEventListener("dragover", (event) => {
+        if (this.isDisabled()) return;
+        event.preventDefault();
+        this.dropTarget.dataset.drag = "true";
+      });
+      this.dropTarget.addEventListener("dragleave", () => delete this.dropTarget.dataset.drag);
+      this.dropTarget.addEventListener("drop", (event) => {
+        delete this.dropTarget.dataset.drag;
+        if (this.isDisabled()) return;
+        event.preventDefault();
+        this._add(event.dataTransfer && event.dataTransfer.files);
+      });
+      this._render();
+    }
+
+    isDisabled() {
+      return this.button.matches(":disabled");
+    }
+
+    _add(fileList) {
+      if (this.isDisabled()) return;
+      const problems = [];
+      let ok = [];
+      Array.from(fileList || []).forEach((file) => {
+        if (!acceptsFile(this.accept, file)) problems.push(`${file.name}: not an accepted file type`);
+        else if (this.maxSize && file.size > this.maxSize) problems.push(`${file.name}: larger than ${humanSize(this.maxSize)}`);
+        else ok.push(file);
+      });
+      if (this.multiple) {
+        const known = new Set(this.files.map(({ file }) => `${file.name}\u0000${file.size}\u0000${file.lastModified}`));
+        ok = ok.filter((file) => !known.has(`${file.name}\u0000${file.size}\u0000${file.lastModified}`));
+        const room = this.maxFiles ? Math.max(0, this.maxFiles - this.files.length) : Infinity;
+        if (ok.length > room) {
+          problems.push(`At most ${this.maxFiles} files`);
+          ok = ok.slice(0, room);
+        }
+      } else {
+        ok = ok.slice(0, 1);
+      }
+      const entries = ok.map((file) => ({ file, meta: { name: file.name, size: file.size, type: file.type || "" } }));
+      if (entries.length) {
+        this.files = this.multiple ? this.files.concat(entries) : entries;
+        if (this.avatar) {
+          this.url = null;
+          this._preview(entries[0].file);
+        }
+        this._render();
+        this.onChange();
+      }
+      if (problems.length) this.report(problems.join("\n"));
+    }
+
+    // The CSP allows data: images but not blob:, so the preview is read as
+    // a data URL rather than URL.createObjectURL.
+    _preview(file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (this.files.length && this.files[0].file === file) {
+          this.img.src = String(reader.result || "");
+          this.img.hidden = false;
+          this.placeholder.hidden = true;
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    _render() {
+      if (this.avatar) {
+        const has = Boolean(this.url) || this.files.length > 0;
+        if (this.url) {
+          this.img.src = this.url;
+          this.img.hidden = false;
+        } else if (!this.files.length) {
+          this.img.removeAttribute("src");
+          this.img.hidden = true;
+        }
+        this.placeholder.hidden = !this.img.hidden;
+        this.removeBtn.hidden = !has;
+        this.root.dataset.empty = has ? "false" : "true";
+        return;
+      }
+      this.list.textContent = "";
+      this.files.forEach(({ file, meta }, index) => {
+        const item = document.createElement("li");
+        item.className = "wapyt-form-file-item";
+        const name = document.createElement("span");
+        name.className = "wapyt-form-file-name";
+        name.textContent = meta.name;
+        const size = document.createElement("span");
+        size.className = "wapyt-form-file-size";
+        size.textContent = humanSize(meta.size);
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "wapyt-form-file-remove";
+        remove.setAttribute("aria-label", `Remove ${meta.name}`);
+        remove.textContent = "×";
+        remove.addEventListener("click", () => {
+          if (this.isDisabled()) return;
+          this.files = this.files.filter((entry) => entry.file !== file);
+          this._render();
+          this.onChange();
+          const next = this.list.querySelectorAll(".wapyt-form-file-remove")[Math.min(index, this.files.length - 1)];
+          (next || this.button).focus();
+        });
+        item.appendChild(name);
+        item.appendChild(size);
+        item.appendChild(remove);
+        this.list.appendChild(item);
+      });
+      this.list.hidden = !this.files.length;
+    }
+
+    getValue() {
+      if (this.avatar) return this.files.length ? Object.assign({}, this.files[0].meta) : this.url;
+      return this.files.map(({ meta }) => Object.assign({}, meta));
+    }
+
+    // Files cannot be put into a picker from code: an empty value clears it,
+    // and an avatar also takes the URL of an existing picture.
+    setValue(value) {
+      if (this.avatar && typeof value === "string" && value) {
+        this.files = [];
+        this.url = value;
+      } else if (value == null || value === "" || (Array.isArray(value) && !value.length)) {
+        this.files = [];
+        this.url = null;
+      }
+      this._render();
+    }
+
+    getFiles() {
+      return this.files.map(({ file }) => file);
+    }
+  }
+
   class RangeSlider {
     constructor(field, controlId, onChange) {
       this.field = field;
@@ -1010,6 +1256,7 @@
       if (fieldLabelWidth) row.style.setProperty("--wapyt-form-label-width", fieldLabelWidth);
       row.dataset.kind =
         BOOLEAN.has(type) ? "boolean"
+        : type === "avatar" ? "avatar"
         : GROUPS.has(type) ? "group"
         : type === "range" ? "range"
         : "control";
@@ -1018,8 +1265,12 @@
       let control;
       let combo = null;
       let slider = null;
+      let picker = null;
 
-      if (type === "range" && field.range) {
+      if (type === "file" || type === "avatar") {
+        picker = new FilePicker(field, controlId, () => emitChange(), (message) => this.setError(field.id, message));
+        control = picker.button;
+      } else if (type === "range" && field.range) {
         slider = new RangeSlider(field, controlId, () => emitChange());
         control = slider.root;
       } else if (type === "textarea") {
@@ -1058,14 +1309,17 @@
 
       control.id = controlId;
       control.className =
-        slider ? "wapyt-form-slider"
+        picker ? control.className
+        : slider ? "wapyt-form-slider"
         : type === "range" ? "wapyt-form-range-input"
         : GROUPS.has(type) ? "wapyt-form-group"
         : type === "toggle" ? "wapyt-form-control wapyt-form-toggle"
         : type === "combo" ? "wapyt-form-combo-input"
         : type === "static" ? "wapyt-form-static"
         : "wapyt-form-control";
-      if (!slider && type !== "static") {
+      if (picker) {
+        if (field.disabled) control.disabled = true;
+      } else if (!slider && type !== "static") {
         if (!GROUPS.has(type)) control.name = field.id;
         if (field.placeholder) control.placeholder = field.placeholder;
         if (field.autocomplete) control.autocomplete = field.autocomplete;
@@ -1074,7 +1328,7 @@
         if (field.readonly && "readOnly" in control) control.readOnly = true;
       }
 
-      const entry = { field, el: control, type, name: controlId, combo, slider, selfDisabled: Boolean(field.disabled) };
+      const entry = { field, el: control, type, name: controlId, combo, slider, picker, selfDisabled: Boolean(field.disabled) };
       if (GROUPS.has(type)) {
         this._fillGroup(entry, field.options);
       } else if (type === "range") {
@@ -1115,6 +1369,9 @@
         // other controls.
         row.appendChild(label);
         row.appendChild(control);
+      } else if (picker) {
+        row.appendChild(label);
+        row.appendChild(picker.root);
       } else if (combo) {
         row.appendChild(label);
         row.appendChild(combo.root);
@@ -1160,7 +1417,7 @@
       // Group inputs bubble their change events up to the fieldset.
       // A combo reports its own picks; its typing is only a filter.
       const discrete = type === "select" || BOOLEAN.has(type) || GROUPS.has(type);
-      if (!combo && !slider) control.addEventListener(discrete ? "change" : "input", emitChange);
+      if (!combo && !slider && !picker) control.addEventListener(discrete ? "change" : "input", emitChange);
 
       this._controls.set(field.id, entry);
       this._errorEls.set(field.id, error);
@@ -1455,6 +1712,9 @@
       if (type === "static") {
         return entry.value === undefined ? null : entry.value;
       }
+      if (entry.picker) {
+        return entry.picker.getValue();
+      }
       if (type === "radio") {
         const picked = this._groupInputs(entry).find((input) => input.checked);
         return picked ? picked.value : null;
@@ -1482,6 +1742,8 @@
         entry.combo.setValue(value);
       } else if (entry.slider) {
         entry.slider.setValue(value);
+      } else if (entry.picker) {
+        entry.picker.setValue(value);
       } else if (type === "static") {
         // Kept as given (string, number...) for get_values; shown as text.
         entry.value = value === undefined ? null : value;
@@ -1561,6 +1823,7 @@
       if (BOOLEAN.has(type)) return false;
       if (type === "checkbox_group") return [];
       if (entry.slider) return [null, null];
+      if (entry.picker) return null;
       if (type === "range") return field.min != null ? field.min : 0;
       if (type === "color") return "#000000";
       return null;
@@ -1989,6 +2252,13 @@
       el.textContent = String(message);
       el.hidden = false;
       el.dataset.state = "success";
+    }
+
+    // The File objects a file or avatar field holds (for filetransfer).
+    getFiles(id) {
+      const entry = this._controls.get(String(id));
+      if (!entry || !entry.picker) throw new Error(`Form field '${id}' is not a file or avatar field`);
+      return entry.picker.getFiles();
     }
 
     // ── Whole form ───────────────────────────────────────────────────────────

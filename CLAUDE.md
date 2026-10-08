@@ -1403,6 +1403,40 @@ afterwards.
 `tests/form_async_validators_demo.py` (an `asyncio.sleep` validator with a
 settable delay); a 19-check Playwright run passed.
 
+### File and avatar fields (added 2026-10-08)
+
+`type="file"` and `type="avatar"` are one class, `FilePicker` in `form.js`.
+The field's control (`entry.el`, what labels, focus and `:disabled` use) is
+a real `<button>` that clicks a hidden `<input type=file>`; drops land on the
+zone (file) or the picture button (avatar).
+
+- **Files never leave the browser on their own.** `get_values` reports
+  `{name, size, type}` (a list for `file`; for `avatar` the URL the app set,
+  the metadata once a new picture is chosen, or None). `Form.get_files(id)`
+  returns the `File` objects and `Form.adopt_files(id)` registers them with
+  `filetransfer` (`registerExternal`) and returns handle ids for
+  `filetransfer.upload(url, file_id)`, so uploads keep progress and the CSRF
+  token. The form does no uploading itself (dhxpyt's `target` / `autosend`
+  are deliberately not copied).
+- Rules are applied as files arrive (`_add`): `accept` (native syntax:
+  `.ext`, `type/sub`, `type/*`; avatar defaults to `image/*`), `max_size`
+  (bytes), `max_files` (file + multiple); duplicates (name + size +
+  lastModified) are skipped. Rejected files are not added; the reasons go to
+  the error slot, one per line (`.wapyt-form-error` is `white-space:
+  pre-line` now). A single file field replaces its file.
+- **The avatar preview is a `data:` URL** from FileReader: pyTincture's CSP
+  is `img-src 'self' data: https:`, so `URL.createObjectURL`'s `blob:` URLs
+  would be blocked. An app-set URL must be same-origin, https or data.
+- `set_values` can only clear a picker (None / [] ) or give an avatar a URL;
+  `FieldConfig` refuses preset files. `clear()` empties; `reset()` restores
+  an avatar's configured URL.
+- Avatar rows are `data-kind="avatar"` so left labels centre on the picture
+  (the button has no text baseline).
+
+`tests/form_files_demo.py` (fixtures written to the scratchpad; files fed
+through the hidden input and a synthetic `DataTransfer` drop); a 29-check
+Playwright run passed.
+
 ## Pagination (added 2026-10-06)
 
 `Pagination` (`assets/pagination.js`, `Layout.add_pagination`) replaces

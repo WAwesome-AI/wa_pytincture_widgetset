@@ -379,6 +379,28 @@ class Form:
         value = to_plain(self.form.validateField(field_id))
         return str(value) if value else None
 
+    def get_files(self, field_id: str) -> List[Any]:
+        """
+        The browser ``File`` objects a ``file`` or ``avatar`` field holds, in
+        order (an avatar: zero or one). To upload them, prefer
+        :meth:`adopt_files`.
+        """
+        return list(self.form.getFiles(field_id))
+
+    def adopt_files(self, field_id: str) -> List[str]:
+        """
+        Register a ``file`` or ``avatar`` field's files with
+        :mod:`wapyt.filetransfer` and return their handle ids, ready for
+        ``filetransfer.upload(url, file_id, ...)`` (progress and the CSRF
+        token included)::
+
+            for file_id in form.adopt_files("attachments"):
+                await filetransfer.upload("/api/upload", file_id)
+        """
+        from ..filetransfer.filetransfer import adopt
+
+        return [adopt(file) for file in self.get_files(field_id)]
+
     async def validate_async(self) -> Dict[str, str]:
         """Like :meth:`validate`, but also waits for async validators and
         includes their errors."""
