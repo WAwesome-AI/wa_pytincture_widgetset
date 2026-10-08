@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wapyt"
-version = "0.2.0.dev0"
+version = "0.2.0.dev1"
 description = "DHTMLX-free pyTincture widgetset: layouts, forms, tables, trees, chat, terminal, menus, Kanban and more, declared in Python and rendered in the browser."
 readme = "README.md"
 license = { text = "MIT" }
