@@ -456,6 +456,58 @@ so one Escape closed a whole stack. The × button also gained
 `tests/modal_events_demo.py` (a reused modal and a disposable one stacked on
 it); a 12-check Playwright run passed.
 
+## Chart (added 2026-10-08)
+
+`Chart` (`assets/chart.js`, `wapyt/chart/`, `Layout.add_chart`) wraps
+**Chart.js 4.5.1, vendored** as `assets/vendor-chartjs.min.js` (MIT; its
+licence is `assets/vendor-chartjs.LICENSE.md`). pyTincture's CSP is
+`script-src 'self'`, so it cannot come from a CDN; as a manifest asset it is
+hash-verified like the rest. It is the npm `dist/chart.umd.min.js` with only
+the trailing `sourceMappingURL` comment removed (the map is not shipped).
+Fetched from the npm registry with its sha512 checked against
+`npm view chart.js@4.5.1 dist.integrity`. To upgrade: same steps, keep the
+manifest order (vendor before `chart.js`, which only needs `globalThis.Chart`
+at construction). It adds about 208 KB (70 KB gzipped) to every app's
+assets; Chart.js runs under the CSP with no violations (checked).
+
+**Sizing is the point.** The chart always fills its container
+(`maintainAspectRatio: false`) and Chart.js's own ResizeObserver redraws it:
+layout splitters, tabs becoming visible, containers that start at 0x0, and
+gridstack tiles (resize, drag-resize, move, viewport reflow), all tested
+with real gridstack 14. The canvas sits in `.wapyt-chart-canvas`
+(`position: relative; min-width: 0; min-height: 0; overflow: hidden`), which
+is what lets it shrink, not just grow, in flex and grid parents. gridstack
+animates tile size over ~300ms and the chart follows a frame behind, so a
+test must wait for the animation before measuring. `resize_delay` debounces
+for heavy dashboards; `chart.resize()` exists for a resize-stop hook.
+
+- **Compact mode:** under 280 x 180 px (a small tile) an automatic legend
+  and the axis titles are dropped, decided at creation and in `onResize`
+  (switched a frame later, since Chart.js is mid-resize there).
+- **Palette and marks** follow the dataviz skill: its validated 8-hue
+  categorical palette, light and dark steps, re-validated against wapyt's
+  surfaces (`#ffffff` / `#0f172a`; all checks pass, three light slots under
+  3:1 contrast, hence the always-present data table). Colours are keyed by
+  series label (`_slots`), so `set_data` with a filtered list keeps each
+  survivor's colour. A 9th uncoloured series (or pie slice) is refused in
+  Python (`check_palette`); JS draws it grey with a warning. One value axis
+  only: no dual-axis support on purpose. 2px lines, 4px points with a 2px
+  surface ring, bars rounded at the data end, 2px surface gaps between pie
+  slices and stacked segments, gridlines on the value axis only, legend for
+  2+ series, tooltips in index mode for line / bar.
+- **Theme:** a MutationObserver on `<html data-wapyt-theme>` rebuilds each
+  chart. Recolouring in place left points with the light surface ring:
+  Chart.js caches each element's resolved options. Rebuilds keep series
+  visibility (`_keepVisibility`).
+- **Accessibility:** the canvas is `role="img"` with a generated label; an
+  off-screen `<table>` of the data is always there (`table_toggle=True`
+  shows it in place of the chart). Text goes in as text; Chart.js draws on a
+  canvas, so data cannot inject markup.
+
+`tests/chart_demo.py`; a 36-check Playwright run passed: one context with
+the CSP enforced (no violations), one with `bypass_csp` that injects a
+sha512-verified gridstack 14 and builds a six-tile dashboard.
+
 ## Window (added 2026-10-08)
 
 `Window` (`assets/window.js`, `wapyt/window/`) is dhxpyt's `window`: a
