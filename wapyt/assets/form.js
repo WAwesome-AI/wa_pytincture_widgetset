@@ -1388,6 +1388,7 @@
       if (error) {
         error.textContent = message || "";
         error.hidden = !message;
+        delete error.dataset.state;
       }
       if (entry) {
         entry.el.setAttribute("aria-invalid", message ? "true" : "false");
@@ -1408,8 +1409,15 @@
       this.setError(null, "");
     }
 
+    // Runs the checks in order: required, then (for a non-empty value) the
+    // built-in bounds / length / pattern / matches checks, then the field's
+    // validator. Hidden and disabled fields are skipped. Fields that pass and
+    // carry a successMessage show it.
     validate() {
       const errors = {};
+      const passed = [];
+      let snapshot = null;
+      const values = () => (snapshot = snapshot || this.getValues());
       this._controls.forEach((entry, id) => {
         const { field, type } = entry;
         if (this._isInactive(entry)) return;
@@ -1425,48 +1433,84 @@
           return;
         }
         if (empty) return;
-        // The control already carries min/max, so its own validity flags do
-        // the comparison for numbers, dates and times alike.
-        if (BOUNDED.has(type) && entry.el.validity) {
-          const later = DATELIKE.has(type);
-          if (entry.el.validity.rangeUnderflow) {
-            errors[id] = field.rangeMessage ||
-              (later ? `Must be ${field.min} or later` : `Must be at least ${field.min}`);
-            return;
-          }
-          if (entry.el.validity.rangeOverflow) {
-            errors[id] = field.rangeMessage ||
-              (later ? `Must be ${field.max} or earlier` : `Must be at most ${field.max}`);
-            return;
-          }
-        }
-        if (Array.isArray(value)) return;
-        if (field.minLength && String(value).length < field.minLength) {
-          errors[id] =
-            field.minLengthMessage ||
-            `Must be at least ${field.minLength} characters`;
-          return;
-        }
-        if (field.pattern) {
-          let re;
-          try {
-            re = new RegExp(field.pattern);
-          } catch (error) {
-            re = null;
-          }
-          if (re && !re.test(String(value))) {
-            errors[id] = field.patternMessage || "Invalid value";
-            return;
-          }
-        }
-        if (field.matches && this._controls.has(field.matches)) {
-          if (String(value) !== String(this._readControl(field.matches))) {
-            errors[id] = field.matchesMessage || "Values do not match";
-          }
-        }
+        const message = this._builtinError(entry, value) || this._validatorError(entry, value, values);
+        if (message) errors[id] = message;
+        else passed.push(id);
       });
       this.setErrors(errors);
+      passed.forEach((id) => {
+        const message = this._controls.get(id).field.successMessage;
+        if (message) this._setSuccess(id, message);
+      });
       return errors;
+    }
+
+    _builtinError(entry, value) {
+      const { field, type } = entry;
+      // The control already carries min/max, so its own validity flags do
+      // the comparison for numbers, dates and times alike.
+      if (BOUNDED.has(type) && entry.el.validity) {
+        const later = DATELIKE.has(type);
+        if (entry.el.validity.rangeUnderflow) {
+          return field.rangeMessage ||
+            (later ? `Must be ${field.min} or later` : `Must be at least ${field.min}`);
+        }
+        if (entry.el.validity.rangeOverflow) {
+          return field.rangeMessage ||
+            (later ? `Must be ${field.max} or earlier` : `Must be at most ${field.max}`);
+        }
+      }
+      if (Array.isArray(value)) return null;
+      if (field.minLength && String(value).length < field.minLength) {
+        return field.minLengthMessage || `Must be at least ${field.minLength} characters`;
+      }
+      if (field.pattern) {
+        let re;
+        try {
+          re = new RegExp(field.pattern);
+        } catch (error) {
+          re = null;
+        }
+        if (re && !re.test(String(value))) return field.patternMessage || "Invalid value";
+      }
+      if (field.matches && this._controls.has(field.matches)) {
+        if (String(value) !== String(this._readControl(field.matches))) {
+          return field.matchesMessage || "Values do not match";
+        }
+      }
+      return null;
+    }
+
+    // A validator (usually a Python function handed over by the wrapper)
+    // gets (value, values) and returns nothing / "" / true when the value is
+    // fine, a message when it is not, or false for the generic message. One
+    // that throws counts as invalid rather than breaking the submit.
+    _validatorError(entry, value, values) {
+      if (typeof entry.validator !== "function") return null;
+      let result;
+      try {
+        result = entry.validator(value, values());
+      } catch (error) {
+        console.error(`[wapyt] Form validator for '${entry.field.id}' failed`, error);
+        return "Invalid value";
+      }
+      if (result == null || result === "" || result === true) return null;
+      if (result === false) return "Invalid value";
+      return String(result);
+    }
+
+    setValidator(id, fn) {
+      const entry = this._controls.get(String(id));
+      if (!entry) throw new Error(`Form has no field '${id}'`);
+      entry.validator = typeof fn === "function" ? fn : null;
+    }
+
+    _setSuccess(id, message) {
+      const el = this._errorEls.get(id);
+      if (!el) return;
+      el.textContent = String(message);
+      el.hidden = false;
+      el.dataset.state = "success";
     }
 
     submit() {

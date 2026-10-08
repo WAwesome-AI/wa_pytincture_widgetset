@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime as _dt
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 FIELD_TYPES = frozenset({
     "text", "password", "email", "number", "url", "search", "tel", "textarea",
@@ -118,6 +118,16 @@ class FieldConfig:
         autocomplete: Forwarded to the control's ``autocomplete`` attribute.
         required_message / min_length_message / pattern_message /
         matches_message / range_message: Override the default validation copy.
+        validate: A function ``validate(value, values)`` run after the
+            built-in checks pass, for a non-empty value of a field that is
+            shown and enabled. ``values`` is the whole form. Return ``None``
+            (or ``""`` / ``True``) when the value is fine, or the error
+            message; ``False`` shows "Invalid value", as does an exception
+            (its traceback goes to the console). It runs in the browser
+            under Pyodide, so the BFF must still check. Not sent to JS: the
+            :class:`Form` registers it (see ``Form.set_validator``).
+        success_message: Shown under the field, in place of an error, once
+            it passes validation; cleared when the field is edited.
         label_position: ``"top"`` or ``"left"`` for this field; defaults to
             the form's ``label_position``.
         label_width: This field's label column width when labels are on the
@@ -163,8 +173,12 @@ class FieldConfig:
     label_position: Optional[str] = None
     label_width: Optional[Union[int, float, str]] = None
     hidden_label: bool = False
+    validate: Optional[Callable[[Any, Dict[str, Any]], Any]] = field(default=None, repr=False, compare=False)
+    success_message: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
+        if self.validate is not None and not callable(self.validate):
+            raise ValueError(f"FieldConfig {self.id!r}: validate must be callable")
         if self.label_position is not None and self.label_position not in LABEL_POSITIONS:
             raise ValueError(
                 f"FieldConfig {self.id!r}: label_position must be 'top' or 'left'; got {self.label_position!r}"
@@ -233,6 +247,7 @@ class FieldConfig:
             "labelPosition": self.label_position,
             "labelWidth": _label_width(self.label_width),
             "hiddenLabel": self.hidden_label or None,
+            "successMessage": self.success_message,
         }
         return _clean(payload)
 

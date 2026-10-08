@@ -4,7 +4,8 @@ Form widget: declarative inputs with validation and error slots.
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Dict, List, Optional, Union
+import traceback
+from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 from .._runtime import create_proxy, require_js, to_plain
 from .form_config import (FieldConfig, FormButton, FormConfig, FormFieldset, FormSpacer, SelectOption,
@@ -62,6 +63,13 @@ class Form:
             root_element,
             js.JSON.parse(json.dumps(self.config.to_dict())),
         )
+
+        # Validators are Python functions, so they cannot travel in the JSON
+        # config; each one is handed to the JS as a proxy instead.
+        self._validator_proxies: Dict[str, Any] = {}
+        for item in _iter_fields(self.config.fields):
+            if getattr(item, "validate", None) is not None:
+                self.set_validator(item.id, item.validate)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -216,6 +224,33 @@ class Form:
         # the FFI unambiguously where a bare None does not.
         self.form.setError(field_id if field_id is not None else js.undefined, message)
 
+    def set_validator(
+        self, field_id: str, validator: Optional[Callable[[Any, Dict[str, Any]], Any]]
+    ) -> None:
+        """
+        Set or replace a field's validator (``None`` removes it); the same
+        contract as ``FieldConfig(validate=...)``: ``validator(value,
+        values)`` returns ``None`` when fine, else the message.
+        """
+        if validator is not None and not callable(validator):
+            raise ValueError("validator must be callable or None")
+        previous = self._validator_proxies.pop(field_id, None)
+        if validator is None:
+            self.form.setValidator(field_id, None)
+        else:
+            def call(value: Any, values: Any) -> Any:
+                try:
+                    return validator(to_plain(value), to_plain(values) or {})
+                except Exception:
+                    traceback.print_exc()
+                    return "Invalid value"
+
+            proxy = create_proxy(call)
+            self._validator_proxies[field_id] = proxy
+            self.form.setValidator(field_id, proxy)
+        if previous is not None and hasattr(previous, "destroy"):
+            previous.destroy()
+
     def set_errors(self, errors: Dict[str, str]) -> None:
         self.form.setErrors(js.JSON.parse(json.dumps(errors)))
 
@@ -225,6 +260,15 @@ class Form:
     def validate(self) -> Dict[str, str]:
         result = self.form.validate()
         return to_plain(result) or {}
+
+
+def _iter_fields(items: Iterable[Any]) -> Iterable[Any]:
+    """Every field config, looking inside fieldsets."""
+    for item in items:
+        if isinstance(item, FormFieldset):
+            yield from _iter_fields(item.fields)
+        else:
+            yield item
 
 
 __all__ = ["Form", "FormConfig", "FieldConfig", "FormButton", "FormFieldset", "FormSpacer", "SelectOption"]

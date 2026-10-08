@@ -1236,6 +1236,41 @@ nested fieldset, slider, combo and button inside, spacers); a 38-check
 Playwright run passed, and the field-type, combo, clear, range and buttons
 suites still pass (23 + 30 + 10 + 40 + 38).
 
+### Validators and success messages (added 2026-10-08)
+
+`FieldConfig(validate=fn)` takes a **Python** function: pyTincture runs the
+app's UI code in the browser under Pyodide, so the wrapper hands it to the JS
+as a `create_proxy`, exactly like an event handler. (An earlier note in the
+Roadmap said validators had to be server-side because "Python can't run in
+the browser"; that was wrong.) The callable is **not** in `to_dict()`;
+`Form.__init__` walks the fields, fieldsets included (`_iter_fields`), and
+calls `set_validator`, which can also replace (`fn`) or remove (`None`) one
+at runtime and destroys the replaced proxy.
+
+- `validate()` order: skip inactive fields → `required` → (empty stops here)
+  → built-ins (`_builtinError`: bounds, min length, pattern, matches) →
+  `_validatorError(entry, value, values)`. So validators only see non-empty
+  values of shown, enabled fields; booleans and ranges are never empty.
+  `values` is one `getValues()` snapshot per `validate()`, taken lazily.
+- Result: `None` / `""` / `True` = fine, `False` = "Invalid value", anything
+  else is the message (`String()`ed). The Python wrapper catches an
+  exception, prints the traceback and returns "Invalid value"; the JS also
+  catches, so a failing validator never breaks a submit. **Pyodide sends
+  Python stderr to `console.warn`, not `console.error`**: look there for
+  the traceback.
+- It is synchronous: an `async def` validator would hand back a coroutine,
+  not a message. Validators that must ask the BFF need a different design.
+- `success_message` reuses the error slot with `data-state="success"`
+  (green), for fields that passed and are non-empty; `setError` clears the
+  state, so the next edit or validation removes it. It does not set
+  `aria-invalid`.
+
+`tests/form_validators_demo.py` (text, cross-field dates, multi combo,
+two-thumb range, toggle, one raising, one returning `False`, one in a hidden
+fieldset, runtime replace and remove); a 24-check Playwright run passed, and
+the field-type, combo, clear, range, buttons and fieldsets suites still pass
+(23 + 30 + 10 + 40 + 38 + 38).
+
 ## Pagination (added 2026-10-06)
 
 `Pagination` (`assets/pagination.js`, `Layout.add_pagination`) replaces
