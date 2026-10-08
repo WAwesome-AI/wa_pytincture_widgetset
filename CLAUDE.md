@@ -1299,6 +1299,30 @@ inputs.
 field-type, combo, clear, range, buttons, fieldsets and validators suites
 still pass.
 
+### set_properties / get_properties (added 2026-10-08)
+
+`Form.set_properties(id, **props)` changes a field or button after build;
+the wrapper checks names against `_FIELD_PROPERTIES` / `_BUTTON_PROPERTIES`
+(snake → camel) and the JS `setProperties` writes them into `entry.field`
+(the spec validation reads) and redraws what shows them:
+
+- `label` / `required` → `_renderLabel` (text, the `*` mark, and
+  `aria-required` on inputs and radio groups; not on checkbox groups, sliders
+  or static fields). A static field cannot become required.
+- `help` → `_renderHelp` creates, changes or removes the help line just
+  above the error slot (`entry.helpEl`, `entry.errorEl`).
+- `min` / `max` / `step` → `_applyBounds`: native attributes (`None`
+  removes), or new `slider.bounds` and a re-snap of both thumbs; tick scales
+  are rebuilt (`entry.scale`) and the readout re-sized (`_sizeOutput`).
+- `readonly` reaches the two-thumb slider too (`aria-readonly` is now also
+  removed when it is turned off).
+- Validation-only keys (`min_length`, `pattern`, `matches`, the messages,
+  `success_message`) are stored and take effect on the next check.
+- Buttons: `text`, `icon` (None removes it), `tooltip`, `variant`.
+
+`get_properties(id)` returns the same names. `tests/form_properties_demo.py`;
+a 30-check Playwright run passed, and the earlier Form suites still pass.
+
 ## Pagination (added 2026-10-06)
 
 `Pagination` (`assets/pagination.js`, `Layout.add_pagination`) replaces

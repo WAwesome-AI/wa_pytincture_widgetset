@@ -600,6 +600,7 @@
         if (this.disabled) thumb.setAttribute("aria-disabled", "true");
         else thumb.removeAttribute("aria-disabled");
         if (this.readOnly) thumb.setAttribute("aria-readonly", "true");
+        else thumb.removeAttribute("aria-readonly");
       });
       if (this.disabled && this.drag) this._endDrag();
     }
@@ -622,6 +623,14 @@
   }
 
   const BUTTON_VARIANTS = { primary: "primary", danger: "danger", link: "link", default: "ghost" };
+
+  // What get_properties reports for a field (camelCase, as in the config).
+  const PROPERTY_KEYS = [
+    "label", "placeholder", "help", "required", "readonly", "min", "max", "step",
+    "minLength", "maxLength", "pattern", "matches", "options",
+    "requiredMessage", "minLengthMessage", "maxLengthMessage", "patternMessage",
+    "matchesMessage", "rangeMessage", "successMessage",
+  ];
 
   // Every label, option and error string here reaches the DOM through
   // textContent, and every control is built with createElement. Nothing in this
@@ -977,7 +986,6 @@
         control = document.createElement("fieldset");
         control.setAttribute("role", type === "radio" ? "radiogroup" : "group");
         control.setAttribute("aria-labelledby", `${controlId}_label`);
-        if (field.required && type === "radio") control.setAttribute("aria-required", "true");
         if (field.inline) control.dataset.inline = "true";
       } else if (type === "static") {
         // A read-only value: an <output>, which a <label for> names, so it
@@ -1024,13 +1032,7 @@
         entry.output.className = "wapyt-form-range-value";
         entry.output.htmlFor = controlId;
         entry.output.hidden = field.showValue === false;
-        // Reserve the widest readout up front: as a flex sibling, a readout
-        // that grew with its text ("0 – 500" to "150 – 500") would shrink the
-        // track under the pointer mid-drag.
-        const bounds = rangeBounds(field);
-        const decimals = stepDecimals(bounds.step);
-        const widest = Math.max(...[bounds.min, bounds.max].map((n) => n.toFixed(decimals).length));
-        entry.output.style.minWidth = `${slider ? widest * 2 + 3 : widest}ch`;
+        this._sizeOutput(entry);
       }
       this._writeControl(entry, field.value);
 
@@ -1044,16 +1046,11 @@
       label.id = `${controlId}_label`;
       if (!plainLabel) label.htmlFor = controlId;
       if (slider) label.addEventListener("click", () => slider.focus());
-      label.textContent = field.label || field.id;
       // Hidden from sight, never from assistive technology.
       if (field.hiddenLabel) label.classList.add("wapyt-form-label-hidden");
-      if (field.required) {
-        const mark = document.createElement("span");
-        mark.className = "wapyt-form-required";
-        mark.textContent = "*";
-        mark.setAttribute("aria-hidden", "true");
-        label.appendChild(mark);
-      }
+      entry.labelEl = label;
+      entry.row = row;
+      this._renderLabel(entry);
 
       const error = document.createElement("div");
       error.className = "wapyt-form-error";
@@ -1075,6 +1072,7 @@
         const wrap = document.createElement("div");
         wrap.className = "wapyt-form-range";
         const scale = buildTicks(field);
+        entry.scale = scale;
         if (scale) {
           // The slider and its scale stack in one column beside the readout.
           const column = document.createElement("div");
@@ -1094,13 +1092,9 @@
         row.appendChild(control);
       }
 
-      if (field.help) {
-        const help = document.createElement("div");
-        help.className = "wapyt-form-help";
-        help.textContent = field.help;
-        row.appendChild(help);
-      }
       row.appendChild(error);
+      entry.errorEl = error;
+      this._renderHelp(entry);
 
       const emitChange = () => {
         this._syncOutput(entry);
@@ -1116,6 +1110,203 @@
       this._errorEls.set(field.id, error);
       this._rows.set(field.id, row);
       return row;
+    }
+
+    // ── Properties ───────────────────────────────────────────────────────────
+
+    _renderLabel(entry) {
+      const { field, labelEl } = entry;
+      labelEl.textContent = field.label || field.id;
+      if (field.required) {
+        const mark = document.createElement("span");
+        mark.className = "wapyt-form-required";
+        mark.textContent = "*";
+        mark.setAttribute("aria-hidden", "true");
+        labelEl.appendChild(mark);
+      }
+      // aria-required belongs on inputs and radio groups, not on a plain
+      // group of checkboxes or a static value.
+      const target = entry.slider || entry.type === "static" || entry.type === "checkbox_group" ? null : entry.el;
+      if (target) {
+        if (field.required) target.setAttribute("aria-required", "true");
+        else target.removeAttribute("aria-required");
+      }
+    }
+
+    // The help line sits just above the error slot; it is created, changed
+    // or removed as `help` changes.
+    _renderHelp(entry) {
+      const text = entry.field.help;
+      if (!text) {
+        if (entry.helpEl) entry.helpEl.remove();
+        entry.helpEl = null;
+        return;
+      }
+      if (!entry.helpEl) {
+        entry.helpEl = document.createElement("div");
+        entry.helpEl.className = "wapyt-form-help";
+        entry.row.insertBefore(entry.helpEl, entry.errorEl);
+      }
+      entry.helpEl.textContent = String(text);
+    }
+
+    // Reserve the widest readout up front: as a flex sibling, a readout
+    // that grew with its text ("0 – 500" to "150 – 500") would shrink the
+    // track under the pointer mid-drag.
+    _sizeOutput(entry) {
+      if (!entry.output) return;
+      const bounds = rangeBounds(entry.field);
+      const decimals = stepDecimals(bounds.step);
+      const widest = Math.max(...[bounds.min, bounds.max].map((n) => n.toFixed(decimals).length));
+      entry.output.style.minWidth = `${entry.slider ? widest * 2 + 3 : widest}ch`;
+    }
+
+    // New min / max / step: native controls take the attributes; a two-thumb
+    // slider gets new bounds and re-snaps its values; ticks are rebuilt.
+    _applyBounds(entry) {
+      const { field } = entry;
+      if (entry.slider) {
+        entry.slider.bounds = rangeBounds(field);
+        entry.slider.setValue(entry.slider.getValue());
+      } else if (BOUNDED.has(entry.type)) {
+        ["min", "max", "step"].forEach((key) => {
+          if (field[key] == null || field[key] === "") entry.el.removeAttribute(key);
+          else entry.el[key] = String(field[key]);
+        });
+      }
+      if (entry.scale) {
+        const scale = buildTicks(field);
+        if (scale) entry.scale.replaceWith(scale);
+        else entry.scale.remove();
+        entry.scale = scale;
+      }
+      this._sizeOutput(entry);
+      this._syncOutput(entry);
+    }
+
+    setProperties(id, props) {
+      const key = String(id);
+      const button = this._button(key);
+      if (button) return this._setButtonProperties(button, props || {});
+      const entry = this._controls.get(key);
+      if (!entry || entry.type === "hidden") throw new Error(`Form has no field '${id}'`);
+      const { field, el } = entry;
+      let bounds = false;
+      Object.keys(props || {}).forEach((name) => {
+        const value = props[name];
+        switch (name) {
+          case "label":
+          case "required":
+            field[name] = name === "required" ? Boolean(value) : value;
+            if (name === "required" && entry.type === "static" && value) {
+              throw new Error(`Field '${id}' is static and cannot be required`);
+            }
+            this._renderLabel(entry);
+            break;
+          case "help":
+            field.help = value;
+            this._renderHelp(entry);
+            break;
+          case "placeholder":
+            field.placeholder = value;
+            if (entry.type === "static") this._writeControl(entry, entry.value);
+            else if ("placeholder" in el) el.placeholder = value == null ? "" : String(value);
+            break;
+          case "readonly":
+            field.readonly = Boolean(value);
+            if (entry.slider) {
+              entry.slider.readOnly = field.readonly;
+              entry.slider.setDisabled(entry.slider.disabled);
+            } else if ("readOnly" in el) {
+              el.readOnly = field.readonly;
+            }
+            break;
+          case "min":
+          case "max":
+          case "step":
+            field[name] = value;
+            bounds = true;
+            break;
+          case "options":
+            this.setFieldOptions(key, value || []);
+            field.options = value || [];
+            break;
+          case "minLength":
+          case "maxLength":
+          case "pattern":
+          case "matches":
+          case "requiredMessage":
+          case "minLengthMessage":
+          case "maxLengthMessage":
+          case "patternMessage":
+          case "matchesMessage":
+          case "rangeMessage":
+          case "successMessage":
+            // Read by validate() each time; nothing to redraw.
+            field[name] = value;
+            if (name === "maxLength" && "maxLength" in el) {
+              if (value == null) el.removeAttribute("maxlength");
+              else el.maxLength = Number(value);
+            }
+            break;
+          default:
+            throw new Error(`Form field '${id}': cannot set '${name}'`);
+        }
+      });
+      if (bounds) this._applyBounds(entry);
+      return undefined;
+    }
+
+    _setButtonProperties(entry, props) {
+      Object.keys(props).forEach((name) => {
+        const value = props[name];
+        if (name === "text") {
+          entry.spec.text = value;
+          entry.textEl.textContent = value == null ? "" : String(value);
+        } else if (name === "tooltip") {
+          entry.spec.tooltip = value;
+          if (value) entry.el.title = String(value);
+          else entry.el.removeAttribute("title");
+        } else if (name === "variant") {
+          const variant = BUTTON_VARIANTS[value] || "ghost";
+          entry.el.classList.remove(...Object.values(BUTTON_VARIANTS).map((v) => `wapyt-form-button-${v}`));
+          entry.el.classList.add(`wapyt-form-button-${variant}`);
+          entry.spec.variant = value;
+        } else if (name === "icon") {
+          let icon = entry.el.querySelector(".wapyt-form-button-icon");
+          if (!value) {
+            if (icon) icon.remove();
+          } else {
+            if (!icon) {
+              icon = document.createElement("i");
+              icon.setAttribute("aria-hidden", "true");
+              entry.el.insertBefore(icon, entry.el.firstChild);
+            }
+            icon.className = `wapyt-form-button-icon ${iconClass(value)}`;
+          }
+          entry.spec.icon = value;
+        } else {
+          throw new Error(`Form button '${entry.spec.id}': cannot set '${name}'`);
+        }
+      });
+    }
+
+    getProperties(id) {
+      const key = String(id);
+      const button = this._button(key);
+      if (button) {
+        const { text, tooltip, variant, icon } = button.spec;
+        return { text: text ?? null, tooltip: tooltip ?? null, variant: variant || "default", icon: icon ?? null };
+      }
+      const entry = this._controls.get(key);
+      if (!entry) throw new Error(`Form has no field '${id}'`);
+      const out = {};
+      PROPERTY_KEYS.forEach((name) => {
+        out[name] = entry.field[name] === undefined ? null : entry.field[name];
+      });
+      out.required = Boolean(entry.field.required);
+      out.readonly = Boolean(entry.field.readonly);
+      return out;
     }
 
     // ── Values ───────────────────────────────────────────────────────────────

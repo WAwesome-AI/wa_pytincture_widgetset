@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 from .._runtime import create_proxy, require_js, to_plain
 from .form_config import (FieldConfig, FormButton, FormConfig, FormFieldset, FormSpacer, SelectOption,
-                          json_default)
+                          iso_value, json_default)
 
 try:  # pragma: no cover - only available inside Pyodide
     import js  # type: ignore
@@ -67,6 +67,10 @@ class Form:
         # Validators are Python functions, so they cannot travel in the JSON
         # config; each one is handed to the JS as a proxy instead.
         self._validator_proxies: Dict[str, Any] = {}
+        self._button_ids = {
+            item.id for item in list(_iter_fields(self.config.fields)) + list(self.config.buttons)
+            if isinstance(item, FormButton)
+        }
         for item in _iter_fields(self.config.fields):
             if getattr(item, "validate", None) is not None:
                 self.set_validator(item.id, item.validate)
@@ -214,6 +218,44 @@ class Form:
         async submit is in flight."""
         self.form.setBusy(busy)
 
+    def set_properties(self, field_id: str, **properties: Any) -> None:
+        """
+        Change a field's or button's settings after the form is built::
+
+            form.set_properties("email", label="Work email", required=True,
+                                help="We never share it")
+            form.set_properties("save", text="Saving…", variant="primary")
+
+        Fields take ``label``, ``placeholder``, ``help``, ``required``,
+        ``readonly``, ``min`` / ``max`` / ``step`` (ranges redraw and re-snap),
+        ``min_length``, ``pattern``, ``matches``, ``options``,
+        ``success_message`` and the ``*_message`` overrides. Pass ``None`` to
+        clear an optional one. Buttons take ``text``, ``icon``, ``tooltip``
+        and ``variant``. Anything else raises ValueError.
+        """
+        is_button = field_id in self._button_ids
+        allowed = _BUTTON_PROPERTIES if is_button else _FIELD_PROPERTIES
+        unknown = sorted(set(properties) - set(allowed))
+        if unknown:
+            kind = "button" if is_button else "field"
+            raise ValueError(f"cannot set {', '.join(unknown)} on form {kind} {field_id!r}")
+        payload: Dict[str, Any] = {}
+        for name, value in properties.items():
+            if name == "options" and value is not None:
+                value = [o.to_dict() if hasattr(o, "to_dict") else o for o in value]
+            elif name in ("min", "max"):
+                value = iso_value(value)
+            payload[allowed[name]] = value
+        self.form.setProperties(field_id, js.JSON.parse(json.dumps(payload, default=json_default)))
+
+    def get_properties(self, field_id: str) -> Dict[str, Any]:
+        """The current settable properties of a field or button, with
+        ``set_properties``' names."""
+        raw = to_plain(self.form.getProperties(field_id)) or {}
+        names = _BUTTON_PROPERTIES if field_id in self._button_ids else _FIELD_PROPERTIES
+        back = {camel: snake for snake, camel in names.items()}
+        return {back.get(key, key): value for key, value in raw.items()}
+
     def set_button_text(self, button_id: str, text: str) -> None:
         self.form.setButtonText(button_id, "" if text is None else str(text))
 
@@ -299,6 +341,17 @@ class Form:
     def validate(self) -> Dict[str, str]:
         result = self.form.validate()
         return to_plain(result) or {}
+
+
+_FIELD_PROPERTIES = {
+    "label": "label", "placeholder": "placeholder", "help": "help", "required": "required",
+    "readonly": "readonly", "min": "min", "max": "max", "step": "step",
+    "min_length": "minLength", "pattern": "pattern", "matches": "matches", "options": "options",
+    "success_message": "successMessage", "required_message": "requiredMessage",
+    "min_length_message": "minLengthMessage", "pattern_message": "patternMessage",
+    "matches_message": "matchesMessage", "range_message": "rangeMessage",
+}
+_BUTTON_PROPERTIES = {"text": "text", "icon": "icon", "tooltip": "tooltip", "variant": "variant"}
 
 
 def _iter_fields(items: Iterable[Any]) -> Iterable[Any]:
