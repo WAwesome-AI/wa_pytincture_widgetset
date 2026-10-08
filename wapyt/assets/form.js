@@ -284,6 +284,9 @@
         remove.tabIndex = -1;
         remove.setAttribute("aria-label", `Remove ${this._labelFor(value)}`);
         remove.textContent = "×";
+        // Keep focus in the input: a focused × is removed with its chip,
+        // which dropped focus to <body> (a spurious blur) before it came back.
+        remove.addEventListener("mousedown", (event) => event.preventDefault());
         remove.addEventListener("click", () => {
           if (this.input.matches(":disabled") || this.input.readOnly) return;
           this._set(this.selected.filter((v) => v !== value));
@@ -668,6 +671,8 @@
       }
       const labelWidth = cssLength(this.options.labelWidth);
       if (labelWidth) this._formEl.style.setProperty("--wapyt-form-label-width", labelWidth);
+      this._formEl.addEventListener("focusin", (event) => this._onFocusIn(event));
+      this._formEl.addEventListener("focusout", (event) => this._onFocusOut(event));
       this._formEl.addEventListener("submit", (event) => {
         event.preventDefault();
         this.submit();
@@ -1419,23 +1424,9 @@
       let snapshot = null;
       const values = () => (snapshot = snapshot || this.getValues());
       this._controls.forEach((entry, id) => {
-        const { field, type } = entry;
-        if (this._isInactive(entry)) return;
-        const value = this._readControl(id);
-        const empty = BOOLEAN.has(type)
-          ? false
-          : Array.isArray(value)
-            ? value.length === 0
-            : value == null || String(value).trim() === "";
-
-        if (field.required && empty) {
-          errors[id] = field.requiredMessage || `${field.label || id} is required`;
-          return;
-        }
-        if (empty) return;
-        const message = this._builtinError(entry, value) || this._validatorError(entry, value, values);
-        if (message) errors[id] = message;
-        else passed.push(id);
+        const result = this._checkField(entry, values);
+        if (result.message) errors[id] = result.message;
+        else if (result.passed) passed.push(id);
       });
       this.setErrors(errors);
       passed.forEach((id) => {
@@ -1443,6 +1434,86 @@
         if (message) this._setSuccess(id, message);
       });
       return errors;
+    }
+
+    // One field's checks: {message} when it fails, {passed: true} when it
+    // has a value that passes, {} when it is empty or inactive.
+    _checkField(entry, values) {
+      const { field, type } = entry;
+      if (this._isInactive(entry)) return {};
+      const value = this._readControl(field.id);
+      const empty = BOOLEAN.has(type)
+        ? false
+        : Array.isArray(value)
+          ? value.length === 0
+          : value == null || String(value).trim() === "";
+      if (field.required && empty) {
+        return { message: field.requiredMessage || `${field.label || field.id} is required` };
+      }
+      if (empty) return {};
+      const message = this._builtinError(entry, value) || this._validatorError(entry, value, values);
+      return message ? { message } : { passed: true };
+    }
+
+    // Validate a single field and show the result under it, leaving the
+    // other fields' messages alone (for on_blur). Returns the message, or
+    // null when it passes, is empty, or is hidden / disabled.
+    validateField(id) {
+      const entry = this._controls.get(String(id));
+      if (!entry) throw new Error(`Form has no field '${id}'`);
+      let snapshot = null;
+      const result = this._checkField(entry, () => (snapshot = snapshot || this.getValues()));
+      this.setError(entry.field.id, result.message || "");
+      if (result.passed && entry.field.successMessage) this._setSuccess(entry.field.id, entry.field.successMessage);
+      return result.message || null;
+    }
+
+    // ── Focus ────────────────────────────────────────────────────────────────
+
+    // The field a node belongs to (a field row, not a button row), or null.
+    _fieldIdOf(node) {
+      const row = node && node.closest && node.closest(".wapyt-form-row");
+      if (!row || !this._formEl.contains(row) || row.dataset.kind === "button") return null;
+      const id = row.dataset.fieldId;
+      return id && this._controls.has(id) ? id : null;
+    }
+
+    // focusin / focusout bubble, so one pair of listeners covers every
+    // field. Moving between the parts of one field (radio options, the two
+    // thumbs of a range, a combo's chips) is not a blur and a focus.
+    _onFocusIn(event) {
+      const id = this._fieldIdOf(event.target);
+      if (!id || id === this._fieldIdOf(event.relatedTarget)) return;
+      this._emit("focus", { id });
+    }
+
+    _onFocusOut(event) {
+      const id = this._fieldIdOf(event.target);
+      if (!id || id === this._fieldIdOf(event.relatedTarget)) return;
+      this._emit("blur", { id, value: this._readControl(id) });
+    }
+
+    setFocus(id) {
+      const key = String(id);
+      const button = this._button(key);
+      if (button) {
+        if (button.el.disabled || button.el.closest("[hidden]")) return false;
+        button.el.focus();
+        return document.activeElement === button.el;
+      }
+      const entry = this._controls.get(key);
+      if (!entry) throw new Error(`Form has no field '${id}'`);
+      if (this._isInactive(entry)) return false;
+      this._focusEntry(entry);
+      return this._fieldIdOf(document.activeElement) === key;
+    }
+
+    getFocused() {
+      const active = document.activeElement;
+      if (!active || !this._formEl.contains(active)) return null;
+      const button = active.closest && active.closest("[data-button-id]");
+      if (button) return button.dataset.buttonId;
+      return this._fieldIdOf(active);
     }
 
     _builtinError(entry, value) {

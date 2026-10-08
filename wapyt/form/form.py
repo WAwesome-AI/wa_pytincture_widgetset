@@ -119,6 +119,21 @@ class Form:
         from a ``FormButton(submit=True)`` it also carries that button's ``id``."""
         self._bind_event("invalid", handler)
 
+    def on_focus(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """Focus moved into a field: ``{"id"}``. Moving between the parts
+        of one field (radio options, a range's two thumbs, a combo's chips)
+        does not fire it again."""
+        self._bind_event("focus", handler)
+
+    def on_blur(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """
+        Focus left a field: ``{"id", "value"}``. To check a field as the
+        person leaves it::
+
+            form.on_blur(lambda p: form.validate_field(p["id"]))
+        """
+        self._bind_event("blur", handler)
+
     def on_click(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         """
         A :class:`FormButton` was clicked: ``{"id"}``. A ``submit=True``
@@ -208,7 +223,21 @@ class Form:
         self.form.setButtonLoading(button_id, bool(loading))
 
     def focus_first(self) -> None:
+        """Focus the first field that is shown and enabled."""
         self.form.focusFirst()
+
+    def set_focus(self, field_id: str) -> bool:
+        """
+        Focus a field (a radio group's checked option, a range's low thumb)
+        or a :class:`FormButton`. Returns False, and does nothing, when it is
+        hidden, disabled or a static field.
+        """
+        return bool(self.form.setFocus(field_id))
+
+    def get_focused(self) -> Optional[str]:
+        """The id of the field or button that has focus, or None."""
+        value = to_plain(self.form.getFocused())
+        return str(value) if value else None
 
     def submit(self) -> None:
         """Trigger validation and, if it passes, the submit event."""
@@ -256,6 +285,16 @@ class Form:
 
     def clear_errors(self) -> None:
         self.form.clearErrors()
+
+    def validate_field(self, field_id: str) -> Optional[str]:
+        """
+        Run one field's checks (required, built-ins, its validator) and show
+        the result under it, leaving other fields' messages alone. Returns the
+        error message, or None when it passes, is empty, or is hidden or
+        disabled.
+        """
+        value = to_plain(self.form.validateField(field_id))
+        return str(value) if value else None
 
     def validate(self) -> Dict[str, str]:
         result = self.form.validate()

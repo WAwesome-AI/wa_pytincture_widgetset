@@ -1271,6 +1271,34 @@ fieldset, runtime replace and remove); a 24-check Playwright run passed, and
 the field-type, combo, clear, range, buttons and fieldsets suites still pass
 (23 + 30 + 10 + 40 + 38 + 38).
 
+### Focus events, set_focus and validate_field (added 2026-10-08)
+
+`on_focus` → `{id}` and `on_blur` → `{id, value}` come from one
+`focusin` / `focusout` pair on the `<form>` element. `_fieldIdOf(node)` maps
+a node to its field through the closest `.wapyt-form-row` (button rows and
+nodes outside the form give null), and an event is dropped when
+`relatedTarget` belongs to the same field, so moving between radio options,
+a range's two thumbs or a combo's parts is neither a blur nor a focus. Form
+buttons fire no focus events. Window switches blur and refocus like native
+inputs.
+
+- **Combo chip × buttons now `preventDefault` on mousedown.** A focused ×
+  is removed with its chip, which dropped focus to `<body>` (a blur with no
+  `relatedTarget`) before the combo refocused its input: a spurious
+  blur / focus pair on every chip removal.
+- `set_focus(id)` → bool: fields through `_focusEntry` (a group's checked
+  option, a range's low thumb), `FormButton`s directly; False without moving
+  focus for static, hidden or disabled ones (`_isInactive`); unknown ids
+  throw. `get_focused()` → the focused field's or button's id, or None.
+- `validate_field(id)` runs one field through `_checkField` (the same
+  required → built-ins → validator path `validate()` now uses) and sets only
+  that field's message or success message. For validate-on-blur:
+  `form.on_blur(lambda p: form.validate_field(p["id"]))`.
+
+`tests/form_focus_demo.py`; a 24-check Playwright run passed, and the
+field-type, combo, clear, range, buttons, fieldsets and validators suites
+still pass.
+
 ## Pagination (added 2026-10-06)
 
 `Pagination` (`assets/pagination.js`, `Layout.add_pagination`) replaces
