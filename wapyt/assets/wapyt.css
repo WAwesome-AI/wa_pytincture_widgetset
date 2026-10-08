@@ -1253,6 +1253,15 @@ input[type="color"].wapyt-form-control {
   display: none;
 }
 
+/* The same slot shows a field's success_message once it passes. */
+.wapyt-form-error[data-state="success"] {
+  color: #15803d;
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-error[data-state="success"] {
+  color: #4ade80;
+}
+
 .wapyt-form-error-global {
   padding: 8px 10px;
   border-radius: 6px;
