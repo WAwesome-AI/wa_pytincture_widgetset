@@ -5,16 +5,17 @@
 # On a pull request from a branch in this repository, a stale asset manifest
 # is regenerated and committed to the branch instead of failing (two PRs that
 # both touch wapyt/assets/ leave it stale as soon as one merges and the other
-# is updated from main). Pull requests from forks still fail the check.
+# is updated from main). The commit is pushed with the MANIFEST_BOT_TOKEN
+# secret, a fine-grained token with Contents: read and write on this repo:
+# a push made with the built-in GITHUB_TOKEN would be held for approval and
+# its results kept off the pull request. Without the secret, and for pull
+# requests from forks, a stale manifest fails with the command to run.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
-  # The manifest job starts CI this way after pushing its fix, because a
-  # commit pushed with GITHUB_TOKEN does not trigger workflows on its own.
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,20 +24,21 @@ jobs:
   manifest:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # push the regenerated manifest
-      actions: write # start CI on the new commit
     outputs:
       fixed: ${{ steps.regen.outputs.fixed }}
     env:
       SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+      HAS_TOKEN: ${{ secrets.MANIFEST_BOT_TOKEN != '' }}
       HEAD_REF: ${{ github.head_ref }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # The branch itself, not the merge commit, so the fix can be pushed.
+          # The branch itself, not the merge commit, so a fix can be pushed.
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.sha }}
+          # Empty on forks and when the secret is unset; checkout then falls
+          # back to GITHUB_TOKEN and the job only checks.
+          token: ${{ secrets.MANIFEST_BOT_TOKEN || github.token }}
 
       - name: Regenerate the asset manifest if it is stale
         id: regen
@@ -45,7 +47,7 @@ jobs:
             echo "fixed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ "$SAME_REPO" != "true" ]; then
+          if [ "$SAME_REPO" != "true" ] || [ "$HAS_TOKEN" != "true" ]; then
             echo "::error::The asset manifest is stale. Run: python scripts/generate_assets_manifest.py . and commit wapyt/pytincture-assets.json"
             exit 1
           fi
@@ -58,17 +60,11 @@ jobs:
           echo "fixed=true" >> "$GITHUB_OUTPUT"
           echo "::notice::Committed a regenerated asset manifest to $HEAD_REF; CI runs again on that commit. Pull before pushing more work."
 
-      - name: Run CI on the fixed commit
-        if: steps.regen.outputs.fixed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$HEAD_REF"
-
   test:
     needs: manifest
     # Runs when the manifest job passed without pushing a fix, or did not run
-    # (pushes to main, dispatched runs). After a fix, the dispatched run tests
-    # the new commit, so this one stands down.
+    # (pushes to main). After a fix, the push starts a new run on the fixed
+    # commit, so this one stands down.
     if: >-
       always() &&
       (needs.manifest.result == 'skipped' ||
