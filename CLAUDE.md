@@ -1341,6 +1341,33 @@ Nothing in wapyt or the apps used a child selector under `.wapyt-form-body`
 (checked), so the extra wrapper broke no styles. `tests/form_disable_demo.py`;
 a 17-check Playwright run passed.
 
+### max_length, field icons, disabled options (added 2026-10-08)
+
+- **`max_length`** (text-like fields and textarea) sets the native
+  `maxlength`, which stops typing, and is validated too (`_builtinError`,
+  after `min_length`), because `set_values` bypasses the attribute.
+  `max_length_message`; settable through `set_properties` (`None` removes
+  the attribute).
+- **`icon`** (text-like inputs, date/time pickers, select, combo): an MDI
+  `<i aria-hidden>` on the left. An input or select is wrapped in
+  `.wapyt-form-input-wrap` (positioned; the control gets `padding-left: 32px`)
+  only when an icon is first needed (`_renderIcon`, `entry.iconHost` null
+  until then; undefined for kinds that cannot have one, which throw); a combo
+  hosts the icon in its own box. The icon has `pointer-events: none`, so a
+  click on it lands in the input. `set_properties(icon=...)` adds, changes or
+  removes it; the wrap stays.
+- **`SelectOption(disabled=True)`**: `option.disabled` in a select,
+  `input.disabled` (and a dimmed label) in radio / checkbox groups, so the
+  browser's own arrow keys skip it; in a combo the item gets `aria-disabled`,
+  `_pick` ignores it and `_setActive(index, dir)` walks past disabled items
+  (staying put if nothing enabled lies that way). The app can still set a
+  disabled option's value.
+
+`tests/form_options_demo.py`; a 26-check Playwright run passed. (Two test
+lessons: Playwright will not click an element with `pointer-events: none` or
+`aria-disabled`, which is the behaviour being tested; click by coordinates or
+with `force=True`.)
+
 ## Pagination (added 2026-10-06)
 
 `Pagination` (`assets/pagination.js`, `Layout.add_pagination`) replaces

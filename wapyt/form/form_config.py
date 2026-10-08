@@ -13,6 +13,13 @@ FIELD_TYPES = frozenset({
 
 
 LABEL_POSITIONS = ("top", "left")
+# Kinds that can show an icon inside the field.
+ICON_TYPES = frozenset({
+    "text", "password", "email", "number", "url", "search", "tel",
+    "date", "time", "datetime-local", "select", "combo",
+})
+# Kinds max_length applies to.
+LENGTH_TYPES = frozenset({"text", "password", "email", "url", "search", "tel", "textarea"})
 BUTTON_VARIANTS = ("default", "primary", "danger", "link")
 
 
@@ -55,13 +62,21 @@ def json_default(value: Any) -> Any:
 
 @dataclass
 class SelectOption:
-    """One entry in a ``select``, ``combo``, ``radio`` or ``checkbox_group`` field."""
+    """
+    One entry in a ``select``, ``combo``, ``radio`` or ``checkbox_group``
+    field. ``disabled`` shows it but stops it being picked (a value set by
+    the app still shows).
+    """
 
     value: str
     label: Optional[str] = None
+    disabled: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"value": self.value, "label": self.label or self.value}
+        payload = {"value": self.value, "label": self.label or self.value}
+        if self.disabled:
+            payload["disabled"] = True
+        return payload
 
 
 @dataclass
@@ -91,6 +106,12 @@ class FieldConfig:
         help: Hint rendered under the control.
         required: Fails validation when empty.
         min_length: Minimum string length once non-empty.
+        max_length: Maximum string length: typing stops there, and a longer
+            value set with ``set_values`` fails validation. Text-like fields
+            and ``textarea``.
+        icon: MDI class (``mdi-magnify``) shown inside the field, on the
+            left. Text-like inputs, date / time pickers, ``select`` and
+            ``combo``.
         pattern: JavaScript regular expression source the value must match.
         matches: Another field's id whose value this one must equal — for
             "confirm password" pairs.
@@ -117,7 +138,8 @@ class FieldConfig:
         disabled / readonly: Control state.
         autocomplete: Forwarded to the control's ``autocomplete`` attribute.
         required_message / min_length_message / pattern_message /
-        matches_message / range_message: Override the default validation copy.
+        matches_message / range_message / max_length_message: Override the
+            default validation copy.
         validate: A function ``validate(value, values)`` run after the
             built-in checks pass, for a non-empty value of a field that is
             shown and enabled. ``values`` is the whole form. Return ``None``
@@ -146,6 +168,8 @@ class FieldConfig:
     help: Optional[str] = None
     required: bool = False
     min_length: Optional[int] = None
+    max_length: Optional[int] = None
+    icon: Optional[str] = None
     pattern: Optional[str] = None
     matches: Optional[str] = None
     options: Optional[List[Union[str, SelectOption]]] = None
@@ -170,6 +194,7 @@ class FieldConfig:
     pattern_message: Optional[str] = None
     matches_message: Optional[str] = None
     range_message: Optional[str] = None
+    max_length_message: Optional[str] = None
     label_position: Optional[str] = None
     label_width: Optional[Union[int, float, str]] = None
     hidden_label: bool = False
@@ -183,6 +208,10 @@ class FieldConfig:
             raise ValueError(
                 f"FieldConfig {self.id!r}: label_position must be 'top' or 'left'; got {self.label_position!r}"
             )
+        if self.icon and self.type not in ICON_TYPES:
+            raise ValueError(f"FieldConfig {self.id!r}: a {self.type} field cannot show an icon")
+        if self.max_length is not None and self.type not in LENGTH_TYPES:
+            raise ValueError(f"FieldConfig {self.id!r}: max_length applies to text fields, not {self.type}")
         if self.type == "static" and self.required:
             raise ValueError(f"FieldConfig {self.id!r}: a static field cannot be required")
         if self.type not in FIELD_TYPES:
@@ -220,6 +249,8 @@ class FieldConfig:
             "help": self.help,
             "required": self.required or None,
             "minLength": self.min_length,
+            "maxLength": self.max_length,
+            "icon": self.icon,
             "pattern": self.pattern,
             "matches": self.matches,
             "options": options,
@@ -244,6 +275,7 @@ class FieldConfig:
             "patternMessage": self.pattern_message,
             "matchesMessage": self.matches_message,
             "rangeMessage": self.range_message,
+            "maxLengthMessage": self.max_length_message,
             "labelPosition": self.label_position,
             "labelWidth": _label_width(self.label_width),
             "hiddenLabel": self.hidden_label or None,

@@ -25,12 +25,18 @@
   const BOOLEAN = new Set(["checkbox", "toggle"]);
   // One control per option, wrapped in a fieldset.
   const GROUPS = new Set(["radio", "checkbox_group"]);
+  // Kinds that can show an icon inside the field.
+  const ICONABLE = new Set([...TEXTUAL, ...DATELIKE, "select"]);
 
   function optionPairs(options) {
     return (options || []).map((option) =>
       option && typeof option === "object"
-        ? { value: String(option.value ?? ""), label: String(option.label ?? option.value ?? "") }
-        : { value: String(option ?? ""), label: String(option ?? "") }
+        ? {
+            value: String(option.value ?? ""),
+            label: String(option.label ?? option.value ?? ""),
+            disabled: Boolean(option.disabled),
+          }
+        : { value: String(option ?? ""), label: String(option ?? ""), disabled: false }
     );
   }
 
@@ -164,6 +170,7 @@
         item.dataset.index = String(index);
         item.setAttribute("role", "option");
         item.setAttribute("aria-selected", this.selected.includes(option.value) ? "true" : "false");
+        if (option.disabled) item.setAttribute("aria-disabled", "true");
         item.textContent = option.label;
         this.list.appendChild(item);
       });
@@ -174,14 +181,23 @@
         this.list.appendChild(empty);
       }
       const current = this.multiple ? -1 : this.visible.findIndex((o) => o.value === this.selected[0]);
-      this._setActive(needle ? 0 : Math.max(current, 0));
+      this._setActive(needle ? 0 : Math.max(current, 0), 1);
       this._place();
     }
 
-    _setActive(index) {
+    // Moves the active option to `index`, or on past disabled options in
+    // direction `dir`; stays put when nothing enabled lies that way.
+    _setActive(index, dir = 1) {
       const items = this.list.querySelectorAll("[data-index]");
+      let next = items.length ? Math.max(0, Math.min(index, items.length - 1)) : -1;
+      while (next >= 0 && next < items.length && this.visible[next].disabled) next += dir;
+      if (next < 0 || next >= items.length) {
+        if (this.active >= 0 && this.active < items.length && !this.visible[this.active].disabled) return;
+        next = this.visible.findIndex((option) => !option.disabled);
+        if (next < 0) next = -1;
+      }
       items.forEach((item) => item.removeAttribute("data-active"));
-      this.active = items.length ? Math.max(0, Math.min(index, items.length - 1)) : -1;
+      this.active = next;
       if (this.active < 0) {
         this.input.removeAttribute("aria-activedescendant");
         return;
@@ -197,7 +213,8 @@
       if (key === "ArrowDown" || key === "ArrowUp") {
         event.preventDefault();
         if (!this.isOpen()) return this.open();
-        this._setActive(this.active + (key === "ArrowDown" ? 1 : -1));
+        const dir = key === "ArrowDown" ? 1 : -1;
+        this._setActive(this.active + dir, dir);
       } else if (key === "Enter") {
         if (!this.isOpen()) return;
         // Enter inside an open list picks; it must not submit the form.
@@ -223,7 +240,7 @@
     }
 
     _pick(option) {
-      if (!option) return;
+      if (!option || option.disabled) return;
       if (this.multiple) {
         const has = this.selected.includes(option.value);
         this._set(has ? this.selected.filter((v) => v !== option.value) : [...this.selected, option.value]);
@@ -626,7 +643,7 @@
 
   // What get_properties reports for a field (camelCase, as in the config).
   const PROPERTY_KEYS = [
-    "label", "placeholder", "help", "required", "readonly", "min", "max", "step",
+    "label", "placeholder", "help", "icon", "required", "readonly", "min", "max", "step",
     "minLength", "maxLength", "pattern", "matches", "options",
     "requiredMessage", "minLengthMessage", "maxLengthMessage", "patternMessage",
     "matchesMessage", "rangeMessage", "successMessage",
@@ -1029,6 +1046,7 @@
         if (!GROUPS.has(type)) control.name = field.id;
         if (field.placeholder) control.placeholder = field.placeholder;
         if (field.autocomplete) control.autocomplete = field.autocomplete;
+        if (field.maxLength != null && "maxLength" in control) control.maxLength = Number(field.maxLength);
         if (field.disabled) control.disabled = true;
         if (field.readonly && "readOnly" in control) control.readOnly = true;
       }
@@ -1077,6 +1095,7 @@
       } else if (combo) {
         row.appendChild(label);
         row.appendChild(combo.root);
+        entry.iconHost = combo.root;
       } else if (type === "range") {
         const wrap = document.createElement("div");
         wrap.className = "wapyt-form-range";
@@ -1099,11 +1118,13 @@
       } else {
         row.appendChild(label);
         row.appendChild(control);
+        if (ICONABLE.has(type)) entry.iconHost = null; // wrapped on demand
       }
 
       row.appendChild(error);
       entry.errorEl = error;
       this._renderHelp(entry);
+      if (field.icon) this._renderIcon(entry);
 
       const emitChange = () => {
         this._syncOutput(entry);
@@ -1144,6 +1165,38 @@
 
     // The help line sits just above the error slot; it is created, changed
     // or removed as `help` changes.
+    // An icon inside the field, on the left. A text-like input or select is
+    // wrapped in a positioned box on first use; a combo hosts it in its own
+    // box. Other kinds have nowhere sensible to put one.
+    _renderIcon(entry) {
+      const icon = entry.field.icon;
+      if (entry.iconHost === undefined) {
+        if (icon) throw new Error(`Field '${entry.field.id}' (${entry.type}) cannot show an icon`);
+        return;
+      }
+      if (!entry.iconHost) {
+        if (!icon) return;
+        const wrap = document.createElement("div");
+        wrap.className = "wapyt-form-input-wrap";
+        entry.el.replaceWith(wrap);
+        wrap.appendChild(entry.el);
+        entry.iconHost = wrap;
+      }
+      let el = entry.iconHost.querySelector(":scope > .wapyt-form-input-icon");
+      if (!icon) {
+        if (el) el.remove();
+        delete entry.iconHost.dataset.icon;
+        return;
+      }
+      if (!el) {
+        el = document.createElement("i");
+        el.setAttribute("aria-hidden", "true");
+        entry.iconHost.insertBefore(el, entry.iconHost.firstChild);
+      }
+      el.className = `wapyt-form-input-icon ${iconClass(icon)}`;
+      entry.iconHost.dataset.icon = "true";
+    }
+
     _renderHelp(entry) {
       const text = entry.field.help;
       if (!text) {
@@ -1240,6 +1293,10 @@
             this.setFieldOptions(key, value || []);
             field.options = value || [];
             break;
+          case "icon":
+            field.icon = value;
+            this._renderIcon(entry);
+            break;
           case "minLength":
           case "maxLength":
           case "pattern":
@@ -1322,10 +1379,11 @@
 
     _fillSelect(select, options) {
       select.innerHTML = "";
-      optionPairs(options).forEach(({ value, label }) => {
+      optionPairs(options).forEach(({ value, label, disabled }) => {
         const opt = document.createElement("option");
         opt.value = value;
         opt.textContent = label;
+        opt.disabled = disabled;
         select.appendChild(opt);
       });
     }
@@ -1333,11 +1391,13 @@
     _fillGroup(entry, options) {
       const group = entry.el;
       group.innerHTML = "";
-      optionPairs(options).forEach(({ value, label }) => {
+      optionPairs(options).forEach(({ value, label, disabled }) => {
         const wrap = document.createElement("label");
         wrap.className = "wapyt-form-option";
         const input = document.createElement("input");
         input.type = entry.type === "radio" ? "radio" : "checkbox";
+        input.disabled = disabled;
+        if (disabled) wrap.dataset.disabled = "true";
         // The per-instance id keeps two forms' radio sets from sharing a name.
         input.name = entry.name;
         input.value = value;
@@ -1734,6 +1794,11 @@
       if (Array.isArray(value)) return null;
       if (field.minLength && String(value).length < field.minLength) {
         return field.minLengthMessage || `Must be at least ${field.minLength} characters`;
+      }
+      // The maxlength attribute stops typing, but set_values can still put a
+      // longer value in.
+      if (field.maxLength != null && String(value).length > Number(field.maxLength)) {
+        return field.maxLengthMessage || `Must be at most ${field.maxLength} characters`;
       }
       if (field.pattern) {
         let re;

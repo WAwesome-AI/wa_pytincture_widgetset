@@ -1114,6 +1114,49 @@ textarea.wapyt-form-control {
 
 /* Combo: looks like a control; the input inside is borderless. The listbox is
    appended to <body> while open, so it is styled on its own, above modals. */
+/* An icon inside a field, on the left: inputs and selects are wrapped in a
+   positioned box; a combo hosts the icon itself as its first flex item. */
+.wapyt-form-input-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.wapyt-form-input-wrap > .wapyt-form-input-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.wapyt-form-input-icon {
+  font-size: 16px;
+  line-height: 1;
+  color: #64748b;
+}
+
+.wapyt-form-input-wrap[data-icon="true"] > .wapyt-form-control {
+  padding-left: 32px;
+}
+
+.wapyt-form-combo[data-icon="true"] > .wapyt-form-input-icon {
+  margin: 0 2px 0 1px;
+}
+
+.wapyt-form-option[data-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wapyt-form-combo-option[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-input-icon {
+  color: #94a3b8;
+}
+
 .wapyt-form-combo {
   display: flex;
   flex-wrap: wrap;

@@ -252,7 +252,8 @@ class Form:
 
         Fields take ``label``, ``placeholder``, ``help``, ``required``,
         ``readonly``, ``min`` / ``max`` / ``step`` (ranges redraw and re-snap),
-        ``min_length``, ``pattern``, ``matches``, ``options``,
+        ``min_length``, ``max_length``, ``icon``, ``pattern``, ``matches``,
+        ``options``,
         ``success_message`` and the ``*_message`` overrides. Pass ``None`` to
         clear an optional one. Buttons take ``text``, ``icon``, ``tooltip``
         and ``variant``. Anything else raises ValueError.
@@ -370,7 +371,9 @@ class Form:
 _FIELD_PROPERTIES = {
     "label": "label", "placeholder": "placeholder", "help": "help", "required": "required",
     "readonly": "readonly", "min": "min", "max": "max", "step": "step",
-    "min_length": "minLength", "pattern": "pattern", "matches": "matches", "options": "options",
+    "min_length": "minLength", "max_length": "maxLength", "icon": "icon",
+    "pattern": "pattern", "matches": "matches", "options": "options",
+    "max_length_message": "maxLengthMessage",
     "success_message": "successMessage", "required_message": "requiredMessage",
     "min_length_message": "minLengthMessage", "pattern_message": "patternMessage",
     "matches_message": "matchesMessage", "range_message": "rangeMessage",
