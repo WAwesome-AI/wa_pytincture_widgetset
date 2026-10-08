@@ -30,7 +30,7 @@ from .filetransfer.filetransfer import Capabilities, PickedFile, TransferResult
 from .tree.tree import Tree
 from .tree.tree_config import TreeConfig, TreeItem, TreeAction
 from .datatable.datatable_config import DataTableConfig, ColumnConfig, TableAction
-from .form.form_config import FormConfig, FieldConfig, FormButton, SelectOption
+from .form.form_config import FormConfig, FieldConfig, FormButton, FormFieldset, FormSpacer, SelectOption
 from .terminal.terminal import Terminal
 from .toolbar.toolbar import Toolbar
 from .contextmenu.contextmenu import ContextMenu
@@ -100,6 +100,8 @@ __all__ = [
     "FieldConfig",
     "SelectOption",
     "FormButton",
+    "FormFieldset",
+    "FormSpacer",
     "Terminal",
     "TerminalConfig",
     "TerminalTheme",

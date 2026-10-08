@@ -652,6 +652,78 @@
   grid-column: span 3;
 }
 
+/* Fieldset: a titled, bordered group with its own grid; a spacer is an
+   empty cell or a fixed gap. Both take `span` like a row. */
+.wapyt-form-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 10px 14px 14px;
+  border: 1px solid var(--wapyt-border);
+  border-radius: 8px;
+}
+
+.wapyt-form-fieldset[hidden],
+.wapyt-form-spacer[hidden] {
+  display: none;
+}
+
+.wapyt-form-legend {
+  padding: 0 6px;
+  margin-left: -6px;
+  font: 600 12px/1.3 system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  color: var(--wapyt-text);
+}
+
+.wapyt-form-fieldset-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.wapyt-form-fieldset-body[data-columns="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.wapyt-form-fieldset-body[data-columns="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wapyt-form-fieldset:disabled .wapyt-form-legend,
+.wapyt-form-fieldset:disabled .wapyt-form-label {
+  opacity: 0.55;
+}
+
+.wapyt-form-fieldset[data-span="2"],
+.wapyt-form-spacer[data-span="2"] {
+  grid-column: span 2;
+}
+
+.wapyt-form-fieldset[data-span="3"],
+.wapyt-form-spacer[data-span="3"] {
+  grid-column: span 3;
+}
+
+.wapyt-form-spacer {
+  min-width: 0;
+}
+
+/* Static: a read-only value set on the same line as an input's text (8px of
+   padding and a 1px border, without the box). */
+.wapyt-form-static {
+  display: block;
+  min-width: 0;
+  padding: 9px 0;
+  font: 13px/1.4 system-ui, sans-serif;
+  color: var(--wapyt-text);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.wapyt-form-static[data-empty="true"] {
+  opacity: 0.55;
+}
+
 .wapyt-form-label {
   font: 500 12px/1.3 system-ui, sans-serif;
   letter-spacing: 0.01em;
@@ -1329,12 +1401,18 @@ input[type="color"].wapyt-form-control {
 }
 
 [data-wapyt-theme="dark"] .wapyt-form-label,
+[data-wapyt-theme="dark"] .wapyt-form-legend,
+[data-wapyt-theme="dark"] .wapyt-form-static,
 [data-wapyt-theme="dark"] .wapyt-form-help,
 [data-wapyt-theme="dark"] .wapyt-form-button-ghost {
   color: var(--wapyt-text-dark);
 }
 
 [data-wapyt-theme="dark"] .wapyt-form-button-ghost {
+  border-color: var(--wapyt-divider-dark);
+}
+
+[data-wapyt-theme="dark"] .wapyt-form-fieldset {
   border-color: var(--wapyt-divider-dark);
 }
 

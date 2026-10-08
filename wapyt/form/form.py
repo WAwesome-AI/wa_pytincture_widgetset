@@ -7,7 +7,8 @@ import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from .._runtime import create_proxy, require_js, to_plain
-from .form_config import FieldConfig, FormButton, FormConfig, SelectOption, json_default
+from .form_config import (FieldConfig, FormButton, FormConfig, FormFieldset, FormSpacer, SelectOption,
+                          json_default)
 
 try:  # pragma: no cover - only available inside Pyodide
     import js  # type: ignore
@@ -169,15 +170,20 @@ class Form:
     # ------------------------------------------------------------------
 
     def show_field(self, field_id: str) -> None:
-        """Show a field or a :class:`FormButton`."""
+        """Show a field, a :class:`FormButton`, a :class:`FormFieldset` (and
+        everything in it) or a :class:`FormSpacer` with an id."""
         self.form.showField(field_id)
 
     def hide_field(self, field_id: str) -> None:
-        """Hide a field or a :class:`FormButton`."""
+        """Hide a field, button, fieldset or spacer. Hidden fields (and every
+        field in a hidden fieldset) are skipped by validation but still appear
+        in ``get_values``."""
         self.form.hideField(field_id)
 
     def set_field_disabled(self, field_id: str, disabled: bool = True) -> None:
-        """Disable a field or a :class:`FormButton`."""
+        """Disable a field, a :class:`FormButton`, or a :class:`FormFieldset`
+        and everything in it. Disabled fields are skipped by validation, like
+        the browser's own forms skip disabled controls."""
         self.form.setFieldDisabled(field_id, disabled)
 
     def set_busy(self, busy: bool = True) -> None:
@@ -221,4 +227,4 @@ class Form:
         return to_plain(result) or {}
 
 
-__all__ = ["Form", "FormConfig", "FieldConfig", "FormButton", "SelectOption"]
+__all__ = ["Form", "FormConfig", "FieldConfig", "FormButton", "FormFieldset", "FormSpacer", "SelectOption"]

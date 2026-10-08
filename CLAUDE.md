@@ -1194,6 +1194,48 @@ values, click / submit-button / invalid / Enter, loading, text, disabled,
 hidden, busy, narrow modal and viewport and back, dark) passed, and the
 field-type, combo, clear and range suites still pass (23 + 30 + 10 + 40).
 
+### Fieldsets, spacers and static fields (added 2026-10-08)
+
+`FormConfig.fields` now takes layout items besides fields; `_createItem`
+dispatches on `type` (`fieldset`, `spacer`, `button`, else a field) and
+passes an inherited label position down.
+
+- **`FormFieldset`** is a real `<fieldset>` + `<legend>` with its own grid
+  (`.wapyt-form-fieldset-body`, `columns` 1-3) and nests. Its `id` goes in
+  `_rows` (so `show_field` / `hide_field` work) and `_fieldsets`
+  (`set_field_disabled` sets `fieldset.disabled`). Its fields stay flat in
+  `get_values`; ids are unique across the whole form, nesting included
+  (`_collect_form_ids`). `label_position` / `label_width` on a fieldset are
+  defaults for everything inside.
+- **A disabled fieldset only disables native controls.** Three things needed
+  help: Combo checked `input.disabled`, which stays false under a disabled
+  fieldset, so it opened anyway (now `matches(":disabled")`); RangeSlider is
+  divs, so `_syncSliders` sets each slider to its own `selfDisabled` or any
+  disabled fieldset around it (a slider disabled on its own stays disabled
+  when its fieldset is re-enabled); group focus filters use `:disabled` too.
+- **Validation now skips inactive fields** (`_isInactive`): disabled, by
+  itself or a fieldset, or hidden, itself or any ancestor up to the form
+  element (not beyond: a form in a background tab must still validate).
+  **Behaviour change:** a hidden or disabled `required` field used to fail
+  validation; with conditional sections that blocked every submit invisibly.
+  The browser's own forms skip disabled controls the same way. They are
+  still in `get_values`. `focus_first` uses the same test.
+- **`FormSpacer`**: an empty grid cell (`span`) or a fixed gap (`height`);
+  hidable by `id`.
+- **`type="static"`**: an `<output>` (labelable, announced with its label,
+  not a tab stop). The value is kept as given in `entry.value` (string,
+  number) for `get_values`, shown via textContent, `placeholder` while
+  empty (`data-empty`). It cannot be `required`, is never validated, and
+  `clear()` empties it.
+- `set_values`, `clear` and `reset` stay silent, so an app that enables a
+  section from `on_change` must re-apply it after calling them.
+
+`tests/form_fieldsets_demo.py` (static values, a two-column fieldset, an
+SSH-key fieldset a radio shows, a proxy fieldset a toggle enables with a
+nested fieldset, slider, combo and button inside, spacers); a 38-check
+Playwright run passed, and the field-type, combo, clear, range and buttons
+suites still pass (23 + 30 + 10 + 40 + 38).
+
 ## Pagination (added 2026-10-06)
 
 `Pagination` (`assets/pagination.js`, `Layout.add_pagination`) replaces

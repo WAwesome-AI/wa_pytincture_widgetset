@@ -8,7 +8,7 @@ FIELD_TYPES = frozenset({
     "text", "password", "email", "number", "url", "search", "tel", "textarea",
     "select", "checkbox", "hidden",
     "date", "time", "datetime-local", "color", "range",
-    "radio", "toggle", "checkbox_group", "combo",
+    "radio", "toggle", "checkbox_group", "combo", "static",
 })
 
 
@@ -77,7 +77,9 @@ class FieldConfig:
             · ``hidden``; the native pickers ``date`` · ``time`` ·
             ``datetime-local`` · ``color`` · ``range``; and ``radio`` ·
             ``toggle`` (a switch) · ``checkbox_group``; and ``combo``, a
-            searchable select.
+            searchable select; and ``static``, a read-only value shown as
+            text (``get_values`` returns it as given, ``set_values`` changes
+            it; ``placeholder`` shows while it is empty).
         value: Initial value. ``checkbox`` and ``toggle`` coerce it to a
             bool; ``checkbox_group`` takes a list of option values; ``date``,
             ``time`` and ``datetime-local`` take an ISO string or a
@@ -167,6 +169,8 @@ class FieldConfig:
             raise ValueError(
                 f"FieldConfig {self.id!r}: label_position must be 'top' or 'left'; got {self.label_position!r}"
             )
+        if self.type == "static" and self.required:
+            raise ValueError(f"FieldConfig {self.id!r}: a static field cannot be required")
         if self.type not in FIELD_TYPES:
             raise ValueError(
                 f"FieldConfig {self.id!r}: unknown type {self.type!r}; "
@@ -231,6 +235,94 @@ class FieldConfig:
             "hiddenLabel": self.hidden_label or None,
         }
         return _clean(payload)
+
+
+@dataclass
+class FormFieldset:
+    """
+    A titled, bordered group of fields with its own grid. Put it in
+    ``FormConfig.fields`` (or inside another fieldset).
+
+    Its fields stay flat in ``get_values`` (ids are unique across the whole
+    form). ``show_field`` / ``hide_field`` / ``set_field_disabled`` with the
+    fieldset's id act on everything inside, and fields that are hidden or
+    disabled are not validated.
+
+    Args:
+        id: Addresses the group in ``show_field`` / ``hide_field`` /
+            ``set_field_disabled``. Optional if it never changes.
+        label: Title shown in the border (``<legend>``).
+        fields: :class:`FieldConfig`, :class:`FormButton`,
+            :class:`FormSpacer` or nested :class:`FormFieldset` entries.
+        columns: Grid columns inside the group.
+        span: Columns of the parent grid to span.
+        label_position / label_width: Defaults for the fields inside.
+        disabled / hidden: Initial state.
+    """
+
+    id: Optional[str] = None
+    label: Optional[str] = None
+    fields: List[Any] = field(default_factory=list)
+    columns: int = 1
+    span: Optional[int] = None
+    label_position: Optional[str] = None
+    label_width: Optional[Union[int, float, str]] = None
+    disabled: bool = False
+    hidden: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        if self.label_position is not None and self.label_position not in LABEL_POSITIONS:
+            raise ValueError(f"FormFieldset {self.id!r}: label_position must be 'top' or 'left'")
+        if self.columns not in (1, 2, 3):
+            raise ValueError(f"FormFieldset {self.id!r}: columns must be 1, 2 or 3")
+        return _clean({
+            "type": "fieldset",
+            "id": self.id,
+            "label": self.label,
+            "fields": [item.to_dict() if hasattr(item, "to_dict") else item for item in self.fields],
+            "columns": self.columns if self.columns != 1 else None,
+            "span": self.span,
+            "labelPosition": self.label_position,
+            "labelWidth": _label_width(self.label_width),
+            "disabled": self.disabled or None,
+            "hidden": self.hidden or None,
+        })
+
+
+@dataclass
+class FormSpacer:
+    """
+    Empty space in the form grid: an empty cell that pushes the next item to
+    the next column (``span`` cells wide), or with ``height`` a fixed gap.
+
+    Args:
+        id: Only needed to show or hide it later.
+        span: Columns to take.
+        height: Pixels or a CSS length.
+        hidden: Initial state.
+    """
+
+    id: Optional[str] = None
+    span: Optional[int] = None
+    height: Optional[Union[int, float, str]] = None
+    hidden: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        return _clean({
+            "type": "spacer",
+            "id": self.id,
+            "span": self.span,
+            "height": _label_width(self.height),
+            "hidden": self.hidden or None,
+        })
+
+
+def _collect_form_ids(items: List[Dict[str, Any]], into: List[str]) -> None:
+    for item in items:
+        if item.get("id"):
+            into.append(str(item["id"]))
+        if item.get("type") == "fieldset":
+            _collect_form_ids(item.get("fields") or [], into)
 
 
 @dataclass
@@ -304,8 +396,9 @@ class FormConfig:
     Layout and chrome for :class:`Form`.
 
     Args:
-        fields: Controls in render order; :class:`FormButton` entries place
-            buttons among them.
+        fields: Controls in render order; :class:`FormButton`,
+            :class:`FormFieldset` and :class:`FormSpacer` entries place
+            buttons, titled groups and empty space among them.
         submit_text: Label for the submit button; ``None`` hides it.
         cancel_text: Label for the cancel button; ``None`` hides it.
         buttons: More :class:`FormButton` entries for the action row, before
@@ -321,7 +414,7 @@ class FormConfig:
         extra: Additional properties forwarded to JS verbatim.
     """
 
-    fields: List[Union[FieldConfig, "FormButton"]] = field(default_factory=list)
+    fields: List[Any] = field(default_factory=list)
     submit_text: Optional[str] = "Save"
     cancel_text: Optional[str] = None
     buttons: List["FormButton"] = field(default_factory=list)
@@ -337,7 +430,8 @@ class FormConfig:
             raise ValueError(f"label_position must be 'top' or 'left'; got {self.label_position!r}")
         fields = [item.to_dict() if hasattr(item, "to_dict") else item for item in self.fields]
         buttons = [item.to_dict() if hasattr(item, "to_dict") else item for item in self.buttons]
-        ids = [str(item.get("id")) for item in fields + buttons if item.get("id")]
+        ids: List[str] = []
+        _collect_form_ids(fields + buttons, ids)
         duplicates = sorted({i for i in ids if ids.count(i) > 1})
         if duplicates:
             raise ValueError(f"duplicate form field or button ids: {', '.join(duplicates)}")
