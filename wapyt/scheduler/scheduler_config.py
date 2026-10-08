@@ -198,7 +198,7 @@ class SchedulerConfig:
 # ── iCal ────────────────────────────────────────────────────────────────────
 
 def _ics_text(value: str) -> str:
-    return (value.replace("\\", "\\\\").replace(";", "\;").replace(",", "\\,")
+    return (value.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
             .replace("\r\n", "\\n").replace("\n", "\\n").replace("\r", "\\n"))
 
 
