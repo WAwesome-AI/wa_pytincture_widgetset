@@ -1052,6 +1052,41 @@ midpoint of its own min and max.
 `tests/form_clear_demo.py` (every type); a 10-check Playwright run passed, and
 the field-type and combo suites still pass (23 + 30).
 
+### Two-thumb range and tick marks (added 2026-10-08)
+
+`FieldConfig(type="range", range=True)` reads back `[low, high]` and takes a
+two-item list or tuple (`None` for either end means that bound; unset spans
+the whole range). It is `RangeSlider` in `form.js`, not a native input: a
+`role="group"` named by the label, with two focusable `role="slider"` thumbs
+whose `aria-valuemin` / `max` are the limits the other thumb sets (the APG
+multi-thumb pattern). Thumbs never cross; values snap to `step`
+(`snapValue`, rounded to the step's decimals so 0.1 steps stay clean) and
+`set_values` puts a reversed pair in order.
+
+- **Pointer:** a press on the track moves the nearer thumb (or the one on that
+  side) and captures the pointer; when both thumbs sit on the same value, the
+  first movement's direction picks which. When both are at `min`, the high
+  thumb is stacked on top so it stays grabbable.
+- **Keyboard:** arrows step, Page Up / Down move a tenth of the range, Home /
+  End go to the thumb's limit. `change` fires on every real move, as the
+  native range does while dragging.
+- `clear()` and `reset()` without a configured value give `[min, max]`;
+  `set_field_disabled` drops both thumbs out of the tab order.
+- **Ticks** (`ticks`, `major_ticks`, `tick_labels`) work on one- and
+  two-thumb ranges. Marks are inset by 8px each end, the travel of a 16px
+  thumb centre, which matches Chromium's native thumb; the custom slider is
+  built to the same geometry. More than 200 marks draws none.
+- **The readout has a fixed width now** (the widest possible text, in `ch`).
+  It is a flex sibling of the track, so a readout growing from "0 – 500" to
+  "150 – 500" shrank the track under the pointer mid-drag; the Playwright run
+  caught it.
+
+`tests/form_range_demo.py`; a 40-check Playwright run (ARIA limits, escaping,
+keyboard, no crossing, floats, track click, drags, stacked thumbs, tick
+alignment for both kinds, set_values / clear / reset, disabled, label click,
+Tab order, submit, dark) passed, and the field-type, combo and clear suites
+still pass (23 + 30 + 10).
+
 ## Pagination (added 2026-10-06)
 
 `Pagination` (`assets/pagination.js`, `Layout.add_pagination`) replaces
