@@ -114,6 +114,23 @@ class Tree:
     def on_filter(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         self._bind_event("filter", handler)
 
+    def on_check(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """A checkbox was clicked (or Space pressed):
+        ``{"id", "checked", "checked_ids"}``, ``checked_ids`` as
+        :meth:`get_checked` returns them."""
+        self._bind_event("check", handler)
+
+    def on_move(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """
+        A node was dragged or Alt+arrowed to a new place:
+        ``{"id", "node", "from_parent", "from_index", "to_parent",
+        "to_index"}`` (parents are None at the root). The tree has already
+        moved it; if the server refuses, put it back without an event::
+
+            tree.move(p["id"], p["from_parent"], p["from_index"])
+        """
+        self._bind_event("move", handler)
+
     # ------------------------------------------------------------------
     # Data
     # ------------------------------------------------------------------
@@ -123,6 +140,10 @@ class Tree:
             item.to_dict() if hasattr(item, "to_dict") else item for item in items
         ]
         self.tree.setItems(js.JSON.parse(json.dumps(payload)))
+
+    def get_items(self) -> List[Dict[str, Any]]:
+        """The current nodes as nested dicts, after any moves, for saving."""
+        return list(self._to_py(self.tree.getItems()) or [])
 
     def get_node(self, node_id: str) -> Optional[Dict[str, Any]]:
         return self._to_py(self.tree.getNode(node_id))
@@ -160,6 +181,44 @@ class Tree:
 
     def set_expanded(self, node_ids: List[str]) -> None:
         self.tree.setExpanded(js.JSON.parse(json.dumps(list(node_ids))))
+
+    # ------------------------------------------------------------------
+    # Checkboxes
+    # ------------------------------------------------------------------
+
+    def check(self, node_id: str, checked: bool = True) -> None:
+        """Check or uncheck a node (a branch: everything under it, when
+        checks cascade). No event."""
+        self.tree.check(node_id, bool(checked))
+
+    def uncheck(self, node_id: str) -> None:
+        self.tree.check(node_id, False)
+
+    def set_checked(self, node_ids: List[str]) -> None:
+        """Replace every check with these nodes'. No event."""
+        self.tree.setChecked(js.JSON.parse(json.dumps([str(i) for i in node_ids])))
+
+    def get_checked(self, leaves_only: bool = False) -> List[str]:
+        """Checked node ids in tree order: fully checked branches too,
+        unless ``leaves_only``."""
+        return list(self._to_py(self.tree.getChecked(bool(leaves_only))) or [])
+
+    def is_checked(self, node_id: str) -> bool:
+        """True when the node is fully checked (a mixed branch is not)."""
+        return bool(self.tree.isChecked(node_id))
+
+    # ------------------------------------------------------------------
+    # Moving
+    # ------------------------------------------------------------------
+
+    def move(self, node_id: str, parent_id: Optional[str], index: int) -> None:
+        """Move a node under ``parent_id`` (None for the root) at
+        ``index``, without an event; refuses a move into its own subtree."""
+        self.tree.move(node_id, js.undefined if parent_id is None else parent_id, int(index))
+
+    def focus(self, node_id: Optional[str] = None) -> None:
+        """Give the tree keyboard focus, on ``node_id`` or its current row."""
+        self.tree.focus(js.undefined if node_id is None else node_id)
 
     # ------------------------------------------------------------------
     # View state

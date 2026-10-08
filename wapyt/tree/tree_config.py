@@ -26,6 +26,11 @@ class TreeItem:
         tooltip: Title attribute; defaults to the label.
         items: Child nodes.
         data: Arbitrary metadata carried along in event payloads.
+        checked: Start checked (with ``TreeConfig(checkboxes=True)``); a
+            checked branch checks everything under it when checks cascade.
+        checkbox: False hides this node's checkbox.
+        draggable: False pins this node when the tree is draggable.
+        droppable: False stops other nodes being dropped into this one.
     """
 
     id: str
@@ -36,6 +41,10 @@ class TreeItem:
     tooltip: Optional[str] = None
     items: List["TreeItem"] = field(default_factory=list)
     data: Dict[str, Any] = field(default_factory=dict)
+    checked: bool = False
+    checkbox: bool = True
+    draggable: bool = True
+    droppable: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
         return _clean(
@@ -52,6 +61,10 @@ class TreeItem:
                 ]
                 or None,
                 "data": self.data or None,
+                "checked": self.checked or None,
+                "checkbox": None if self.checkbox else False,
+                "draggable": None if self.draggable else False,
+                "droppable": None if self.droppable else False,
             }
         )
 
@@ -117,6 +130,17 @@ class TreeConfig:
         empty_text: Shown when nothing matches.
         context_actions: Right-click menu entries.
         indent: Pixels of indent per depth level.
+        label: Accessible name of the tree.
+        checkboxes: A checkbox on every node (``TreeItem(checkbox=False)``
+            hides one). Click it or press Space; ``on_check`` reports.
+        check_cascade: With checkboxes, checking a branch checks everything
+            under it and a branch shows checked / mixed / unchecked from its
+            leaves (default). False makes every node independent.
+        draggable: Let nodes be dragged: before or after a row, or onto a
+            branch (its middle) to go inside it. Alt+arrow keys move the
+            focused node. ``on_move`` reports; ``move()`` puts one back.
+        drop_into_leaves: Let a node be dropped onto a leaf, which then
+            becomes a branch.
         extra: Additional properties forwarded to JS verbatim.
     """
 
@@ -128,14 +152,17 @@ class TreeConfig:
     empty_text: Optional[str] = None
     context_actions: List[TreeAction] = field(default_factory=list)
     indent: int = 14
+    label: str = "Tree"
+    checkboxes: bool = False
+    check_cascade: bool = True
+    draggable: bool = False
+    drop_into_leaves: bool = False
     extra: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
+        items = [item.to_dict() if hasattr(item, "to_dict") else item for item in self.items]
         payload = {
-            "items": [
-                item.to_dict() if hasattr(item, "to_dict") else item
-                for item in self.items
-            ],
+            "items": items,
             "selected": self.selected,
             "expandAll": self.expand_all,
             "filterable": self.filterable,
@@ -146,6 +173,11 @@ class TreeConfig:
                 for item in self.context_actions
             ],
             "indent": self.indent,
+            "label": self.label,
+            "checkboxes": self.checkboxes or None,
+            "checkCascade": None if self.check_cascade else False,
+            "draggable": self.draggable or None,
+            "dropIntoLeaves": self.drop_into_leaves or None,
         }
         payload.update(self.extra or {})
         return _clean(payload)

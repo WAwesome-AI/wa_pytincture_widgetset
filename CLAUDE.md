@@ -472,6 +472,53 @@ express: Monguana puts what a connection's backend supports into each node's
 flags, so a tinymongo collection has no *Rename*. A node without `flags` shows
 no entry that has `requires`.
 
+## Tree keyboard, checkboxes and drag-and-drop (added 2026-10-08)
+
+`tree.js` was rewritten around three additions; rows are still a flat list
+of `.wapyt-tree-row[data-node-id]` (the apps' smoke tests select on that),
+clicks still select and toggle, and the context menu is unchanged.
+
+- **Keyboard / ARIA (there was none):** the scroller is `role="tree"`
+  (`TreeConfig(label=)` names it), rows are `treeitem`s with
+  `aria-level` / `aria-posinset` / `aria-setsize` (the flat-tree form: a
+  `role="group"` wrapper would have to sit inside the treeitem and change the
+  DOM), `aria-expanded`, `aria-selected`, `aria-checked`. One roving tab stop
+  (`_focusId`). Up/Down, Home/End, Right opens or enters, Left closes or goes
+  to the parent, Enter activates a leaf or toggles a branch, Space checks (or
+  selects), Shift+F10 / Menu opens the context menu. **Every change
+  re-renders the rows**, so `_renderNodes` re-focuses the tab-stop row when
+  focus was inside the tree before.
+- **Checkboxes** (`checkboxes=True`): with `check_cascade` (default) only
+  leaves hold state (`_checked`); a branch is checked / mixed / unchecked
+  from its leaves (`_checkState`) and checking it sets all of them. Without
+  cascade every node is independent. The box is an `aria-hidden` input that
+  only takes clicks (the row is the control). `TreeItem(checkbox=False)`
+  leaves a same-width gap so icons stay aligned. `setItems` keeps checks for
+  ids that still exist and adds items marked `checked`.
+- **Drag and drop** (`draggable=True`): pointer events with a 5px threshold,
+  a ghost in `<body>`, a drop line positioned in the scroller (now
+  `position: relative`), or an inside highlight for a branch's middle half.
+  A closed branch hovered for 650ms opens (`_renderDuringDrag` re-attaches
+  the line). Just below an **open** branch drops as its first child (that is
+  what the line looks like). Rows in the dragged subtree are never targets.
+  `droppable=False` refuses children, `draggable=False` pins, and
+  `drop_into_leaves` lets a leaf become a branch. Escape cancels; the click
+  ending a drag is suppressed; dragging pauses while filtered.
+- **Keyboard moves:** Alt+Up/Down among siblings, Alt+Right into the
+  sibling above (last child), Alt+Left out after the parent; announced in a
+  per-tree `aria-live` region.
+- `_applyMove` mutates the item arrays and reindexes (an emptied branch
+  becomes a leaf). Moves from code (`move()`, used to revert a refused
+  drop) pass `force` and skip the drop rules (a refused drop may need to go
+  back into a now-empty parent) but never allow a cycle. `on_move` →
+  `{id, node, from_parent, from_index, to_parent, to_index}`;
+  `get_items()` returns the current structure.
+- No duplicate-id check: Monguana's document view builds ids from key paths,
+  and a key containing `/` can repeat one; raising would blank the view.
+
+`tests/tree_dnd_demo.py`; a 55-check Playwright run passed, and the
+ContextMenu (29), Popup (29) and tree-tooltip (3) suites still pass.
+
 ## DataTable column resize and reorder (added 2026-09-25)
 
 Opt-in: `DataTableConfig(resizable_columns=True, reorderable_columns=True,
