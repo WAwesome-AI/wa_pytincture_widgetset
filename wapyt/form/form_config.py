@@ -8,11 +8,19 @@ FIELD_TYPES = frozenset({
     "text", "password", "email", "number", "url", "search", "tel", "textarea",
     "select", "checkbox", "hidden",
     "date", "time", "datetime-local", "color", "range",
-    "radio", "toggle", "checkbox_group", "combo", "static",
+    "radio", "toggle", "checkbox_group", "combo", "static", "file", "avatar",
 })
+FILE_TYPES = frozenset({"file", "avatar"})
 
 
 LABEL_POSITIONS = ("top", "left")
+# Kinds that can show an icon inside the field.
+ICON_TYPES = frozenset({
+    "text", "password", "email", "number", "url", "search", "tel",
+    "date", "time", "datetime-local", "select", "combo",
+})
+# Kinds max_length applies to.
+LENGTH_TYPES = frozenset({"text", "password", "email", "url", "search", "tel", "textarea"})
 BUTTON_VARIANTS = ("default", "primary", "danger", "link")
 
 
@@ -55,13 +63,21 @@ def json_default(value: Any) -> Any:
 
 @dataclass
 class SelectOption:
-    """One entry in a ``select``, ``combo``, ``radio`` or ``checkbox_group`` field."""
+    """
+    One entry in a ``select``, ``combo``, ``radio`` or ``checkbox_group``
+    field. ``disabled`` shows it but stops it being picked (a value set by
+    the app still shows).
+    """
 
     value: str
     label: Optional[str] = None
+    disabled: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"value": self.value, "label": self.label or self.value}
+        payload = {"value": self.value, "label": self.label or self.value}
+        if self.disabled:
+            payload["disabled"] = True
+        return payload
 
 
 @dataclass
@@ -79,7 +95,12 @@ class FieldConfig:
             ``toggle`` (a switch) · ``checkbox_group``; and ``combo``, a
             searchable select; and ``static``, a read-only value shown as
             text (``get_values`` returns it as given, ``set_values`` changes
-            it; ``placeholder`` shows while it is empty).
+            it; ``placeholder`` shows while it is empty); ``file``, a drop
+            zone and Choose button (value: a list of ``{"name", "size",
+            "type"}``; the files themselves via ``Form.get_files`` /
+            ``Form.adopt_files``); and ``avatar``, a round picture picker
+            (value: the picture's URL as set, ``{"name", "size", "type"}``
+            once a new one is chosen, ``None`` when removed).
         value: Initial value. ``checkbox`` and ``toggle`` coerce it to a
             bool; ``checkbox_group`` takes a list of option values; ``date``,
             ``time`` and ``datetime-local`` take an ISO string or a
@@ -91,12 +112,24 @@ class FieldConfig:
         help: Hint rendered under the control.
         required: Fails validation when empty.
         min_length: Minimum string length once non-empty.
+        max_length: Maximum string length: typing stops there, and a longer
+            value set with ``set_values`` fails validation. Text-like fields
+            and ``textarea``.
+        icon: MDI class (``mdi-magnify``) shown inside the field, on the
+            left. Text-like inputs, date / time pickers, ``select`` and
+            ``combo``.
         pattern: JavaScript regular expression source the value must match.
         matches: Another field's id whose value this one must equal — for
             "confirm password" pairs.
         options: Choices for ``select``, ``combo``, ``radio`` and
             ``checkbox_group``; strings or :class:`SelectOption`.
-        multiple: Let a ``combo`` pick several values, shown as chips.
+        multiple: Let a ``combo`` pick several values, shown as chips, or a
+            ``file`` field hold several files.
+        accept: ``file`` / ``avatar``: accepted types, as for the native
+            attribute (``".csv,.tsv"``, ``"image/*"``); avatar defaults to
+            images.
+        max_size: ``file`` / ``avatar``: largest file in bytes.
+        max_files: ``file`` with ``multiple``: most files it holds.
         allow_custom: Let a ``combo`` keep typed text that is not an option.
         inline: Lay ``radio`` / ``checkbox_group`` options out in a row.
         show_value: Show a ``range`` field's current value beside it.
@@ -117,14 +150,17 @@ class FieldConfig:
         disabled / readonly: Control state.
         autocomplete: Forwarded to the control's ``autocomplete`` attribute.
         required_message / min_length_message / pattern_message /
-        matches_message / range_message: Override the default validation copy.
+        matches_message / range_message / max_length_message: Override the
+            default validation copy.
         validate: A function ``validate(value, values)`` run after the
             built-in checks pass, for a non-empty value of a field that is
             shown and enabled. ``values`` is the whole form. Return ``None``
             (or ``""`` / ``True``) when the value is fine, or the error
             message; ``False`` shows "Invalid value", as does an exception
-            (its traceback goes to the console). It runs in the browser
-            under Pyodide, so the BFF must still check. Not sent to JS: the
+            (its traceback goes to the console). It may be an ``async def``
+            that asks the BFF: the field shows "Checking…" until it answers,
+            and submitting waits for it. It runs in the browser under
+            Pyodide, so the BFF must still check. Not sent to JS: the
             :class:`Form` registers it (see ``Form.set_validator``).
         success_message: Shown under the field, in place of an error, once
             it passes validation; cleared when the field is edited.
@@ -146,6 +182,8 @@ class FieldConfig:
     help: Optional[str] = None
     required: bool = False
     min_length: Optional[int] = None
+    max_length: Optional[int] = None
+    icon: Optional[str] = None
     pattern: Optional[str] = None
     matches: Optional[str] = None
     options: Optional[List[Union[str, SelectOption]]] = None
@@ -157,6 +195,9 @@ class FieldConfig:
     tick_labels: bool = True
     multiple: bool = False
     allow_custom: bool = False
+    accept: Optional[str] = None
+    max_size: Optional[int] = None
+    max_files: Optional[int] = None
     rows: Optional[int] = None
     min: Optional[Union[int, float, str, _dt.date, _dt.time]] = None
     max: Optional[Union[int, float, str, _dt.date, _dt.time]] = None
@@ -170,6 +211,7 @@ class FieldConfig:
     pattern_message: Optional[str] = None
     matches_message: Optional[str] = None
     range_message: Optional[str] = None
+    max_length_message: Optional[str] = None
     label_position: Optional[str] = None
     label_width: Optional[Union[int, float, str]] = None
     hidden_label: bool = False
@@ -182,6 +224,21 @@ class FieldConfig:
         if self.label_position is not None and self.label_position not in LABEL_POSITIONS:
             raise ValueError(
                 f"FieldConfig {self.id!r}: label_position must be 'top' or 'left'; got {self.label_position!r}"
+            )
+        if self.icon and self.type not in ICON_TYPES:
+            raise ValueError(f"FieldConfig {self.id!r}: a {self.type} field cannot show an icon")
+        if self.max_length is not None and self.type not in LENGTH_TYPES:
+            raise ValueError(f"FieldConfig {self.id!r}: max_length applies to text fields, not {self.type}")
+        if self.type not in FILE_TYPES and (self.accept or self.max_size or self.max_files):
+            raise ValueError(f"FieldConfig {self.id!r}: accept, max_size and max_files need type 'file' or 'avatar'")
+        if self.max_files is not None and not (self.type == "file" and self.multiple):
+            raise ValueError(f"FieldConfig {self.id!r}: max_files needs type='file' with multiple=True")
+        if self.type in FILE_TYPES and self.value not in (None, [], ()) and not (
+            self.type == "avatar" and isinstance(self.value, str)
+        ):
+            raise ValueError(
+                f"FieldConfig {self.id!r}: a {self.type} field cannot start with files "
+                "(an avatar may start with the URL of an existing picture)"
             )
         if self.type == "static" and self.required:
             raise ValueError(f"FieldConfig {self.id!r}: a static field cannot be required")
@@ -220,6 +277,8 @@ class FieldConfig:
             "help": self.help,
             "required": self.required or None,
             "minLength": self.min_length,
+            "maxLength": self.max_length,
+            "icon": self.icon,
             "pattern": self.pattern,
             "matches": self.matches,
             "options": options,
@@ -231,6 +290,9 @@ class FieldConfig:
             "tickLabels": None if self.tick_labels else False,
             "multiple": self.multiple or None,
             "allowCustom": self.allow_custom or None,
+            "accept": self.accept,
+            "maxSize": self.max_size,
+            "maxFiles": self.max_files,
             "rows": self.rows,
             "min": iso_value(self.min),
             "max": iso_value(self.max),
@@ -244,6 +306,7 @@ class FieldConfig:
             "patternMessage": self.pattern_message,
             "matchesMessage": self.matches_message,
             "rangeMessage": self.range_message,
+            "maxLengthMessage": self.max_length_message,
             "labelPosition": self.label_position,
             "labelWidth": _label_width(self.label_width),
             "hiddenLabel": self.hidden_label or None,
@@ -425,6 +488,8 @@ class FormConfig:
             such as ``"30%"``); default 160px.
         columns: Grid column count (1 stacks the fields).
         busy: Start with the buttons disabled.
+        disabled: Start with the whole form disabled (``Form.enable()``).
+        hidden: Start with the form hidden (``Form.show()``).
         autocomplete: Form-level ``autocomplete`` attribute.
         extra: Additional properties forwarded to JS verbatim.
     """
@@ -437,6 +502,8 @@ class FormConfig:
     label_width: Optional[Union[int, float, str]] = None
     columns: int = 1
     busy: bool = False
+    disabled: bool = False
+    hidden: bool = False
     autocomplete: str = "off"
     extra: Dict[str, Any] = field(default_factory=dict)
 
@@ -459,6 +526,8 @@ class FormConfig:
             "cancelText": self.cancel_text,
             "columns": self.columns,
             "busy": self.busy,
+            "disabled": self.disabled or None,
+            "hidden": self.hidden or None,
             "autocomplete": self.autocomplete,
         }
         payload.update(self.extra or {})

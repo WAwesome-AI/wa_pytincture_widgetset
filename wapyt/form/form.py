@@ -3,13 +3,14 @@ Form widget: declarative inputs with validation and error slots.
 """
 from __future__ import annotations
 
+import inspect
 import json
 import traceback
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 from .._runtime import create_proxy, require_js, to_plain
 from .form_config import (FieldConfig, FormButton, FormConfig, FormFieldset, FormSpacer, SelectOption,
-                          json_default)
+                          iso_value, json_default)
 
 try:  # pragma: no cover - only available inside Pyodide
     import js  # type: ignore
@@ -67,6 +68,10 @@ class Form:
         # Validators are Python functions, so they cannot travel in the JSON
         # config; each one is handed to the JS as a proxy instead.
         self._validator_proxies: Dict[str, Any] = {}
+        self._button_ids = {
+            item.id for item in list(_iter_fields(self.config.fields)) + list(self.config.buttons)
+            if isinstance(item, FormButton)
+        }
         for item in _iter_fields(self.config.fields):
             if getattr(item, "validate", None) is not None:
                 self.set_validator(item.id, item.validate)
@@ -209,10 +214,73 @@ class Form:
         the browser's own forms skip disabled controls."""
         self.form.setFieldDisabled(field_id, disabled)
 
+    def disable(self) -> None:
+        """
+        Disable the whole form: every field and button, Submit and Cancel
+        included. Fields keep their own disabled state for when the form is
+        enabled again. ``submit()`` does nothing while it is disabled.
+        """
+        self.form.disable()
+
+    def enable(self) -> None:
+        self.form.enable()
+
+    def is_disabled(self) -> bool:
+        return bool(self.form.isDisabled())
+
+    def hide(self) -> None:
+        """Hide the whole form (its values stay as they are)."""
+        self.form.hide()
+
+    def show(self) -> None:
+        self.form.show()
+
+    def is_visible(self) -> bool:
+        return bool(self.form.isVisible())
+
     def set_busy(self, busy: bool = True) -> None:
         """Disable Submit, Cancel and every ``submit=True`` button while an
         async submit is in flight."""
         self.form.setBusy(busy)
+
+    def set_properties(self, field_id: str, **properties: Any) -> None:
+        """
+        Change a field's or button's settings after the form is built::
+
+            form.set_properties("email", label="Work email", required=True,
+                                help="We never share it")
+            form.set_properties("save", text="Saving…", variant="primary")
+
+        Fields take ``label``, ``placeholder``, ``help``, ``required``,
+        ``readonly``, ``min`` / ``max`` / ``step`` (ranges redraw and re-snap),
+        ``min_length``, ``max_length``, ``icon``, ``pattern``, ``matches``,
+        ``options``,
+        ``success_message`` and the ``*_message`` overrides. Pass ``None`` to
+        clear an optional one. Buttons take ``text``, ``icon``, ``tooltip``
+        and ``variant``. Anything else raises ValueError.
+        """
+        is_button = field_id in self._button_ids
+        allowed = _BUTTON_PROPERTIES if is_button else _FIELD_PROPERTIES
+        unknown = sorted(set(properties) - set(allowed))
+        if unknown:
+            kind = "button" if is_button else "field"
+            raise ValueError(f"cannot set {', '.join(unknown)} on form {kind} {field_id!r}")
+        payload: Dict[str, Any] = {}
+        for name, value in properties.items():
+            if name == "options" and value is not None:
+                value = [o.to_dict() if hasattr(o, "to_dict") else o for o in value]
+            elif name in ("min", "max"):
+                value = iso_value(value)
+            payload[allowed[name]] = value
+        self.form.setProperties(field_id, js.JSON.parse(json.dumps(payload, default=json_default)))
+
+    def get_properties(self, field_id: str) -> Dict[str, Any]:
+        """The current settable properties of a field or button, with
+        ``set_properties``' names."""
+        raw = to_plain(self.form.getProperties(field_id)) or {}
+        names = _BUTTON_PROPERTIES if field_id in self._button_ids else _FIELD_PROPERTIES
+        back = {camel: snake for snake, camel in names.items()}
+        return {back.get(key, key): value for key, value in raw.items()}
 
     def set_button_text(self, button_id: str, text: str) -> None:
         self.form.setButtonText(button_id, "" if text is None else str(text))
@@ -259,7 +327,9 @@ class Form:
         """
         Set or replace a field's validator (``None`` removes it); the same
         contract as ``FieldConfig(validate=...)``: ``validator(value,
-        values)`` returns ``None`` when fine, else the message.
+        values)`` returns ``None`` when fine, else the message. It may be an
+        ``async def`` (to ask the BFF, say): the field shows "Checking…"
+        until it answers, and submitting waits for it.
         """
         if validator is not None and not callable(validator):
             raise ValueError("validator must be callable or None")
@@ -269,10 +339,23 @@ class Form:
         else:
             def call(value: Any, values: Any) -> Any:
                 try:
-                    return validator(to_plain(value), to_plain(values) or {})
+                    result = validator(to_plain(value), to_plain(values) or {})
                 except Exception:
                     traceback.print_exc()
                     return "Invalid value"
+                if not inspect.isawaitable(result):
+                    return result
+
+                # An async validator: hand the JS an awaitable that cannot
+                # raise either. Pyodide passes a coroutine as a thenable.
+                async def finish() -> Any:
+                    try:
+                        return await result
+                    except Exception:
+                        traceback.print_exc()
+                        return "Invalid value"
+
+                return finish()
 
             proxy = create_proxy(call)
             self._validator_proxies[field_id] = proxy
@@ -296,9 +379,59 @@ class Form:
         value = to_plain(self.form.validateField(field_id))
         return str(value) if value else None
 
+    def get_files(self, field_id: str) -> List[Any]:
+        """
+        The browser ``File`` objects a ``file`` or ``avatar`` field holds, in
+        order (an avatar: zero or one). To upload them, prefer
+        :meth:`adopt_files`.
+        """
+        return list(self.form.getFiles(field_id))
+
+    def adopt_files(self, field_id: str) -> List[str]:
+        """
+        Register a ``file`` or ``avatar`` field's files with
+        :mod:`wapyt.filetransfer` and return their handle ids, ready for
+        ``filetransfer.upload(url, file_id, ...)`` (progress and the CSRF
+        token included)::
+
+            for file_id in form.adopt_files("attachments"):
+                await filetransfer.upload("/api/upload", file_id)
+        """
+        from ..filetransfer.filetransfer import adopt
+
+        return [adopt(file) for file in self.get_files(field_id)]
+
+    async def validate_async(self) -> Dict[str, str]:
+        """Like :meth:`validate`, but also waits for async validators and
+        includes their errors."""
+        return to_plain(await self.form.validateAsync()) or {}
+
+    async def validate_field_async(self, field_id: str) -> Optional[str]:
+        """Like :meth:`validate_field`, waiting for an async validator."""
+        value = to_plain(await self.form.validateFieldAsync(field_id))
+        return str(value) if value else None
+
     def validate(self) -> Dict[str, str]:
+        """
+        Run every check now and show the results. Async validators are
+        started (their fields show "Checking…" and update when they answer)
+        but not waited for; use :meth:`validate_async` for the full result.
+        """
         result = self.form.validate()
         return to_plain(result) or {}
+
+
+_FIELD_PROPERTIES = {
+    "label": "label", "placeholder": "placeholder", "help": "help", "required": "required",
+    "readonly": "readonly", "min": "min", "max": "max", "step": "step",
+    "min_length": "minLength", "max_length": "maxLength", "icon": "icon",
+    "pattern": "pattern", "matches": "matches", "options": "options",
+    "max_length_message": "maxLengthMessage",
+    "success_message": "successMessage", "required_message": "requiredMessage",
+    "min_length_message": "minLengthMessage", "pattern_message": "patternMessage",
+    "matches_message": "matchesMessage", "range_message": "rangeMessage",
+}
+_BUTTON_PROPERTIES = {"text": "text", "icon": "icon", "tooltip": "tooltip", "variant": "variant"}
 
 
 def _iter_fields(items: Iterable[Any]) -> Iterable[Any]:

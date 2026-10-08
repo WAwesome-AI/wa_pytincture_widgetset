@@ -1299,6 +1299,144 @@ inputs.
 field-type, combo, clear, range, buttons, fieldsets and validators suites
 still pass.
 
+### set_properties / get_properties (added 2026-10-08)
+
+`Form.set_properties(id, **props)` changes a field or button after build;
+the wrapper checks names against `_FIELD_PROPERTIES` / `_BUTTON_PROPERTIES`
+(snake → camel) and the JS `setProperties` writes them into `entry.field`
+(the spec validation reads) and redraws what shows them:
+
+- `label` / `required` → `_renderLabel` (text, the `*` mark, and
+  `aria-required` on inputs and radio groups; not on checkbox groups, sliders
+  or static fields). A static field cannot become required.
+- `help` → `_renderHelp` creates, changes or removes the help line just
+  above the error slot (`entry.helpEl`, `entry.errorEl`).
+- `min` / `max` / `step` → `_applyBounds`: native attributes (`None`
+  removes), or new `slider.bounds` and a re-snap of both thumbs; tick scales
+  are rebuilt (`entry.scale`) and the readout re-sized (`_sizeOutput`).
+- `readonly` reaches the two-thumb slider too (`aria-readonly` is now also
+  removed when it is turned off).
+- Validation-only keys (`min_length`, `pattern`, `matches`, the messages,
+  `success_message`) are stored and take effect on the next check.
+- Buttons: `text`, `icon` (None removes it), `tooltip`, `variant`.
+
+`get_properties(id)` returns the same names. `tests/form_properties_demo.py`;
+a 30-check Playwright run passed, and the earlier Form suites still pass.
+
+### Whole-form disable and hide (added 2026-10-08)
+
+Every row, the form-wide error and the action row now sit inside one
+`<fieldset class="wapyt-form-frame">` with **`display: contents`**, so the
+rows are still items of the form's grid (spans, columns and left labels are
+unchanged; the Playwright run compares positions) while `disable()` sets
+`frame.disabled` and the browser disables every native control at once,
+Submit and Cancel included. A field or fieldset disabled on its own stays
+disabled after `enable()`, because nothing is written to the controls.
+`_syncSliders` counts the frame as a disabling ancestor, and `submit()`
+returns early while the frame is disabled. `hide()` / `show()` set `hidden`
+on the `<form>` (`.wapyt-form-body[hidden]` keeps it out of the grid
+display rule). `FormConfig(disabled=, hidden=)` set the initial state.
+
+Nothing in wapyt or the apps used a child selector under `.wapyt-form-body`
+(checked), so the extra wrapper broke no styles. `tests/form_disable_demo.py`;
+a 17-check Playwright run passed.
+
+### max_length, field icons, disabled options (added 2026-10-08)
+
+- **`max_length`** (text-like fields and textarea) sets the native
+  `maxlength`, which stops typing, and is validated too (`_builtinError`,
+  after `min_length`), because `set_values` bypasses the attribute.
+  `max_length_message`; settable through `set_properties` (`None` removes
+  the attribute).
+- **`icon`** (text-like inputs, date/time pickers, select, combo): an MDI
+  `<i aria-hidden>` on the left. An input or select is wrapped in
+  `.wapyt-form-input-wrap` (positioned; the control gets `padding-left: 32px`)
+  only when an icon is first needed (`_renderIcon`, `entry.iconHost` null
+  until then; undefined for kinds that cannot have one, which throw); a combo
+  hosts the icon in its own box. The icon has `pointer-events: none`, so a
+  click on it lands in the input. `set_properties(icon=...)` adds, changes or
+  removes it; the wrap stays.
+- **`SelectOption(disabled=True)`**: `option.disabled` in a select,
+  `input.disabled` (and a dimmed label) in radio / checkbox groups, so the
+  browser's own arrow keys skip it; in a combo the item gets `aria-disabled`,
+  `_pick` ignores it and `_setActive(index, dir)` walks past disabled items
+  (staying put if nothing enabled lies that way). The app can still set a
+  disabled option's value.
+
+`tests/form_options_demo.py`; a 26-check Playwright run passed. (Two test
+lessons: Playwright will not click an element with `pointer-events: none` or
+`aria-disabled`, which is the behaviour being tested; click by coordinates or
+with `force=True`.)
+
+### Async validators (added 2026-10-08)
+
+A validator may be an `async def` (to ask the BFF). The wrapper's `call`
+checks `inspect.isawaitable` on the result and returns an inner coroutine
+that also turns an exception into "Invalid value"; Pyodide hands a
+coroutine to JS as a **thenable proxy**, so `_validatorError` returns
+`Promise.resolve(result).then(normalise, failed)` and destroys the proxy
+afterwards.
+
+- `_checkField` bumps `entry.checks` on every check, and `emitChange` bumps
+  it on every edit; a check's `token` is that count, and a result whose token
+  is stale is dropped. `validate()` stays synchronous: it starts async checks
+  (`_showWhenDone`), keeps them in `this._pending`, and returns the errors it
+  has. `validateAsync()` / `validateFieldAsync()` (Python
+  `validate_async` / `validate_field_async`) wait for them.
+- `submit()` and `submit=True` buttons: sync errors fail at once; otherwise
+  `_afterPending` waits with `_checking` set (Submit and submit buttons
+  disabled, `data-checking` on the host, second submits ignored), then emits
+  `submit` / `click` or `invalid`. An edit during the wait abandons that
+  submit.
+- **Pending shows as a spinner after the label** (`data-checking` on the
+  row, `aria-busy` on the control), not as "Checking…" text. A text line
+  appearing on blur moved the button being pressed down before mouseup, so
+  the click was lost.
+- **That was a general bug, also with sync `validate_field` on blur (#56's
+  recipe):** an error line appearing on blur moves the button under the
+  pointer. `whenPointerFree` (module level: capture `pointerdown` /
+  `pointerup` / `pointercancel` on document) queues the message updates of
+  `validate_field` and of async results while a pointer is held, and runs
+  them in a `setTimeout(0)` after release, which is after the click (same
+  task as pointerup). Keyboard use is unaffected.
+
+`tests/form_async_validators_demo.py` (an `asyncio.sleep` validator with a
+settable delay); a 19-check Playwright run passed.
+
+### File and avatar fields (added 2026-10-08)
+
+`type="file"` and `type="avatar"` are one class, `FilePicker` in `form.js`.
+The field's control (`entry.el`, what labels, focus and `:disabled` use) is
+a real `<button>` that clicks a hidden `<input type=file>`; drops land on the
+zone (file) or the picture button (avatar).
+
+- **Files never leave the browser on their own.** `get_values` reports
+  `{name, size, type}` (a list for `file`; for `avatar` the URL the app set,
+  the metadata once a new picture is chosen, or None). `Form.get_files(id)`
+  returns the `File` objects and `Form.adopt_files(id)` registers them with
+  `filetransfer` (`registerExternal`) and returns handle ids for
+  `filetransfer.upload(url, file_id)`, so uploads keep progress and the CSRF
+  token. The form does no uploading itself (dhxpyt's `target` / `autosend`
+  are deliberately not copied).
+- Rules are applied as files arrive (`_add`): `accept` (native syntax:
+  `.ext`, `type/sub`, `type/*`; avatar defaults to `image/*`), `max_size`
+  (bytes), `max_files` (file + multiple); duplicates (name + size +
+  lastModified) are skipped. Rejected files are not added; the reasons go to
+  the error slot, one per line (`.wapyt-form-error` is `white-space:
+  pre-line` now). A single file field replaces its file.
+- **The avatar preview is a `data:` URL** from FileReader: pyTincture's CSP
+  is `img-src 'self' data: https:`, so `URL.createObjectURL`'s `blob:` URLs
+  would be blocked. An app-set URL must be same-origin, https or data.
+- `set_values` can only clear a picker (None / [] ) or give an avatar a URL;
+  `FieldConfig` refuses preset files. `clear()` empties; `reset()` restores
+  an avatar's configured URL.
+- Avatar rows are `data-kind="avatar"` so left labels centre on the picture
+  (the button has no text baseline).
+
+`tests/form_files_demo.py` (fixtures written to the scratchpad; files fed
+through the hidden input and a synthetic `DataTransfer` drop); a 29-check
+Playwright run passed.
+
 ## Pagination (added 2026-10-06)
 
 `Pagination` (`assets/pagination.js`, `Layout.add_pagination`) replaces

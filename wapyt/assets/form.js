@@ -25,12 +25,18 @@
   const BOOLEAN = new Set(["checkbox", "toggle"]);
   // One control per option, wrapped in a fieldset.
   const GROUPS = new Set(["radio", "checkbox_group"]);
+  // Kinds that can show an icon inside the field.
+  const ICONABLE = new Set([...TEXTUAL, ...DATELIKE, "select"]);
 
   function optionPairs(options) {
     return (options || []).map((option) =>
       option && typeof option === "object"
-        ? { value: String(option.value ?? ""), label: String(option.label ?? option.value ?? "") }
-        : { value: String(option ?? ""), label: String(option ?? "") }
+        ? {
+            value: String(option.value ?? ""),
+            label: String(option.label ?? option.value ?? ""),
+            disabled: Boolean(option.disabled),
+          }
+        : { value: String(option ?? ""), label: String(option ?? ""), disabled: false }
     );
   }
 
@@ -164,6 +170,7 @@
         item.dataset.index = String(index);
         item.setAttribute("role", "option");
         item.setAttribute("aria-selected", this.selected.includes(option.value) ? "true" : "false");
+        if (option.disabled) item.setAttribute("aria-disabled", "true");
         item.textContent = option.label;
         this.list.appendChild(item);
       });
@@ -174,14 +181,23 @@
         this.list.appendChild(empty);
       }
       const current = this.multiple ? -1 : this.visible.findIndex((o) => o.value === this.selected[0]);
-      this._setActive(needle ? 0 : Math.max(current, 0));
+      this._setActive(needle ? 0 : Math.max(current, 0), 1);
       this._place();
     }
 
-    _setActive(index) {
+    // Moves the active option to `index`, or on past disabled options in
+    // direction `dir`; stays put when nothing enabled lies that way.
+    _setActive(index, dir = 1) {
       const items = this.list.querySelectorAll("[data-index]");
+      let next = items.length ? Math.max(0, Math.min(index, items.length - 1)) : -1;
+      while (next >= 0 && next < items.length && this.visible[next].disabled) next += dir;
+      if (next < 0 || next >= items.length) {
+        if (this.active >= 0 && this.active < items.length && !this.visible[this.active].disabled) return;
+        next = this.visible.findIndex((option) => !option.disabled);
+        if (next < 0) next = -1;
+      }
       items.forEach((item) => item.removeAttribute("data-active"));
-      this.active = items.length ? Math.max(0, Math.min(index, items.length - 1)) : -1;
+      this.active = next;
       if (this.active < 0) {
         this.input.removeAttribute("aria-activedescendant");
         return;
@@ -197,7 +213,8 @@
       if (key === "ArrowDown" || key === "ArrowUp") {
         event.preventDefault();
         if (!this.isOpen()) return this.open();
-        this._setActive(this.active + (key === "ArrowDown" ? 1 : -1));
+        const dir = key === "ArrowDown" ? 1 : -1;
+        this._setActive(this.active + dir, dir);
       } else if (key === "Enter") {
         if (!this.isOpen()) return;
         // Enter inside an open list picks; it must not submit the form.
@@ -223,7 +240,7 @@
     }
 
     _pick(option) {
-      if (!option) return;
+      if (!option || option.disabled) return;
       if (this.multiple) {
         const has = this.selected.includes(option.value);
         this._set(has ? this.selected.filter((v) => v !== option.value) : [...this.selected, option.value]);
@@ -399,6 +416,252 @@
   // WAI-ARIA multi-thumb slider pattern: each thumb is a focusable
   // role="slider" whose aria-valuemin / max are the limits the other thumb
   // sets, and the thumbs never cross.
+  function humanSize(bytes) {
+    const n = Number(bytes) || 0;
+    if (n < 1024) return `${n} B`;
+    const units = ["KB", "MB", "GB", "TB"];
+    let value = n / 1024;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit += 1;
+    }
+    return `${value >= 10 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+  }
+
+  // `accept` like the native attribute: ".csv", "text/plain", "image/*".
+  function acceptsFile(accept, file) {
+    if (!accept) return true;
+    const name = String(file.name || "").toLowerCase();
+    const mime = String(file.type || "").toLowerCase();
+    return accept.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean).some((token) => {
+      if (token.startsWith(".")) return name.endsWith(token);
+      if (token.endsWith("/*")) return mime.startsWith(token.slice(0, -1));
+      return mime === token;
+    });
+  }
+
+  // type="file" (a drop zone, a Choose button and a list of picked files)
+  // and type="avatar" (a round picture button). Files stay in the browser:
+  // get_values reports {name, size, type}, getFiles() hands over the File
+  // objects (for filetransfer.adopt / upload). Rules (accept, max_size,
+  // max_files) are applied as files arrive; rejected ones are reported, not
+  // added. Names reach the DOM as text.
+  class FilePicker {
+    constructor(field, controlId, onChange, report) {
+      this.avatar = field.type === "avatar";
+      this.multiple = !this.avatar && Boolean(field.multiple);
+      this.accept = field.accept || (this.avatar ? "image/*" : "");
+      this.maxSize = Number(field.maxSize) || 0;
+      this.maxFiles = this.multiple ? Number(field.maxFiles) || 0 : 1;
+      this.files = []; // {file, meta}
+      this.url = null; // avatar: the current picture's URL, set by the app
+      this.onChange = onChange;
+      this.report = report;
+
+      this.input = document.createElement("input");
+      this.input.type = "file";
+      this.input.hidden = true;
+      this.input.tabIndex = -1;
+      if (this.accept) this.input.accept = this.accept;
+      this.input.multiple = this.multiple;
+      this.input.addEventListener("change", () => {
+        this._add(this.input.files);
+        this.input.value = "";
+      });
+
+      this.root = document.createElement("div");
+      this.root.className = this.avatar ? "wapyt-form-avatar" : "wapyt-form-file";
+      this.root.appendChild(this.input);
+
+      this.button = document.createElement("button");
+      this.button.type = "button";
+      this.button.id = controlId;
+      this.button.addEventListener("click", () => {
+        if (!this.isDisabled()) this.input.click();
+      });
+
+      if (this.avatar) {
+        this.button.className = "wapyt-form-avatar-button";
+        this.img = document.createElement("img");
+        this.img.alt = "";
+        this.img.hidden = true;
+        this.placeholder = document.createElement("i");
+        this.placeholder.className = `wapyt-form-avatar-placeholder ${iconClass("mdi-account")}`;
+        this.placeholder.setAttribute("aria-hidden", "true");
+        this.button.appendChild(this.img);
+        this.button.appendChild(this.placeholder);
+        this.root.appendChild(this.button);
+        this.removeBtn = document.createElement("button");
+        this.removeBtn.type = "button";
+        this.removeBtn.className = "wapyt-form-button wapyt-form-button-link wapyt-form-avatar-remove";
+        this.removeBtn.textContent = "Remove";
+        this.removeBtn.addEventListener("click", () => {
+          if (this.isDisabled()) return;
+          this.files = [];
+          this.url = null;
+          this._render();
+          this.onChange();
+          this.button.focus();
+        });
+        this.root.appendChild(this.removeBtn);
+        this.dropTarget = this.button;
+      } else {
+        this.zone = document.createElement("div");
+        this.zone.className = "wapyt-form-file-zone";
+        const icon = document.createElement("i");
+        icon.className = `wapyt-form-file-icon ${iconClass("mdi-tray-arrow-up")}`;
+        icon.setAttribute("aria-hidden", "true");
+        const text = document.createElement("span");
+        text.className = "wapyt-form-file-text";
+        text.textContent = field.placeholder || (this.multiple ? "Drop files here or" : "Drop a file here or");
+        this.button.className = "wapyt-form-button wapyt-form-button-ghost wapyt-form-file-choose";
+        this.button.textContent = this.multiple ? "Choose files" : "Choose a file";
+        this.zone.appendChild(icon);
+        this.zone.appendChild(text);
+        this.zone.appendChild(this.button);
+        this.root.appendChild(this.zone);
+        this.list = document.createElement("ul");
+        this.list.className = "wapyt-form-file-list";
+        this.root.appendChild(this.list);
+        this.dropTarget = this.zone;
+      }
+
+      this.dropTarget.addEventListener("dragover", (event) => {
+        if (this.isDisabled()) return;
+        event.preventDefault();
+        this.dropTarget.dataset.drag = "true";
+      });
+      this.dropTarget.addEventListener("dragleave", () => delete this.dropTarget.dataset.drag);
+      this.dropTarget.addEventListener("drop", (event) => {
+        delete this.dropTarget.dataset.drag;
+        if (this.isDisabled()) return;
+        event.preventDefault();
+        this._add(event.dataTransfer && event.dataTransfer.files);
+      });
+      this._render();
+    }
+
+    isDisabled() {
+      return this.button.matches(":disabled");
+    }
+
+    _add(fileList) {
+      if (this.isDisabled()) return;
+      const problems = [];
+      let ok = [];
+      Array.from(fileList || []).forEach((file) => {
+        if (!acceptsFile(this.accept, file)) problems.push(`${file.name}: not an accepted file type`);
+        else if (this.maxSize && file.size > this.maxSize) problems.push(`${file.name}: larger than ${humanSize(this.maxSize)}`);
+        else ok.push(file);
+      });
+      if (this.multiple) {
+        const known = new Set(this.files.map(({ file }) => `${file.name}\u0000${file.size}\u0000${file.lastModified}`));
+        ok = ok.filter((file) => !known.has(`${file.name}\u0000${file.size}\u0000${file.lastModified}`));
+        const room = this.maxFiles ? Math.max(0, this.maxFiles - this.files.length) : Infinity;
+        if (ok.length > room) {
+          problems.push(`At most ${this.maxFiles} files`);
+          ok = ok.slice(0, room);
+        }
+      } else {
+        ok = ok.slice(0, 1);
+      }
+      const entries = ok.map((file) => ({ file, meta: { name: file.name, size: file.size, type: file.type || "" } }));
+      if (entries.length) {
+        this.files = this.multiple ? this.files.concat(entries) : entries;
+        if (this.avatar) {
+          this.url = null;
+          this._preview(entries[0].file);
+        }
+        this._render();
+        this.onChange();
+      }
+      if (problems.length) this.report(problems.join("\n"));
+    }
+
+    // The CSP allows data: images but not blob:, so the preview is read as
+    // a data URL rather than URL.createObjectURL.
+    _preview(file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (this.files.length && this.files[0].file === file) {
+          this.img.src = String(reader.result || "");
+          this.img.hidden = false;
+          this.placeholder.hidden = true;
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    _render() {
+      if (this.avatar) {
+        const has = Boolean(this.url) || this.files.length > 0;
+        if (this.url) {
+          this.img.src = this.url;
+          this.img.hidden = false;
+        } else if (!this.files.length) {
+          this.img.removeAttribute("src");
+          this.img.hidden = true;
+        }
+        this.placeholder.hidden = !this.img.hidden;
+        this.removeBtn.hidden = !has;
+        this.root.dataset.empty = has ? "false" : "true";
+        return;
+      }
+      this.list.textContent = "";
+      this.files.forEach(({ file, meta }, index) => {
+        const item = document.createElement("li");
+        item.className = "wapyt-form-file-item";
+        const name = document.createElement("span");
+        name.className = "wapyt-form-file-name";
+        name.textContent = meta.name;
+        const size = document.createElement("span");
+        size.className = "wapyt-form-file-size";
+        size.textContent = humanSize(meta.size);
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "wapyt-form-file-remove";
+        remove.setAttribute("aria-label", `Remove ${meta.name}`);
+        remove.textContent = "×";
+        remove.addEventListener("click", () => {
+          if (this.isDisabled()) return;
+          this.files = this.files.filter((entry) => entry.file !== file);
+          this._render();
+          this.onChange();
+          const next = this.list.querySelectorAll(".wapyt-form-file-remove")[Math.min(index, this.files.length - 1)];
+          (next || this.button).focus();
+        });
+        item.appendChild(name);
+        item.appendChild(size);
+        item.appendChild(remove);
+        this.list.appendChild(item);
+      });
+      this.list.hidden = !this.files.length;
+    }
+
+    getValue() {
+      if (this.avatar) return this.files.length ? Object.assign({}, this.files[0].meta) : this.url;
+      return this.files.map(({ meta }) => Object.assign({}, meta));
+    }
+
+    // Files cannot be put into a picker from code: an empty value clears it,
+    // and an avatar also takes the URL of an existing picture.
+    setValue(value) {
+      if (this.avatar && typeof value === "string" && value) {
+        this.files = [];
+        this.url = value;
+      } else if (value == null || value === "" || (Array.isArray(value) && !value.length)) {
+        this.files = [];
+        this.url = null;
+      }
+      this._render();
+    }
+
+    getFiles() {
+      return this.files.map(({ file }) => file);
+    }
+  }
+
   class RangeSlider {
     constructor(field, controlId, onChange) {
       this.field = field;
@@ -600,6 +863,7 @@
         if (this.disabled) thumb.setAttribute("aria-disabled", "true");
         else thumb.removeAttribute("aria-disabled");
         if (this.readOnly) thumb.setAttribute("aria-readonly", "true");
+        else thumb.removeAttribute("aria-readonly");
       });
       if (this.disabled && this.drag) this._endDrag();
     }
@@ -607,6 +871,29 @@
     focus() {
       if (!this.disabled) this.thumbs[0].focus();
     }
+  }
+
+  // Messages that blur validation shows (validate_field from on_blur) wait
+  // while a pointer is held down: pressing a button blurs the field first,
+  // and a new message line pushed the button down before the release, so
+  // the click never happened. Updates queued here run after the release, by
+  // which time the click has been dispatched (same task as pointerup).
+  let pointerHeld = false;
+  const afterRelease = [];
+  if (typeof document !== "undefined") {
+    document.addEventListener("pointerdown", () => { pointerHeld = true; }, true);
+    const release = () => {
+      if (!pointerHeld) return;
+      pointerHeld = false;
+      setTimeout(() => afterRelease.splice(0).forEach((fn) => fn()), 0);
+    };
+    document.addEventListener("pointerup", release, true);
+    document.addEventListener("pointercancel", release, true);
+  }
+
+  function whenPointerFree(fn) {
+    if (pointerHeld) afterRelease.push(fn);
+    else fn();
   }
 
   // A label width as CSS: numbers are pixels, strings pass through.
@@ -622,6 +909,14 @@
   }
 
   const BUTTON_VARIANTS = { primary: "primary", danger: "danger", link: "link", default: "ghost" };
+
+  // What get_properties reports for a field (camelCase, as in the config).
+  const PROPERTY_KEYS = [
+    "label", "placeholder", "help", "icon", "required", "readonly", "min", "max", "step",
+    "minLength", "maxLength", "pattern", "matches", "options",
+    "requiredMessage", "minLengthMessage", "maxLengthMessage", "patternMessage",
+    "matchesMessage", "rangeMessage", "successMessage",
+  ];
 
   // Every label, option and error string here reaches the DOM through
   // textContent, and every control is built with createElement. Nothing in this
@@ -678,15 +973,22 @@
         this.submit();
       });
 
+      // Everything sits in one fieldset so disable() can disable every
+      // native control at once. display: contents keeps the rows as items of
+      // the form's grid.
+      this._frame = document.createElement("fieldset");
+      this._frame.className = "wapyt-form-frame";
+      this._formEl.appendChild(this._frame);
+
       (this.options.fields || []).forEach((field) => {
         const item = this._createItem(field, null);
-        if (item) this._formEl.appendChild(item);
+        if (item) this._frame.appendChild(item);
       });
 
       this._formError = document.createElement("div");
       this._formError.className = "wapyt-form-error wapyt-form-error-global";
       this._formError.hidden = true;
-      this._formEl.appendChild(this._formError);
+      this._frame.appendChild(this._formError);
 
       this._actions = document.createElement("div");
       this._actions.className = "wapyt-form-actions";
@@ -711,8 +1013,10 @@
         this._actions.appendChild(this._submitBtn);
       }
 
-      this._formEl.appendChild(this._actions);
+      this._frame.appendChild(this._actions);
       this._host.appendChild(this._formEl);
+      if (this.options.disabled) this._frame.disabled = true;
+      if (this.options.hidden) this._formEl.hidden = true;
       this.setBusy(Boolean(this.options.busy));
       this._syncSliders();
       this._watchNarrow();
@@ -804,7 +1108,7 @@
     _syncSliders() {
       this._controls.forEach((entry) => {
         if (!entry.slider) return;
-        const inherited = Boolean(entry.slider.root.closest("fieldset.wapyt-form-fieldset:disabled"));
+        const inherited = Boolean(entry.slider.root.closest("fieldset.wapyt-form-fieldset:disabled, fieldset.wapyt-form-frame:disabled"));
         entry.slider.setDisabled(Boolean(entry.selfDisabled) || inherited);
       });
     }
@@ -885,7 +1189,7 @@
     // A button is unusable while disabled, loading, or (for submit buttons)
     // while the form is busy.
     _syncButton(entry) {
-      const busy = this._busy && entry.spec.submit;
+      const busy = (this._busy || this._checking) && entry.spec.submit;
       entry.el.disabled = entry.disabled || entry.loading || Boolean(busy);
       if (entry.loading) {
         entry.el.dataset.loading = "true";
@@ -902,14 +1206,14 @@
         this._emit("click", { id });
         return;
       }
-      if (this._busy) return;
+      if (this._busy || this._checking) return;
       const errors = this.validate();
       if (Object.keys(errors).length) {
         this._focusInvalid(errors);
         this._emit("invalid", { errors, id });
         return;
       }
-      this._emit("click", { id, values: this.getValues() });
+      this._afterPending(() => this._emit("click", { id, values: this.getValues() }), { id });
     }
 
     _button(id) {
@@ -952,6 +1256,7 @@
       if (fieldLabelWidth) row.style.setProperty("--wapyt-form-label-width", fieldLabelWidth);
       row.dataset.kind =
         BOOLEAN.has(type) ? "boolean"
+        : type === "avatar" ? "avatar"
         : GROUPS.has(type) ? "group"
         : type === "range" ? "range"
         : "control";
@@ -960,8 +1265,12 @@
       let control;
       let combo = null;
       let slider = null;
+      let picker = null;
 
-      if (type === "range" && field.range) {
+      if (type === "file" || type === "avatar") {
+        picker = new FilePicker(field, controlId, () => emitChange(), (message) => this.setError(field.id, message));
+        control = picker.button;
+      } else if (type === "range" && field.range) {
         slider = new RangeSlider(field, controlId, () => emitChange());
         control = slider.root;
       } else if (type === "textarea") {
@@ -977,7 +1286,6 @@
         control = document.createElement("fieldset");
         control.setAttribute("role", type === "radio" ? "radiogroup" : "group");
         control.setAttribute("aria-labelledby", `${controlId}_label`);
-        if (field.required && type === "radio") control.setAttribute("aria-required", "true");
         if (field.inline) control.dataset.inline = "true";
       } else if (type === "static") {
         // A read-only value: an <output>, which a <label for> names, so it
@@ -1001,22 +1309,26 @@
 
       control.id = controlId;
       control.className =
-        slider ? "wapyt-form-slider"
+        picker ? control.className
+        : slider ? "wapyt-form-slider"
         : type === "range" ? "wapyt-form-range-input"
         : GROUPS.has(type) ? "wapyt-form-group"
         : type === "toggle" ? "wapyt-form-control wapyt-form-toggle"
         : type === "combo" ? "wapyt-form-combo-input"
         : type === "static" ? "wapyt-form-static"
         : "wapyt-form-control";
-      if (!slider && type !== "static") {
+      if (picker) {
+        if (field.disabled) control.disabled = true;
+      } else if (!slider && type !== "static") {
         if (!GROUPS.has(type)) control.name = field.id;
         if (field.placeholder) control.placeholder = field.placeholder;
         if (field.autocomplete) control.autocomplete = field.autocomplete;
+        if (field.maxLength != null && "maxLength" in control) control.maxLength = Number(field.maxLength);
         if (field.disabled) control.disabled = true;
         if (field.readonly && "readOnly" in control) control.readOnly = true;
       }
 
-      const entry = { field, el: control, type, name: controlId, combo, slider, selfDisabled: Boolean(field.disabled) };
+      const entry = { field, el: control, type, name: controlId, combo, slider, picker, selfDisabled: Boolean(field.disabled) };
       if (GROUPS.has(type)) {
         this._fillGroup(entry, field.options);
       } else if (type === "range") {
@@ -1024,13 +1336,7 @@
         entry.output.className = "wapyt-form-range-value";
         entry.output.htmlFor = controlId;
         entry.output.hidden = field.showValue === false;
-        // Reserve the widest readout up front: as a flex sibling, a readout
-        // that grew with its text ("0 – 500" to "150 – 500") would shrink the
-        // track under the pointer mid-drag.
-        const bounds = rangeBounds(field);
-        const decimals = stepDecimals(bounds.step);
-        const widest = Math.max(...[bounds.min, bounds.max].map((n) => n.toFixed(decimals).length));
-        entry.output.style.minWidth = `${slider ? widest * 2 + 3 : widest}ch`;
+        this._sizeOutput(entry);
       }
       this._writeControl(entry, field.value);
 
@@ -1044,16 +1350,11 @@
       label.id = `${controlId}_label`;
       if (!plainLabel) label.htmlFor = controlId;
       if (slider) label.addEventListener("click", () => slider.focus());
-      label.textContent = field.label || field.id;
       // Hidden from sight, never from assistive technology.
       if (field.hiddenLabel) label.classList.add("wapyt-form-label-hidden");
-      if (field.required) {
-        const mark = document.createElement("span");
-        mark.className = "wapyt-form-required";
-        mark.textContent = "*";
-        mark.setAttribute("aria-hidden", "true");
-        label.appendChild(mark);
-      }
+      entry.labelEl = label;
+      entry.row = row;
+      this._renderLabel(entry);
 
       const error = document.createElement("div");
       error.className = "wapyt-form-error";
@@ -1068,13 +1369,18 @@
         // other controls.
         row.appendChild(label);
         row.appendChild(control);
+      } else if (picker) {
+        row.appendChild(label);
+        row.appendChild(picker.root);
       } else if (combo) {
         row.appendChild(label);
         row.appendChild(combo.root);
+        entry.iconHost = combo.root;
       } else if (type === "range") {
         const wrap = document.createElement("div");
         wrap.className = "wapyt-form-range";
         const scale = buildTicks(field);
+        entry.scale = scale;
         if (scale) {
           // The slider and its scale stack in one column beside the readout.
           const column = document.createElement("div");
@@ -1092,25 +1398,26 @@
       } else {
         row.appendChild(label);
         row.appendChild(control);
+        if (ICONABLE.has(type)) entry.iconHost = null; // wrapped on demand
       }
 
-      if (field.help) {
-        const help = document.createElement("div");
-        help.className = "wapyt-form-help";
-        help.textContent = field.help;
-        row.appendChild(help);
-      }
       row.appendChild(error);
+      entry.errorEl = error;
+      this._renderHelp(entry);
+      if (field.icon) this._renderIcon(entry);
 
       const emitChange = () => {
         this._syncOutput(entry);
+        // A new value outdates any async check still running for this field.
+        entry.checks = (entry.checks || 0) + 1;
+        this._setPending(field.id, false);
         this.clearError(field.id);
         this._emit("change", { id: field.id, value: this._readControl(field.id) });
       };
       // Group inputs bubble their change events up to the fieldset.
       // A combo reports its own picks; its typing is only a filter.
       const discrete = type === "select" || BOOLEAN.has(type) || GROUPS.has(type);
-      if (!combo && !slider) control.addEventListener(discrete ? "change" : "input", emitChange);
+      if (!combo && !slider && !picker) control.addEventListener(discrete ? "change" : "input", emitChange);
 
       this._controls.set(field.id, entry);
       this._errorEls.set(field.id, error);
@@ -1118,14 +1425,248 @@
       return row;
     }
 
+    // ── Properties ───────────────────────────────────────────────────────────
+
+    _renderLabel(entry) {
+      const { field, labelEl } = entry;
+      labelEl.textContent = field.label || field.id;
+      if (field.required) {
+        const mark = document.createElement("span");
+        mark.className = "wapyt-form-required";
+        mark.textContent = "*";
+        mark.setAttribute("aria-hidden", "true");
+        labelEl.appendChild(mark);
+      }
+      // aria-required belongs on inputs and radio groups, not on a plain
+      // group of checkboxes or a static value.
+      const target = entry.slider || entry.type === "static" || entry.type === "checkbox_group" ? null : entry.el;
+      if (target) {
+        if (field.required) target.setAttribute("aria-required", "true");
+        else target.removeAttribute("aria-required");
+      }
+    }
+
+    // The help line sits just above the error slot; it is created, changed
+    // or removed as `help` changes.
+    // An icon inside the field, on the left. A text-like input or select is
+    // wrapped in a positioned box on first use; a combo hosts it in its own
+    // box. Other kinds have nowhere sensible to put one.
+    _renderIcon(entry) {
+      const icon = entry.field.icon;
+      if (entry.iconHost === undefined) {
+        if (icon) throw new Error(`Field '${entry.field.id}' (${entry.type}) cannot show an icon`);
+        return;
+      }
+      if (!entry.iconHost) {
+        if (!icon) return;
+        const wrap = document.createElement("div");
+        wrap.className = "wapyt-form-input-wrap";
+        entry.el.replaceWith(wrap);
+        wrap.appendChild(entry.el);
+        entry.iconHost = wrap;
+      }
+      let el = entry.iconHost.querySelector(":scope > .wapyt-form-input-icon");
+      if (!icon) {
+        if (el) el.remove();
+        delete entry.iconHost.dataset.icon;
+        return;
+      }
+      if (!el) {
+        el = document.createElement("i");
+        el.setAttribute("aria-hidden", "true");
+        entry.iconHost.insertBefore(el, entry.iconHost.firstChild);
+      }
+      el.className = `wapyt-form-input-icon ${iconClass(icon)}`;
+      entry.iconHost.dataset.icon = "true";
+    }
+
+    _renderHelp(entry) {
+      const text = entry.field.help;
+      if (!text) {
+        if (entry.helpEl) entry.helpEl.remove();
+        entry.helpEl = null;
+        return;
+      }
+      if (!entry.helpEl) {
+        entry.helpEl = document.createElement("div");
+        entry.helpEl.className = "wapyt-form-help";
+        entry.row.insertBefore(entry.helpEl, entry.errorEl);
+      }
+      entry.helpEl.textContent = String(text);
+    }
+
+    // Reserve the widest readout up front: as a flex sibling, a readout
+    // that grew with its text ("0 – 500" to "150 – 500") would shrink the
+    // track under the pointer mid-drag.
+    _sizeOutput(entry) {
+      if (!entry.output) return;
+      const bounds = rangeBounds(entry.field);
+      const decimals = stepDecimals(bounds.step);
+      const widest = Math.max(...[bounds.min, bounds.max].map((n) => n.toFixed(decimals).length));
+      entry.output.style.minWidth = `${entry.slider ? widest * 2 + 3 : widest}ch`;
+    }
+
+    // New min / max / step: native controls take the attributes; a two-thumb
+    // slider gets new bounds and re-snaps its values; ticks are rebuilt.
+    _applyBounds(entry) {
+      const { field } = entry;
+      if (entry.slider) {
+        entry.slider.bounds = rangeBounds(field);
+        entry.slider.setValue(entry.slider.getValue());
+      } else if (BOUNDED.has(entry.type)) {
+        ["min", "max", "step"].forEach((key) => {
+          if (field[key] == null || field[key] === "") entry.el.removeAttribute(key);
+          else entry.el[key] = String(field[key]);
+        });
+      }
+      if (entry.scale) {
+        const scale = buildTicks(field);
+        if (scale) entry.scale.replaceWith(scale);
+        else entry.scale.remove();
+        entry.scale = scale;
+      }
+      this._sizeOutput(entry);
+      this._syncOutput(entry);
+    }
+
+    setProperties(id, props) {
+      const key = String(id);
+      const button = this._button(key);
+      if (button) return this._setButtonProperties(button, props || {});
+      const entry = this._controls.get(key);
+      if (!entry || entry.type === "hidden") throw new Error(`Form has no field '${id}'`);
+      const { field, el } = entry;
+      let bounds = false;
+      Object.keys(props || {}).forEach((name) => {
+        const value = props[name];
+        switch (name) {
+          case "label":
+          case "required":
+            field[name] = name === "required" ? Boolean(value) : value;
+            if (name === "required" && entry.type === "static" && value) {
+              throw new Error(`Field '${id}' is static and cannot be required`);
+            }
+            this._renderLabel(entry);
+            break;
+          case "help":
+            field.help = value;
+            this._renderHelp(entry);
+            break;
+          case "placeholder":
+            field.placeholder = value;
+            if (entry.type === "static") this._writeControl(entry, entry.value);
+            else if ("placeholder" in el) el.placeholder = value == null ? "" : String(value);
+            break;
+          case "readonly":
+            field.readonly = Boolean(value);
+            if (entry.slider) {
+              entry.slider.readOnly = field.readonly;
+              entry.slider.setDisabled(entry.slider.disabled);
+            } else if ("readOnly" in el) {
+              el.readOnly = field.readonly;
+            }
+            break;
+          case "min":
+          case "max":
+          case "step":
+            field[name] = value;
+            bounds = true;
+            break;
+          case "options":
+            this.setFieldOptions(key, value || []);
+            field.options = value || [];
+            break;
+          case "icon":
+            field.icon = value;
+            this._renderIcon(entry);
+            break;
+          case "minLength":
+          case "maxLength":
+          case "pattern":
+          case "matches":
+          case "requiredMessage":
+          case "minLengthMessage":
+          case "maxLengthMessage":
+          case "patternMessage":
+          case "matchesMessage":
+          case "rangeMessage":
+          case "successMessage":
+            // Read by validate() each time; nothing to redraw.
+            field[name] = value;
+            if (name === "maxLength" && "maxLength" in el) {
+              if (value == null) el.removeAttribute("maxlength");
+              else el.maxLength = Number(value);
+            }
+            break;
+          default:
+            throw new Error(`Form field '${id}': cannot set '${name}'`);
+        }
+      });
+      if (bounds) this._applyBounds(entry);
+      return undefined;
+    }
+
+    _setButtonProperties(entry, props) {
+      Object.keys(props).forEach((name) => {
+        const value = props[name];
+        if (name === "text") {
+          entry.spec.text = value;
+          entry.textEl.textContent = value == null ? "" : String(value);
+        } else if (name === "tooltip") {
+          entry.spec.tooltip = value;
+          if (value) entry.el.title = String(value);
+          else entry.el.removeAttribute("title");
+        } else if (name === "variant") {
+          const variant = BUTTON_VARIANTS[value] || "ghost";
+          entry.el.classList.remove(...Object.values(BUTTON_VARIANTS).map((v) => `wapyt-form-button-${v}`));
+          entry.el.classList.add(`wapyt-form-button-${variant}`);
+          entry.spec.variant = value;
+        } else if (name === "icon") {
+          let icon = entry.el.querySelector(".wapyt-form-button-icon");
+          if (!value) {
+            if (icon) icon.remove();
+          } else {
+            if (!icon) {
+              icon = document.createElement("i");
+              icon.setAttribute("aria-hidden", "true");
+              entry.el.insertBefore(icon, entry.el.firstChild);
+            }
+            icon.className = `wapyt-form-button-icon ${iconClass(value)}`;
+          }
+          entry.spec.icon = value;
+        } else {
+          throw new Error(`Form button '${entry.spec.id}': cannot set '${name}'`);
+        }
+      });
+    }
+
+    getProperties(id) {
+      const key = String(id);
+      const button = this._button(key);
+      if (button) {
+        const { text, tooltip, variant, icon } = button.spec;
+        return { text: text ?? null, tooltip: tooltip ?? null, variant: variant || "default", icon: icon ?? null };
+      }
+      const entry = this._controls.get(key);
+      if (!entry) throw new Error(`Form has no field '${id}'`);
+      const out = {};
+      PROPERTY_KEYS.forEach((name) => {
+        out[name] = entry.field[name] === undefined ? null : entry.field[name];
+      });
+      out.required = Boolean(entry.field.required);
+      out.readonly = Boolean(entry.field.readonly);
+      return out;
+    }
+
     // ── Values ───────────────────────────────────────────────────────────────
 
     _fillSelect(select, options) {
       select.innerHTML = "";
-      optionPairs(options).forEach(({ value, label }) => {
+      optionPairs(options).forEach(({ value, label, disabled }) => {
         const opt = document.createElement("option");
         opt.value = value;
         opt.textContent = label;
+        opt.disabled = disabled;
         select.appendChild(opt);
       });
     }
@@ -1133,11 +1674,13 @@
     _fillGroup(entry, options) {
       const group = entry.el;
       group.innerHTML = "";
-      optionPairs(options).forEach(({ value, label }) => {
+      optionPairs(options).forEach(({ value, label, disabled }) => {
         const wrap = document.createElement("label");
         wrap.className = "wapyt-form-option";
         const input = document.createElement("input");
         input.type = entry.type === "radio" ? "radio" : "checkbox";
+        input.disabled = disabled;
+        if (disabled) wrap.dataset.disabled = "true";
         // The per-instance id keeps two forms' radio sets from sharing a name.
         input.name = entry.name;
         input.value = value;
@@ -1169,6 +1712,9 @@
       if (type === "static") {
         return entry.value === undefined ? null : entry.value;
       }
+      if (entry.picker) {
+        return entry.picker.getValue();
+      }
       if (type === "radio") {
         const picked = this._groupInputs(entry).find((input) => input.checked);
         return picked ? picked.value : null;
@@ -1196,6 +1742,8 @@
         entry.combo.setValue(value);
       } else if (entry.slider) {
         entry.slider.setValue(value);
+      } else if (entry.picker) {
+        entry.picker.setValue(value);
       } else if (type === "static") {
         // Kept as given (string, number...) for get_values; shown as text.
         entry.value = value === undefined ? null : value;
@@ -1275,6 +1823,7 @@
       if (BOOLEAN.has(type)) return false;
       if (type === "checkbox_group") return [];
       if (entry.slider) return [null, null];
+      if (entry.picker) return null;
       if (type === "range") return field.min != null ? field.min : 0;
       if (type === "color") return "#000000";
       return null;
@@ -1366,7 +1915,7 @@
     setBusy(busy) {
       this._busy = Boolean(busy);
       this._host.dataset.busy = this._busy ? "true" : "false";
-      if (this._submitBtn) this._submitBtn.disabled = this._busy;
+      if (this._submitBtn) this._submitBtn.disabled = this._busy || Boolean(this._checking);
       if (this._cancelBtn) this._cancelBtn.disabled = this._busy;
       if (this._buttons) this._buttons.forEach((entry) => this._syncButton(entry));
     }
@@ -1418,14 +1967,19 @@
     // built-in bounds / length / pattern / matches checks, then the field's
     // validator. Hidden and disabled fields are skipped. Fields that pass and
     // carry a successMessage show it.
+    // Synchronous: async validators are started (their fields show
+    // "Checking…" and their results arrive later) but not waited for; their
+    // checks are kept in this._pending for validateAsync / submit.
     validate() {
       const errors = {};
       const passed = [];
+      const pending = [];
       let snapshot = null;
       const values = () => (snapshot = snapshot || this.getValues());
       this._controls.forEach((entry, id) => {
         const result = this._checkField(entry, values);
         if (result.message) errors[id] = result.message;
+        else if (result.pending) pending.push({ id, entry, token: entry.checks, promise: result.pending });
         else if (result.passed) passed.push(id);
       });
       this.setErrors(errors);
@@ -1433,7 +1987,86 @@
         const message = this._controls.get(id).field.successMessage;
         if (message) this._setSuccess(id, message);
       });
+      pending.forEach((check) => this._showWhenDone(check));
+      this._pending = pending;
       return errors;
+    }
+
+    // Every check, async ones included: resolves to the full errors map.
+    validateAsync() {
+      const errors = this.validate();
+      return Promise.all(this._pending.map((check) => check.promise.then((message) => {
+        if (message && check.entry.checks === check.token) errors[check.id] = message;
+      }))).then(() => errors);
+    }
+
+    validateFieldAsync(id) {
+      const message = this.validateField(id);
+      const check = this._fieldPending;
+      if (!check) return Promise.resolve(message);
+      return check.promise.then((result) => (check.entry.checks === check.token ? result || null : null));
+    }
+
+    // A check in flight shows as a spinner after the label and aria-busy on
+    // the control, never as a new line of text: a line appearing on blur
+    // pushed the button being pressed down before mouseup, so the click was
+    // lost. The message slot changes once, when the answer arrives.
+    _setPending(id, pending = true) {
+      const entry = this._controls.get(id);
+      if (!entry) return;
+      if (pending) {
+        this._rows.get(id).dataset.checking = "true";
+        entry.el.setAttribute("aria-busy", "true");
+      } else {
+        delete this._rows.get(id).dataset.checking;
+        entry.el.removeAttribute("aria-busy");
+      }
+    }
+
+    // Shows an async result when it arrives, unless the field changed (or was
+    // checked again) in the meantime.
+    _showWhenDone(check) {
+      this._setPending(check.id);
+      check.promise.then((message) => whenPointerFree(() => {
+        if (check.entry.checks !== check.token) return;
+        this._setPending(check.id, false);
+        this.setError(check.id, message || "");
+        if (!message && check.entry.field.successMessage) this._setSuccess(check.id, check.entry.field.successMessage);
+      }));
+    }
+
+    // Submit (or a submit button) with async checks outstanding: wait for
+    // them with the submit buttons disabled, then emit. An edit during the
+    // wait abandons this submit rather than sending a value nobody checked.
+    _afterPending(onValid, extra) {
+      const pending = this._pending || [];
+      if (!pending.length) {
+        onValid();
+        return;
+      }
+      this._setChecking(true);
+      Promise.all(pending.map((check) => check.promise)).then((messages) => {
+        this._setChecking(false);
+        if (pending.some((check) => check.entry.checks !== check.token)) return;
+        const errors = {};
+        pending.forEach((check, index) => {
+          if (messages[index]) errors[check.id] = messages[index];
+        });
+        if (Object.keys(errors).length) {
+          this._focusInvalid(errors);
+          this._emit("invalid", Object.assign({ errors }, extra || {}));
+          return;
+        }
+        onValid();
+      });
+    }
+
+    _setChecking(checking) {
+      this._checking = Boolean(checking);
+      if (this._checking) this._host.dataset.checking = "true";
+      else delete this._host.dataset.checking;
+      if (this._submitBtn) this._submitBtn.disabled = this._busy || this._checking;
+      this._buttons.forEach((entry) => this._syncButton(entry));
     }
 
     // One field's checks: {message} when it fails, {passed: true} when it
@@ -1451,8 +2084,12 @@
         return { message: field.requiredMessage || `${field.label || field.id} is required` };
       }
       if (empty) return {};
-      const message = this._builtinError(entry, value) || this._validatorError(entry, value, values);
-      return message ? { message } : { passed: true };
+      entry.checks = (entry.checks || 0) + 1;
+      const builtin = this._builtinError(entry, value);
+      if (builtin) return { message: builtin };
+      const custom = this._validatorError(entry, value, values);
+      if (custom && typeof custom.then === "function") return { pending: custom };
+      return custom ? { message: custom } : { passed: true };
     }
 
     // Validate a single field and show the result under it, leaving the
@@ -1463,8 +2100,17 @@
       if (!entry) throw new Error(`Form has no field '${id}'`);
       let snapshot = null;
       const result = this._checkField(entry, () => (snapshot = snapshot || this.getValues()));
-      this.setError(entry.field.id, result.message || "");
-      if (result.passed && entry.field.successMessage) this._setSuccess(entry.field.id, entry.field.successMessage);
+      const token = entry.checks;
+      whenPointerFree(() => {
+        if (entry.checks !== token) return; // edited since
+        this.setError(entry.field.id, result.message || "");
+        if (result.passed && entry.field.successMessage) this._setSuccess(entry.field.id, entry.field.successMessage);
+      });
+      this._fieldPending = null;
+      if (result.pending) {
+        this._fieldPending = { id: entry.field.id, entry, token, promise: result.pending };
+        this._showWhenDone(this._fieldPending);
+      }
       return result.message || null;
     }
 
@@ -1535,6 +2181,11 @@
       if (field.minLength && String(value).length < field.minLength) {
         return field.minLengthMessage || `Must be at least ${field.minLength} characters`;
       }
+      // The maxlength attribute stops typing, but set_values can still put a
+      // longer value in.
+      if (field.maxLength != null && String(value).length > Number(field.maxLength)) {
+        return field.maxLengthMessage || `Must be at most ${field.maxLength} characters`;
+      }
       if (field.pattern) {
         let re;
         try {
@@ -1556,18 +2207,37 @@
     // gets (value, values) and returns nothing / "" / true when the value is
     // fine, a message when it is not, or false for the generic message. One
     // that throws counts as invalid rather than breaking the submit.
+    // Returns null, a message, or (for an async validator: a Python
+    // coroutine arrives as a thenable proxy) a Promise of null or a message.
     _validatorError(entry, value, values) {
       if (typeof entry.validator !== "function") return null;
+      const normalise = (result) => {
+        if (result == null || result === "" || result === true) return null;
+        if (result === false) return "Invalid value";
+        return String(result);
+      };
+      const failed = (error) => {
+        console.error(`[wapyt] Form validator for '${entry.field.id}' failed`, error);
+        return "Invalid value";
+      };
       let result;
       try {
         result = entry.validator(value, values());
       } catch (error) {
-        console.error(`[wapyt] Form validator for '${entry.field.id}' failed`, error);
-        return "Invalid value";
+        return failed(error);
       }
-      if (result == null || result === "" || result === true) return null;
-      if (result === false) return "Invalid value";
-      return String(result);
+      if (result && typeof result.then === "function") {
+        return Promise.resolve(result).then(normalise, failed).finally(() => {
+          if (typeof result.destroy === "function") {
+            try {
+              result.destroy();
+            } catch (error) {
+              /* already released */
+            }
+          }
+        });
+      }
+      return normalise(result);
     }
 
     setValidator(id, fn) {
@@ -1584,15 +2254,50 @@
       el.dataset.state = "success";
     }
 
+    // The File objects a file or avatar field holds (for filetransfer).
+    getFiles(id) {
+      const entry = this._controls.get(String(id));
+      if (!entry || !entry.picker) throw new Error(`Form field '${id}' is not a file or avatar field`);
+      return entry.picker.getFiles();
+    }
+
+    // ── Whole form ───────────────────────────────────────────────────────────
+
+    disable() {
+      this._frame.disabled = true;
+      this._syncSliders();
+    }
+
+    enable() {
+      this._frame.disabled = false;
+      this._syncSliders();
+    }
+
+    isDisabled() {
+      return this._frame.disabled;
+    }
+
+    hide() {
+      this._formEl.hidden = true;
+    }
+
+    show() {
+      this._formEl.hidden = false;
+    }
+
+    isVisible() {
+      return !this._formEl.hidden;
+    }
+
     submit() {
-      if (this._busy) return;
+      if (this._busy || this._checking || this._frame.disabled) return;
       const errors = this.validate();
       if (Object.keys(errors).length) {
         this._focusInvalid(errors);
         this._emit("invalid", { errors });
         return;
       }
-      this._emit("submit", this.getValues());
+      this._afterPending(() => this._emit("submit", this.getValues()));
     }
 
     _focusInvalid(errors) {
