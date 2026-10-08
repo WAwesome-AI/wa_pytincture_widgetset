@@ -35,8 +35,9 @@
             value: String(option.value ?? ""),
             label: String(option.label ?? option.value ?? ""),
             disabled: Boolean(option.disabled),
+            icon: option.icon || null,
           }
-        : { value: String(option ?? ""), label: String(option ?? ""), disabled: false }
+        : { value: String(option ?? ""), label: String(option ?? ""), disabled: false, icon: null }
     );
   }
 
@@ -662,6 +663,119 @@
     }
   }
 
+  // type="toggle_group": segmented buttons in a borderless <fieldset> (so
+  // disabling it, its fieldset or the form disables them natively). One
+  // choice is a WAI-ARIA radio group (arrows move and select, one tab stop);
+  // multiple=True makes toggle buttons (aria-pressed; arrows move, Space or
+  // Enter toggles). Labels are text; icons are classes.
+  class ToggleGroup {
+    constructor(field, controlId, onChange) {
+      this.multiple = Boolean(field.multiple);
+      this.onChange = onChange;
+      this.selected = [];
+      this.options = [];
+      this.root = document.createElement("fieldset");
+      this.root.setAttribute("role", this.multiple ? "group" : "radiogroup");
+      this.root.setAttribute("aria-labelledby", `${controlId}_label`);
+      this.root.addEventListener("click", (event) => {
+        const button = event.target.closest(".wapyt-form-segment");
+        if (button && !button.disabled) this._activate(button.dataset.value);
+      });
+      this.root.addEventListener("keydown", (event) => this._onKey(event));
+      this.setOptions(field.options);
+    }
+
+    _buttons() {
+      return Array.from(this.root.querySelectorAll(".wapyt-form-segment"));
+    }
+
+    _activate(value) {
+      let next;
+      if (this.multiple) {
+        next = this.selected.includes(value) ? this.selected.filter((v) => v !== value) : [...this.selected, value];
+      } else {
+        if (this.selected[0] === value) return;
+        next = [value];
+      }
+      this.selected = next;
+      this._sync();
+      this.onChange();
+    }
+
+    _onKey(event) {
+      const buttons = this._buttons().filter((b) => !b.disabled);
+      const index = buttons.indexOf(document.activeElement);
+      if (index < 0) return;
+      const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+      let target = null;
+      if (event.key in keys) target = buttons[(index + keys[event.key] + buttons.length) % buttons.length];
+      else if (event.key === "Home") target = buttons[0];
+      else if (event.key === "End") target = buttons[buttons.length - 1];
+      if (!target) return;
+      event.preventDefault();
+      this._buttons().forEach((b) => { b.tabIndex = b === target ? 0 : -1; });
+      target.focus();
+      // A radio group selects as focus moves, like native radios.
+      if (!this.multiple) this._activate(target.dataset.value);
+    }
+
+    setOptions(options) {
+      const previous = this.selected;
+      this.options = optionPairs(options);
+      const known = new Set(this.options.map((o) => o.value));
+      this.selected = previous.filter((v) => known.has(v));
+      this.root.textContent = "";
+      this.options.forEach((option) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "wapyt-form-segment";
+        button.dataset.value = option.value;
+        button.disabled = option.disabled;
+        if (!this.multiple) button.setAttribute("role", "radio");
+        if (option.icon) {
+          const icon = document.createElement("i");
+          icon.className = `wapyt-form-segment-icon ${iconClass(option.icon)}`;
+          icon.setAttribute("aria-hidden", "true");
+          button.appendChild(icon);
+        }
+        const text = document.createElement("span");
+        text.textContent = option.label;
+        button.appendChild(text);
+        this.root.appendChild(button);
+      });
+      this._sync();
+    }
+
+    _sync() {
+      const buttons = this._buttons();
+      buttons.forEach((button) => {
+        const on = this.selected.includes(button.dataset.value);
+        button.setAttribute(this.multiple ? "aria-pressed" : "aria-checked", on ? "true" : "false");
+      });
+      // One tab stop: the (first) selected option, else the first enabled.
+      const enabled = buttons.filter((b) => !b.disabled);
+      const stop = enabled.find((b) => this.selected.includes(b.dataset.value)) || enabled[0];
+      buttons.forEach((b) => { b.tabIndex = b === stop ? 0 : -1; });
+    }
+
+    getValue() {
+      return this.multiple ? this.selected.slice() : this.selected.length ? this.selected[0] : null;
+    }
+
+    setValue(value) {
+      const list = Array.isArray(value) ? value : value == null || value === "" ? [] : [value];
+      const known = new Set(this.options.map((o) => o.value));
+      const kept = list.map(String).filter((v) => known.has(v));
+      this.selected = this.multiple ? Array.from(new Set(kept)) : kept.slice(0, 1);
+      this._sync();
+    }
+
+    focus() {
+      const stop = this._buttons().find((b) => b.tabIndex === 0);
+      if (stop) stop.focus();
+    }
+  }
+
   class RangeSlider {
     constructor(field, controlId, onChange) {
       this.field = field;
@@ -1257,6 +1371,7 @@
       row.dataset.kind =
         BOOLEAN.has(type) ? "boolean"
         : type === "avatar" ? "avatar"
+        : type === "toggle_group" ? "toggles"
         : GROUPS.has(type) ? "group"
         : type === "range" ? "range"
         : "control";
@@ -1266,8 +1381,12 @@
       let combo = null;
       let slider = null;
       let picker = null;
+      let toggles = null;
 
-      if (type === "file" || type === "avatar") {
+      if (type === "toggle_group") {
+        toggles = new ToggleGroup(field, controlId, () => emitChange());
+        control = toggles.root;
+      } else if (type === "file" || type === "avatar") {
         picker = new FilePicker(field, controlId, () => emitChange(), (message) => this.setError(field.id, message));
         control = picker.button;
       } else if (type === "range" && field.range) {
@@ -1310,6 +1429,7 @@
       control.id = controlId;
       control.className =
         picker ? control.className
+        : toggles ? "wapyt-form-togglegroup"
         : slider ? "wapyt-form-slider"
         : type === "range" ? "wapyt-form-range-input"
         : GROUPS.has(type) ? "wapyt-form-group"
@@ -1317,7 +1437,7 @@
         : type === "combo" ? "wapyt-form-combo-input"
         : type === "static" ? "wapyt-form-static"
         : "wapyt-form-control";
-      if (picker) {
+      if (picker || toggles) {
         if (field.disabled) control.disabled = true;
       } else if (!slider && type !== "static") {
         if (!GROUPS.has(type)) control.name = field.id;
@@ -1328,7 +1448,7 @@
         if (field.readonly && "readOnly" in control) control.readOnly = true;
       }
 
-      const entry = { field, el: control, type, name: controlId, combo, slider, picker, selfDisabled: Boolean(field.disabled) };
+      const entry = { field, el: control, type, name: controlId, combo, slider, picker, toggles, selfDisabled: Boolean(field.disabled) };
       if (GROUPS.has(type)) {
         this._fillGroup(entry, field.options);
       } else if (type === "range") {
@@ -1344,7 +1464,7 @@
       // caption is a plain element the fieldset names through aria-labelledby.
       // A two-thumb slider is a group too: the label names it, and a click on
       // the label focuses the low thumb.
-      const plainLabel = GROUPS.has(type) || slider;
+      const plainLabel = GROUPS.has(type) || slider || toggles;
       const label = document.createElement(plainLabel ? "div" : "label");
       label.className = "wapyt-form-label";
       label.id = `${controlId}_label`;
@@ -1417,7 +1537,7 @@
       // Group inputs bubble their change events up to the fieldset.
       // A combo reports its own picks; its typing is only a filter.
       const discrete = type === "select" || BOOLEAN.has(type) || GROUPS.has(type);
-      if (!combo && !slider && !picker) control.addEventListener(discrete ? "change" : "input", emitChange);
+      if (!combo && !slider && !picker && !toggles) control.addEventListener(discrete ? "change" : "input", emitChange);
 
       this._controls.set(field.id, entry);
       this._errorEls.set(field.id, error);
@@ -1438,8 +1558,11 @@
         labelEl.appendChild(mark);
       }
       // aria-required belongs on inputs and radio groups, not on a plain
-      // group of checkboxes or a static value.
-      const target = entry.slider || entry.type === "static" || entry.type === "checkbox_group" ? null : entry.el;
+      // group (checkboxes, toggle buttons), a button (file, avatar) or a
+      // static value.
+      const target =
+        entry.slider || entry.picker || entry.type === "static" || entry.type === "checkbox_group"
+        || (entry.toggles && entry.toggles.multiple) ? null : entry.el;
       if (target) {
         if (field.required) target.setAttribute("aria-required", "true");
         else target.removeAttribute("aria-required");
@@ -1715,6 +1838,9 @@
       if (entry.picker) {
         return entry.picker.getValue();
       }
+      if (entry.toggles) {
+        return entry.toggles.getValue();
+      }
       if (type === "radio") {
         const picked = this._groupInputs(entry).find((input) => input.checked);
         return picked ? picked.value : null;
@@ -1744,6 +1870,8 @@
         entry.slider.setValue(value);
       } else if (entry.picker) {
         entry.picker.setValue(value);
+      } else if (entry.toggles) {
+        entry.toggles.setValue(value);
       } else if (type === "static") {
         // Kept as given (string, number...) for get_values; shown as text.
         entry.value = value === undefined ? null : value;
@@ -1780,6 +1908,10 @@
     _focusEntry(entry) {
       if (entry.slider) {
         entry.slider.focus();
+        return;
+      }
+      if (entry.toggles) {
+        entry.toggles.focus();
         return;
       }
       if (!GROUPS.has(entry.type)) {
@@ -1824,6 +1956,7 @@
       if (type === "checkbox_group") return [];
       if (entry.slider) return [null, null];
       if (entry.picker) return null;
+      if (entry.toggles) return entry.toggles.multiple ? [] : null;
       if (type === "range") return field.min != null ? field.min : 0;
       if (type === "color") return "#000000";
       return null;
@@ -1860,6 +1993,8 @@
         entry.el.value = previous;
       } else if (entry.combo) {
         entry.combo.setOptions(options);
+      } else if (entry.toggles) {
+        entry.toggles.setOptions(options);
       } else if (GROUPS.has(entry.type)) {
         // Whatever is still offered stays selected.
         const previous = this._readControl(id);

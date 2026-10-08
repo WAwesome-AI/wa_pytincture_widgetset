@@ -8,7 +8,7 @@ FIELD_TYPES = frozenset({
     "text", "password", "email", "number", "url", "search", "tel", "textarea",
     "select", "checkbox", "hidden",
     "date", "time", "datetime-local", "color", "range",
-    "radio", "toggle", "checkbox_group", "combo", "static", "file", "avatar",
+    "radio", "toggle", "checkbox_group", "combo", "static", "file", "avatar", "toggle_group",
 })
 FILE_TYPES = frozenset({"file", "avatar"})
 
@@ -64,19 +64,23 @@ def json_default(value: Any) -> Any:
 @dataclass
 class SelectOption:
     """
-    One entry in a ``select``, ``combo``, ``radio`` or ``checkbox_group``
-    field. ``disabled`` shows it but stops it being picked (a value set by
-    the app still shows).
+    One entry in a ``select``, ``combo``, ``radio``, ``checkbox_group`` or
+    ``toggle_group`` field. ``disabled`` shows it but stops it being picked
+    (a value set by the app still shows). ``icon`` (an MDI class) is shown
+    on a ``toggle_group`` button; other kinds ignore it.
     """
 
     value: str
     label: Optional[str] = None
     disabled: bool = False
+    icon: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         payload = {"value": self.value, "label": self.label or self.value}
         if self.disabled:
             payload["disabled"] = True
+        if self.icon:
+            payload["icon"] = self.icon
         return payload
 
 
@@ -100,7 +104,9 @@ class FieldConfig:
             "type"}``; the files themselves via ``Form.get_files`` /
             ``Form.adopt_files``); and ``avatar``, a round picture picker
             (value: the picture's URL as set, ``{"name", "size", "type"}``
-            once a new one is chosen, ``None`` when removed).
+            once a new one is chosen, ``None`` when removed); and
+            ``toggle_group``, segmented buttons over ``options`` (one choice,
+            like radio, or several with ``multiple``).
         value: Initial value. ``checkbox`` and ``toggle`` coerce it to a
             bool; ``checkbox_group`` takes a list of option values; ``date``,
             ``time`` and ``datetime-local`` take an ISO string or a
@@ -121,10 +127,12 @@ class FieldConfig:
         pattern: JavaScript regular expression source the value must match.
         matches: Another field's id whose value this one must equal — for
             "confirm password" pairs.
-        options: Choices for ``select``, ``combo``, ``radio`` and
-            ``checkbox_group``; strings or :class:`SelectOption`.
-        multiple: Let a ``combo`` pick several values, shown as chips, or a
-            ``file`` field hold several files.
+        options: Choices for ``select``, ``combo``, ``radio``,
+            ``checkbox_group`` and ``toggle_group``; strings or
+            :class:`SelectOption`.
+        multiple: Let a ``combo`` pick several values, shown as chips, a
+            ``toggle_group`` press several buttons (its value is then a
+            list), or a ``file`` field hold several files.
         accept: ``file`` / ``avatar``: accepted types, as for the native
             attribute (``".csv,.tsv"``, ``"image/*"``); avatar defaults to
             images.

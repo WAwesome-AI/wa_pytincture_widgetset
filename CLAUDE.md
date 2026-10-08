@@ -1437,6 +1437,28 @@ zone (file) or the picture button (avatar).
 through the hidden input and a synthetic `DataTransfer` drop); a 29-check
 Playwright run passed.
 
+### Toggle group (added 2026-10-08)
+
+`type="toggle_group"` is `ToggleGroup` in `form.js`: segmented `<button>`s in
+a borderless `<fieldset>` (so field, fieldset and whole-form disabling work
+natively and `_isInactive` sees it). One choice is a WAI-ARIA radio group
+(`role="radio"`, `aria-checked`; arrows move **and select**, wrapping and
+skipping disabled options; clicking the chosen one does nothing); `multiple`
+makes toggle buttons in a `role="group"` (`aria-pressed`; arrows only move,
+Space / Enter toggle). One tab stop either way (the first chosen, else the
+first enabled). Value: the choice or None; a list with `multiple`.
+`SelectOption(icon=...)` shows an icon on a segment (other kinds ignore it).
+
+- Rows are `data-kind="toggles"` and centre their left label: a fieldset
+  offers the grid no baseline, so `baseline` put the label at the top.
+- Hover tints **unchosen** segments only; the hover rule outranked the
+  chosen fill, so the segment under the pointer looked unselected.
+- `aria-required` goes on the radio-group form only (not on a `group`, nor
+  on file / avatar buttons, which #61 had set it on).
+
+`tests/form_toggle_group_demo.py`; a 31-check Playwright run passed, and all
+earlier Form suites still pass (348 checks).
+
 ## Pagination (added 2026-10-06)
 
 `Pagination` (`assets/pagination.js`, `Layout.add_pagination`) replaces
