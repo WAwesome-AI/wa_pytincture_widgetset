@@ -1,4 +1,4 @@
 from .form import Form
-from .form_config import FieldConfig, FormConfig, SelectOption
+from .form_config import FieldConfig, FormButton, FormConfig, SelectOption
 
-__all__ = ["Form", "FormConfig", "FieldConfig", "SelectOption"]
+__all__ = ["Form", "FormConfig", "FieldConfig", "FormButton", "SelectOption"]

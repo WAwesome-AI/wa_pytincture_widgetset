@@ -606,6 +606,20 @@
     }
   }
 
+  // A label width as CSS: numbers are pixels, strings pass through.
+  function cssLength(value) {
+    if (value == null || value === "") return null;
+    return typeof value === "number" || /^\d+(\.\d+)?$/.test(String(value)) ? `${value}px` : String(value);
+  }
+
+  function iconClass(value) {
+    const icons = globalNS.icons;
+    if (icons && typeof icons.iconClass === "function") return icons.iconClass(value);
+    return `mdi ${String(value || "")}`;
+  }
+
+  const BUTTON_VARIANTS = { primary: "primary", danger: "danger", link: "link", default: "ghost" };
+
   // Every label, option and error string here reaches the DOM through
   // textContent, and every control is built with createElement. Nothing in this
   // widget interpolates a value into innerHTML, so field definitions coming
@@ -620,6 +634,9 @@
           columns: 1,
           busy: false,
           autocomplete: "off",
+          buttons: [],
+          labelPosition: "top",
+          labelWidth: null,
         },
         options || {}
       );
@@ -628,6 +645,7 @@
       this._controls = new Map();
       this._errorEls = new Map();
       this._rows = new Map();
+      this._buttons = new Map(); // id -> {spec, el, textEl, row, disabled, loading}
 
       this._host = resolveHost(target);
       if (!this._host) {
@@ -647,13 +665,15 @@
       if (Number(this.options.columns) > 1) {
         this._formEl.dataset.columns = String(this.options.columns);
       }
+      const labelWidth = cssLength(this.options.labelWidth);
+      if (labelWidth) this._formEl.style.setProperty("--wapyt-form-label-width", labelWidth);
       this._formEl.addEventListener("submit", (event) => {
         event.preventDefault();
         this.submit();
       });
 
       (this.options.fields || []).forEach((field) => {
-        const row = this._createRow(field);
+        const row = field && field.type === "button" ? this._createButtonRow(field) : this._createRow(field);
         if (row) {
           this._formEl.appendChild(row);
         }
@@ -666,6 +686,9 @@
 
       this._actions = document.createElement("div");
       this._actions.className = "wapyt-form-actions";
+      (this.options.buttons || []).forEach((spec) => {
+        if (spec && spec.id) this._actions.appendChild(this._createButton(spec, null));
+      });
 
       if (this.options.cancelText) {
         this._cancelBtn = document.createElement("button");
@@ -687,6 +710,133 @@
       this._formEl.appendChild(this._actions);
       this._host.appendChild(this._formEl);
       this.setBusy(Boolean(this.options.busy));
+      this._watchNarrow();
+    }
+
+    // ── Label position ───────────────────────────────────────────────────────
+
+    _labelPosition(field) {
+      const position = (field && field.labelPosition) || this.options.labelPosition;
+      return position === "left" ? "left" : "top";
+    }
+
+    // Left labels fall back to top labels when a row leaves its control less
+    // than 160px. A ResizeObserver rather than a container query: inline-size
+    // containment would collapse a form inside a shrink-to-fit Popup.
+    _watchNarrow() {
+      if (this._narrowObserver) this._narrowObserver.disconnect();
+      const rows = Array.from(this._rows.values()).filter((row) => row.dataset.labelPosition === "left");
+      if (!rows.length || typeof ResizeObserver !== "function") return;
+      const check = () => {
+        rows.forEach((row) => {
+          if (row.hidden) return;
+          if (row.dataset.narrow !== "true") {
+            const track = parseFloat(getComputedStyle(row).gridTemplateColumns);
+            if (Number.isFinite(track)) row._wapytLabelTrack = track;
+          }
+          const label = row._wapytLabelTrack || 0;
+          const narrow = row.clientWidth - label - 12 < 160;
+          if (narrow) row.dataset.narrow = "true";
+          else delete row.dataset.narrow;
+        });
+      };
+      this._narrowObserver = new ResizeObserver(check);
+      this._narrowObserver.observe(this._formEl);
+      check();
+    }
+
+    // ── Buttons ──────────────────────────────────────────────────────────────
+
+    _createButtonRow(spec) {
+      if (!spec.id) return null;
+      const row = document.createElement("div");
+      row.className = "wapyt-form-row";
+      row.dataset.fieldId = String(spec.id);
+      row.dataset.kind = "button";
+      if (spec.span) row.dataset.span = String(spec.span);
+      if (this._labelPosition(spec) === "left") row.dataset.labelPosition = "left";
+      row.appendChild(this._createButton(spec, row));
+      if (spec.hidden) row.hidden = true;
+      this._rows.set(String(spec.id), row);
+      return row;
+    }
+
+    _createButton(spec, row) {
+      const id = String(spec.id);
+      const button = document.createElement("button");
+      button.type = "button";
+      const variant = BUTTON_VARIANTS[spec.variant] || "ghost";
+      button.className = `wapyt-form-button wapyt-form-button-${variant}`;
+      button.dataset.buttonId = id;
+      if (spec.full) button.dataset.full = "true";
+      if (spec.tooltip) button.title = String(spec.tooltip);
+      if (spec.icon) {
+        const icon = document.createElement("i");
+        icon.className = `wapyt-form-button-icon ${iconClass(spec.icon)}`;
+        icon.setAttribute("aria-hidden", "true");
+        button.appendChild(icon);
+      }
+      const textEl = document.createElement("span");
+      textEl.className = "wapyt-form-button-text";
+      textEl.textContent = spec.text == null ? id : String(spec.text);
+      button.appendChild(textEl);
+      const spinner = document.createElement("span");
+      spinner.className = "wapyt-form-button-spinner";
+      spinner.setAttribute("aria-hidden", "true");
+      button.appendChild(spinner);
+      if (!row && spec.hidden) button.hidden = true;
+
+      const entry = { spec, el: button, textEl, row, disabled: Boolean(spec.disabled), loading: false };
+      this._buttons.set(id, entry);
+      this._syncButton(entry);
+      button.addEventListener("click", () => this._onButton(entry));
+      return button;
+    }
+
+    // A button is unusable while disabled, loading, or (for submit buttons)
+    // while the form is busy.
+    _syncButton(entry) {
+      const busy = this._busy && entry.spec.submit;
+      entry.el.disabled = entry.disabled || entry.loading || Boolean(busy);
+      if (entry.loading) {
+        entry.el.dataset.loading = "true";
+        entry.el.setAttribute("aria-busy", "true");
+      } else {
+        delete entry.el.dataset.loading;
+        entry.el.removeAttribute("aria-busy");
+      }
+    }
+
+    _onButton(entry) {
+      const id = String(entry.spec.id);
+      if (!entry.spec.submit) {
+        this._emit("click", { id });
+        return;
+      }
+      if (this._busy) return;
+      const errors = this.validate();
+      if (Object.keys(errors).length) {
+        this._focusInvalid(errors);
+        this._emit("invalid", { errors, id });
+        return;
+      }
+      this._emit("click", { id, values: this.getValues() });
+    }
+
+    _button(id) {
+      return this._buttons.get(String(id)) || null;
+    }
+
+    setButtonText(id, text) {
+      const entry = this._button(id);
+      if (entry) entry.textEl.textContent = text == null ? "" : String(text);
+    }
+
+    setButtonLoading(id, loading = true) {
+      const entry = this._button(id);
+      if (!entry) return;
+      entry.loading = Boolean(loading);
+      this._syncButton(entry);
     }
 
     _createRow(field) {
@@ -707,6 +857,15 @@
       if (field.span) {
         row.dataset.span = String(field.span);
       }
+      const left = this._labelPosition(field) === "left";
+      if (left) row.dataset.labelPosition = "left";
+      const fieldLabelWidth = cssLength(field.labelWidth);
+      if (fieldLabelWidth) row.style.setProperty("--wapyt-form-label-width", fieldLabelWidth);
+      row.dataset.kind =
+        BOOLEAN.has(type) ? "boolean"
+        : GROUPS.has(type) ? "group"
+        : type === "range" ? "range"
+        : "control";
 
       const controlId = `wapyt_f_${field.id}_${Math.random().toString(16).slice(2, 8)}`;
       let control;
@@ -792,6 +951,8 @@
       if (!plainLabel) label.htmlFor = controlId;
       if (slider) label.addEventListener("click", () => slider.focus());
       label.textContent = field.label || field.id;
+      // Hidden from sight, never from assistive technology.
+      if (field.hiddenLabel) label.classList.add("wapyt-form-label-hidden");
       if (field.required) {
         const mark = document.createElement("span");
         mark.className = "wapyt-form-required";
@@ -804,10 +965,15 @@
       error.className = "wapyt-form-error";
       error.hidden = true;
 
-      if (BOOLEAN.has(type)) {
+      if (BOOLEAN.has(type) && !left) {
         row.dataset.inline = "true";
         row.appendChild(control);
         row.appendChild(label);
+      } else if (BOOLEAN.has(type)) {
+        // Left labels: the caption in the label column, the box under the
+        // other controls.
+        row.appendChild(label);
+        row.appendChild(control);
       } else if (combo) {
         row.appendChild(label);
         row.appendChild(combo.root);
@@ -1051,17 +1217,32 @@
 
     // ── Visibility / state ───────────────────────────────────────────────────
 
-    showField(id) {
+    // Buttons in the action row have no row of their own: they hide alone.
+    _setHidden(id, hidden) {
       const row = this._rows.get(id);
-      if (row) row.hidden = false;
+      if (row) {
+        row.hidden = hidden;
+        return;
+      }
+      const button = this._button(id);
+      if (button) button.el.hidden = hidden;
+    }
+
+    showField(id) {
+      this._setHidden(id, false);
     }
 
     hideField(id) {
-      const row = this._rows.get(id);
-      if (row) row.hidden = true;
+      this._setHidden(id, true);
     }
 
     setFieldDisabled(id, disabled) {
+      const button = this._button(id);
+      if (button) {
+        button.disabled = Boolean(disabled);
+        this._syncButton(button);
+        return;
+      }
       const entry = this._controls.get(id);
       if (!entry) return;
       if (entry.slider) entry.slider.setDisabled(disabled);
@@ -1073,6 +1254,7 @@
       this._host.dataset.busy = this._busy ? "true" : "false";
       if (this._submitBtn) this._submitBtn.disabled = this._busy;
       if (this._cancelBtn) this._cancelBtn.disabled = this._busy;
+      if (this._buttons) this._buttons.forEach((entry) => this._syncButton(entry));
     }
 
     focusFirst() {
@@ -1182,13 +1364,16 @@
       if (this._busy) return;
       const errors = this.validate();
       if (Object.keys(errors).length) {
-        const firstId = Object.keys(errors)[0];
-        const entry = this._controls.get(firstId);
-        if (entry) this._focusEntry(entry);
+        this._focusInvalid(errors);
         this._emit("invalid", { errors });
         return;
       }
       this._emit("submit", this.getValues());
+    }
+
+    _focusInvalid(errors) {
+      const entry = this._controls.get(Object.keys(errors)[0]);
+      if (entry) this._focusEntry(entry);
     }
 
     // ── Events ───────────────────────────────────────────────────────────────
