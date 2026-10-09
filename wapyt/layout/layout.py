@@ -152,6 +152,11 @@ class Layout(object, metaclass=LoadUICaller):
 
         return Chart(config=chart_config or ChartConfig(), container=self.layout.getCell(id))
 
+    def add_mediaplayer(self, id: str = "mainwindow", mediaplayer_config: Optional["MediaPlayerConfig"] = None) -> "MediaPlayer":
+        from ..mediaplayer import MediaPlayer, MediaPlayerConfig
+
+        return MediaPlayer(config=mediaplayer_config or MediaPlayerConfig(), container=self.layout.getCell(id))
+
     def add_pagination(self, id: str = "mainwindow", pagination_config: Optional["PaginationConfig"] = None) -> "Pagination":
         from ..pagination import Pagination, PaginationConfig
 

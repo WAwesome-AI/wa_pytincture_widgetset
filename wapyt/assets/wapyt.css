@@ -4135,3 +4135,439 @@ html[data-wapyt-window-drag="move"] * {
     color: #000000 !important;
   }
 }
+
+/* ── MediaPlayer ───────────────────────────────────────────────────────────
+   One <video> element in three shapes, switched by data-mode on the root:
+   video (the picture fills the container, controls overlay it and fade while
+   playing), audio (a bar with the cover; the stage is clipped, never removed,
+   so the element keeps playing) and compact (play, scrubber and time, for a
+   chat message). The element is never moved between shapes. The scrubber is
+   painted from two custom properties the JS keeps current:
+   --wapyt-media-played and --wapyt-media-buffered. */
+.wapyt-media {
+  --wapyt-media-accent: #2563eb;
+  --wapyt-media-track: rgba(15, 23, 42, 0.14);
+  --wapyt-media-buffer: rgba(15, 23, 42, 0.28);
+  --wapyt-media-surface: var(--wapyt-surface);
+  --wapyt-media-ink: var(--wapyt-text);
+  --wapyt-media-muted: #64748b;
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  font: 13px/1.35 var(--wapyt-font-family);
+  color: var(--wapyt-media-ink);
+}
+
+[data-wapyt-theme="dark"] .wapyt-media {
+  --wapyt-media-accent: #3b82f6;
+  --wapyt-media-track: rgba(248, 250, 252, 0.16);
+  --wapyt-media-buffer: rgba(248, 250, 252, 0.32);
+  --wapyt-media-surface: var(--wapyt-surface-dark);
+  --wapyt-media-ink: var(--wapyt-text-dark);
+  --wapyt-media-muted: #94a3b8;
+}
+
+.wapyt-media *,
+.wapyt-media *::before,
+.wapyt-media *::after { box-sizing: border-box; }
+
+.wapyt-media-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: #000000;
+  overflow: hidden;
+}
+
+.wapyt-media-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000000;
+}
+
+.wapyt-media-bigplay {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  width: 64px !important;
+  height: 64px !important;
+  border-radius: 50% !important;
+  font-size: 34px !important;
+  color: #ffffff !important;
+  background: rgba(15, 23, 42, 0.62) !important;
+}
+
+.wapyt-media-bigplay[hidden] { display: none; }
+.wapyt-media-bigplay:hover { background: rgba(15, 23, 42, 0.82) !important; }
+
+.wapyt-media-status {
+  font-size: 12px;
+  color: var(--wapyt-media-muted);
+  padding: 4px 10px;
+}
+
+.wapyt-media-status[hidden] { display: none; }
+.wapyt-media-status[data-error] { color: #dc2626; }
+[data-wapyt-theme="dark"] .wapyt-media-status[data-error] { color: #f87171; }
+
+.wapyt-media-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 10px;
+}
+
+.wapyt-media-bar[hidden] { display: none; }
+
+.wapyt-media-cover {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--wapyt-media-track);
+}
+
+.wapyt-media-cover[hidden] { display: none; }
+
+.wapyt-media-info {
+  flex: 0 1 220px;
+  min-width: 0;
+}
+
+.wapyt-media-title,
+.wapyt-media-subtitle,
+.wapyt-media-queue {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wapyt-media-title { font-weight: 600; }
+.wapyt-media-subtitle,
+.wapyt-media-queue { font-size: 12px; color: var(--wapyt-media-muted); }
+.wapyt-media-subtitle[hidden],
+.wapyt-media-queue[hidden] { display: none; }
+
+.wapyt-media-controls {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wapyt-media-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.wapyt-media-btn[hidden] { display: none; }
+.wapyt-media-btn:hover { background: var(--wapyt-media-track); }
+.wapyt-media-btn:focus-visible { outline: 2px solid var(--wapyt-media-accent); outline-offset: 1px; }
+.wapyt-media-btn[aria-pressed="true"] { color: var(--wapyt-media-accent); }
+
+.wapyt-media-play { width: 38px; height: 38px; font-size: 26px; }
+
+.wapyt-media-time {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--wapyt-media-muted);
+  min-width: 38px;
+  text-align: center;
+}
+
+/* Range inputs: native, so keyboard and screen readers work; painted here. */
+.wapyt-media-scrub,
+.wapyt-media-volume {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.wapyt-media-scrub { flex: 1 1 auto; min-width: 60px; }
+/* min-width 0: a range input's intrinsic width (~129px in Chromium) otherwise
+   outranks the flex basis and the volume crowds the scrubber. */
+.wapyt-media-volume { flex: 0 0 72px; width: 72px; min-width: 0; }
+
+.wapyt-media-scrub::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right,
+    var(--wapyt-media-accent) 0 var(--wapyt-media-played, 0%),
+    var(--wapyt-media-buffer) var(--wapyt-media-played, 0%) var(--wapyt-media-buffered, 0%),
+    var(--wapyt-media-track) var(--wapyt-media-buffered, 0%) 100%);
+}
+
+.wapyt-media-scrub::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right,
+    var(--wapyt-media-buffer) 0 var(--wapyt-media-buffered, 0%),
+    var(--wapyt-media-track) var(--wapyt-media-buffered, 0%) 100%);
+}
+
+.wapyt-media-scrub::-moz-range-progress,
+.wapyt-media-volume::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--wapyt-media-accent);
+}
+
+/* Separate rules: a selector list with a pseudo-element one browser doesn't
+   know is dropped whole by that browser, which left Chrome's track unpainted. */
+.wapyt-media-volume::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--wapyt-media-track);
+}
+
+.wapyt-media-volume::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--wapyt-media-track);
+}
+
+.wapyt-media-scrub::-webkit-slider-thumb,
+.wapyt-media-volume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--wapyt-media-accent);
+}
+
+.wapyt-media-scrub::-moz-range-thumb,
+.wapyt-media-volume::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--wapyt-media-accent);
+}
+
+.wapyt-media-scrub:focus-visible,
+.wapyt-media-volume:focus-visible { outline: 2px solid var(--wapyt-media-accent); outline-offset: 2px; border-radius: 4px; }
+
+.wapyt-media[data-live] .wapyt-media-scrub,
+.wapyt-media[data-live] .wapyt-media-current { visibility: hidden; }
+
+/* The tracks menu: subtitles and audio. */
+.wapyt-media-menu {
+  position: absolute;
+  right: 8px;
+  bottom: 52px;
+  z-index: 20;
+  min-width: 180px;
+  max-height: 60%;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--wapyt-border);
+  border-radius: 8px;
+  background: var(--wapyt-bg);
+  color: var(--wapyt-text);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+}
+
+[data-wapyt-theme="dark"] .wapyt-media-menu {
+  border-color: var(--wapyt-border-dark);
+  background: var(--wapyt-bg-dark);
+  color: var(--wapyt-text-dark);
+}
+
+.wapyt-media-menu[hidden] { display: none; }
+
+.wapyt-media-menu-heading {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--wapyt-media-muted);
+}
+
+.wapyt-media-menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px 6px 28px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+}
+
+.wapyt-media-menu-item:hover,
+.wapyt-media-menu-item:focus-visible { background: var(--wapyt-media-track); outline: none; }
+.wapyt-media-menu-item[aria-checked="true"]::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--wapyt-media-accent);
+}
+
+/* Video: the picture fills the container; the bar overlays its foot. */
+.wapyt-media[data-mode="video"] {
+  height: 100%;
+  min-height: 0;
+  background: #000000;
+  color: #ffffff;
+  --wapyt-media-ink: #ffffff;
+  --wapyt-media-muted: rgba(255, 255, 255, 0.78);
+  --wapyt-media-track: rgba(255, 255, 255, 0.24);
+  --wapyt-media-buffer: rgba(255, 255, 255, 0.45);
+}
+
+.wapyt-media[data-mode="video"] .wapyt-media-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 24px 10px 6px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
+  transition: opacity 0.25s ease;
+}
+
+.wapyt-media[data-mode="video"] .wapyt-media-cover { display: none; }
+
+.wapyt-media[data-mode="video"] .wapyt-media-status {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.66);
+  color: #ffffff;
+  text-align: center;
+}
+
+/* Captions sit at the foot of the picture, where the controls are: lift them
+   above the bar while it shows (Chromium's caption container; elsewhere the
+   browser's own placement stands). */
+.wapyt-media[data-mode="video"] .wapyt-media-video::-webkit-media-text-track-container {
+  transition: transform 0.25s ease;
+}
+
+.wapyt-media[data-mode="video"]:not([data-idle]) .wapyt-media-video::-webkit-media-text-track-container {
+  transform: translateY(-52px);
+}
+
+.wapyt-media[data-mode="video"][data-idle] { cursor: none; }
+.wapyt-media[data-mode="video"][data-idle] .wapyt-media-bar { opacity: 0; pointer-events: none; }
+
+.wapyt-media[data-fullscreen] { background: #000000; }
+
+/* Audio: a bar; the stage stays in the DOM, clipped to nothing. */
+.wapyt-media[data-mode="audio"],
+.wapyt-media[data-mode="compact"] {
+  height: auto;
+  background: var(--wapyt-media-surface);
+}
+
+.wapyt-media[data-mode="audio"] .wapyt-media-stage,
+.wapyt-media[data-mode="compact"] .wapyt-media-stage {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+}
+
+.wapyt-media[data-mode="audio"] .wapyt-media-full,
+.wapyt-media[data-mode="compact"] .wapyt-media-full { display: none; }
+
+.wapyt-media[data-mode="audio"] {
+  border-top: 1px solid var(--wapyt-border);
+  container-type: inline-size; /* for the narrow-bar rule below; not on compact, which sizes to content */
+}
+
+[data-wapyt-theme="dark"] .wapyt-media[data-mode="audio"] { border-top-color: var(--wapyt-border-dark); }
+
+/* A docked bar takes its room from the page rather than covering the foot of
+   it: the JS publishes its height while it shows, and the body is padded by it
+   (a full-height layout shrinks to fit). Nothing queued, nothing docked. */
+.wapyt-media[data-dock][data-empty] { display: none; }
+
+html[data-wapyt-media-docked] body {
+  box-sizing: border-box;
+  padding-bottom: var(--wapyt-media-dock-height, 0px);
+}
+
+/* MainWindow's layout is sized inline to 100vh, which padding cannot shrink. */
+html[data-wapyt-media-docked] body > .wapyt-layout {
+  height: calc(100vh - var(--wapyt-media-dock-height, 0px)) !important;
+}
+
+.wapyt-media[data-dock] {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 8000;
+  box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.12);
+}
+
+/* Compact: a pill for a chat message or a list row. */
+.wapyt-media[data-mode="compact"] {
+  display: inline-flex;
+  width: auto;
+  max-width: 100%;
+  min-width: 220px;
+  border-radius: 20px;
+}
+
+.wapyt-media[data-mode="compact"] .wapyt-media-bar { padding: 2px 10px 2px 4px; gap: 4px; }
+
+.wapyt-media[data-mode="compact"] .wapyt-media-cover,
+.wapyt-media[data-mode="compact"] .wapyt-media-info,
+.wapyt-media[data-mode="compact"] .wapyt-media-prev,
+.wapyt-media[data-mode="compact"] .wapyt-media-next,
+.wapyt-media[data-mode="compact"] .wapyt-media-current,
+.wapyt-media[data-mode="compact"] .wapyt-media-volume,
+.wapyt-media[data-mode="compact"] .wapyt-media-shuffle,
+.wapyt-media[data-mode="compact"] .wapyt-media-repeat,
+.wapyt-media[data-mode="compact"] .wapyt-media-tracks { display: none; }
+
+.wapyt-media[data-mode="compact"] .wapyt-media-play { width: 32px; height: 32px; font-size: 22px; }
+.wapyt-media[data-mode="compact"] .wapyt-media-scrub { min-width: 80px; }
+
+/* A narrow audio bar keeps transport and the scrubber. */
+@container (max-width: 520px) {
+  .wapyt-media-volume,
+  .wapyt-media-shuffle,
+  .wapyt-media-repeat { display: none; }
+}

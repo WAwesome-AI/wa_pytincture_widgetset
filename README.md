@@ -26,6 +26,7 @@
 - `Popup` and tooltips: An anchored popover for pickers, help and small forms; styled, keyboard-reachable tooltips that replace native `title` text across the widgets.
 - `ProgressBar` / `progress_html`: Determinate or indeterminate bars with active/done/error/paused states, as a live widget or static markup.
 - `Pagination`: First/previous/next/last, a page box or numbered buttons, a page-size selector and a "1–50 of 1,234" summary; copes with totals the server could not count.
+- `MediaPlayer`: Video and audio with a queue — the picture in place, an audio bar that can dock to the foot of the window, or a compact inline player for a chat message; HLS through bundled hls.js, WebVTT subtitles, items whose URL is resolved only when reached, exclusive groups, keyboard and OS media keys.
 
 ## Runtime Architecture
 - Layouts and widgets are declared in Python but render as DOM nodes through the JavaScript bundles under `wapyt/assets/`. Each helper (e.g., `Layout.add_chat`) forwards config dictionaries directly to the matching JS constructor.

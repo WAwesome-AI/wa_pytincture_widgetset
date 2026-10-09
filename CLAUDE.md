@@ -609,6 +609,92 @@ it, so their flows are untouched.
 `tests/window_demo.py`; a 45-check Playwright run passed, and the
 ModalWindow events (12) and Message (29) suites still pass.
 
+## MediaPlayer (added 2026-10-09)
+
+`MediaPlayer` (`assets/mediaplayer.js`, `wapyt/mediaplayer/`, `Layout.add_mediaplayer`)
+plays video and audio, one item or a queue. Built for Orpheus (a self-hosted
+media server's films and albums) and kept general: a voice message in a chat,
+a clip in an app. Config: `MediaPlayerConfig`; items: `MediaItem`, with
+`MediaTextTrack`s.
+
+- **One `<video>` element, three shapes** by `data-mode` on the root:
+  `video` (the picture fills the container; controls overlay it and fade
+  after 2.5 s of no pointer while playing), `audio` (a bar with the cover;
+  the stage is clipped, not removed) and `compact` (play, scrubber, time).
+  `auto` follows each item's kind. The element is **never moved or
+  re-created** between shapes: with hls.js attached through MSE that is a
+  demuxer error. A `data-marker` survives every shape change in the test.
+- **HLS** plays through **hls.js 1.7.3, light build, vendored** as
+  `assets/vendor-hlsjs.light.min.js` (Apache-2.0, licence
+  `assets/vendor-hlsjs.LICENSE.md`): the npm `dist/hls.light.min.js` with only
+  the trailing `sourceMappingURL` line removed, tarball sha512 checked against
+  `npm view hls.js@1.7.3 dist.integrity`. Light, not full: 386 KB against
+  620 KB, on every app's page. It lacks alternate audio renditions and
+  in-playlist subtitles; this widget takes subtitles as WebVTT files, and an
+  app that needs the rest can swap the full build in under the same name.
+  Two rules learned the hard way in Orpheus's web player and kept here:
+  **`Hls.isSupported()` first, native HLS second** (`canPlayType` says
+  "maybe" in Chromium, which cannot play HLS natively), and **`startPosition:
+  0`** unless the item says otherwise (hls.js's -1 starts a growing EVENT
+  playlist at the live edge).
+- **pyTincture's CSP blocks it as shipped.** The policy has no `media-src`,
+  so `default-src 'self'` applies and hls.js's `blob:` MediaSource URL is
+  refused — with no media error at all: the stream loads and nothing plays.
+  The widget listens for `securitypolicyviolation` and says so in its status
+  line and an `error` event (`code == "csp"`): "Allow media-src 'self' blob:".
+  Plain file URLs from the same origin play under the shipped policy. Apps
+  add `media-src 'self' blob:` with an ASGI wrapper around `create_app`
+  (`tests/mediaplayer_demo.py` shows it; the header is set with
+  `setdefault`, so a wrapper can rewrite it). A pyTincture setting for media
+  origins, alongside connect/script/style/font, would remove the wrapper.
+- **Lazy items.** A `MediaItem` without `src` makes the player emit
+  `resolve` when it becomes current and wait for `resolve(index, src=…)`.
+  `on_resolve` takes an async handler and applies its return value
+  (`{"src": url, "type": "hls"}`), or reports what it raised. `unload` fires
+  whenever an item stops being current (`reason`: load, next, ended, stop,
+  remove, clear, destroy): where a media-server session is closed. Every
+  event carries the item's `data`, so apps never map indices back.
+- **Queue:** previous (back to the start within 3 s), next, shuffle (keeps
+  the current item first, rearranges the rest), repeat off/all/one,
+  "3 of 14 · up next: …", `queueend`. `group="chat"` makes players exclusive:
+  starting one pauses the others.
+- **Dock:** `dock="bottom"` pins the audio bar to the window's foot, hidden
+  while empty. While it shows it publishes `--wapyt-media-dock-height` and
+  `html[data-wapyt-media-docked]`; the CSS pads `body` and shrinks
+  `body > .wapyt-layout`, whose inline `height: 100vh` padding cannot touch
+  (`!important` for that reason). Measured: the layout goes 760 → 697 with a
+  63 px bar and the page height does not change. (Every wapyt page already
+  overflows by 16 px — the 8 px default body margin plus a 100vh layout —
+  with or without a dock.)
+- **Captions** are lifted above the overlay bar while it shows through
+  Chromium's `::-webkit-media-text-track-container`; they sat under the
+  controls before (caught in the screenshot). Other browsers keep their own
+  placement.
+- **Ranges are native `<input type=range>`** for keyboard and screen readers,
+  painted from `--wapyt-media-played` / `--wapyt-media-buffered`. Webkit and
+  Mozilla pseudo-elements must be **separate rules**: a selector list with
+  one a browser doesn't know is dropped whole, which left Chrome's volume
+  track unpainted. The volume needs `min-width: 0` or a range input's
+  ~129 px intrinsic width beats its 72 px flex basis.
+- **Keyboard** (focus inside the player): Space/K, ←/→ 5 s, J/L 10 s, ↑/↓
+  volume, M, F, N/P, C (subtitles), Escape closes the tracks menu. **OS media
+  keys** through the Media Session API, owned by the last player to play.
+  `timeupdate` reaches Python every `time_update_interval` seconds (default 1;
+  0 turns it off); the scrubber updates every frame in JS.
+- Text only through `textContent` (a title of `"<b>"` shows the brackets);
+  URLs only as properties.
+
+`tests/mediaplayer_demo.py` runs with `create_app` (not `launch_service`, which
+cannot add a media route) and generates its test media with ffmpeg into
+`tests/.mediaplayer-fixtures` (gitignored); `MEDIAPLAYER_DEMO_STRICT_CSP=1`
+keeps pyTincture's policy, `MEDIAPLAYER_DEMO_PORT` moves it. A 30-check
+Playwright run in **Chrome for Testing** passed (Playwright's own Chromium has
+no H.264/AAC): MP4 and HLS playback and seeking, WebVTT cues, the error path,
+the element surviving shape changes, the lazily resolved album with unloads and
+auto-advance, queue end, throttled time updates, shuffle, the exclusive chat
+group, the keyboard, the dock's layout, no CSP violations or console errors;
+plus 3 checks under the strict policy. Screenshots checked in light and dark.
+
 ## Tree context menus by node kind (added 2026-09-25)
 
 `TreeAction(kinds=["server", "database"])` shows an entry only on nodes whose

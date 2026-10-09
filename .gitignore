@@ -38,3 +38,6 @@ htmlcov/
 *-py3-none-any.whl
 uv.lock
 tests/uv.lock
+
+# Test media the MediaPlayer demo generates with ffmpeg on first run.
+tests/.mediaplayer-fixtures/

@@ -41,6 +41,9 @@ ASSETS: list[tuple[str, str]] = [
     ("assets/window.js", "javascript"),
     ("assets/vendor-chartjs.min.js", "javascript"),
     ("assets/chart.js", "javascript"),
+    # hls.js before mediaplayer.js, which only needs globalThis.Hls when an HLS item opens.
+    ("assets/vendor-hlsjs.light.min.js", "javascript"),
+    ("assets/mediaplayer.js", "javascript"),
     ("assets/scheduler.js", "javascript"),
     ("assets/message.js", "javascript"),
     ("assets/toolbar.js", "javascript"),

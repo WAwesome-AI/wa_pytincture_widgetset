@@ -6,7 +6,7 @@
     {
       "path": "wapyt/assets/wapyt.css",
       "type": "css",
-      "sha256": "a66395b9334a3a95659f1d5e715fa7a3a1dcd96c733ea2fae089e73da0d96b5b"
+      "sha256": "dd7db1c2a906fe830f89b440f0ee85871f6aeda1b1acdd1b46dc2c771cc9095f"
     },
     {
       "path": "wapyt/assets/icons.js",
@@ -42,6 +42,16 @@
       "path": "wapyt/assets/chart.js",
       "type": "javascript",
       "sha256": "7feb4778ab09d0e00873e35ba62703f734dbbae2cd31c2f591aeca1f5c635199"
+    },
+    {
+      "path": "wapyt/assets/vendor-hlsjs.light.min.js",
+      "type": "javascript",
+      "sha256": "b84961bfaa125b5d63f8839507611ace38a4a2ec85fe9d0ebd2c81f180fa7eb7"
+    },
+    {
+      "path": "wapyt/assets/mediaplayer.js",
+      "type": "javascript",
+      "sha256": "51ecaa7d73fed502f61dadedf71bb27136626a54e8b46a66fd0d4bd638a75159"
     },
     {
       "path": "wapyt/assets/scheduler.js",
