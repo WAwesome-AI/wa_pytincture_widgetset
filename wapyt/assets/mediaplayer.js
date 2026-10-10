@@ -125,6 +125,11 @@
       this._items = [];
       this._index = -1;
       this._order = null;
+      // The items played this pass through the queue, in the order they played:
+      // a shuffle keeps them behind the current item and never deals them again
+      // until every item has played (then, with repeat all, a new pass).
+      this._played = [];
+      this._nextPass = null; // the shuffled order of the coming pass, once known
       this._repeat = REPEAT.includes(this._config.repeat) ? this._config.repeat : "off";
       this._shuffle = false;
       this._hls = null;
@@ -198,7 +203,10 @@
       tracks.setAttribute("aria-haspopup", "menu");
       tracks.setAttribute("aria-expanded", "false");
       const full = iconButton("mdi-fullscreen", "Full screen", "wapyt-media-full");
-      controls.append(prev, play, next, current, scrub, duration, mute, volume, shuffle, repeat, tracks, full);
+      // The app's own buttons (config.actions): "add to playlist", "save",
+      // "reply". Each emits an "action" event about the current item.
+      const actions = el("span", "wapyt-media-actions");
+      controls.append(prev, play, next, current, scrub, duration, mute, volume, shuffle, repeat, actions, tracks, full);
       bar.append(cover, info, controls);
 
       const menu = el("div", "wapyt-media-menu", { role: "menu" });
@@ -210,8 +218,9 @@
         _root: root, _stage: stage, _video: video, _status: status, _bigPlay: bigPlay, _bar: bar,
         _cover: cover, _title: title, _subtitle: subtitle, _queueLine: queueLine, _prev: prev, _play: play,
         _next: next, _current: current, _scrub: scrub, _duration: duration, _mute: mute, _volume: volume,
-        _shuffleBtn: shuffle, _repeatBtn: repeat, _tracksBtn: tracks, _full: full, _menu: menu,
+        _shuffleBtn: shuffle, _repeatBtn: repeat, _tracksBtn: tracks, _full: full, _menu: menu, _actions: actions,
       });
+      this.setActions(this._config.actions || []);
       if (this._config.controls === false) bar.hidden = true;
       this._renderRepeat();
     }
@@ -285,6 +294,8 @@
       this._unload("load");
       this._index = -1; // the old index means nothing in the new list
       this._items = (items || []).map((item) => Object.assign({}, item));
+      this._played = [];
+      this._nextPass = null;
       this._order = this._shuffle ? this._shuffleOrder(startIndex || 0) : null;
       if (!this._items.length) {
         this._index = -1;
@@ -299,7 +310,10 @@
       const position = at == null || at < 0 || at > this._items.length ? this._items.length : at;
       this._items.splice(position, 0, ...fresh);
       if (this._index >= position) this._index += fresh.length;
-      if (this._order) this._order = this._shuffleOrder(this._index);
+      const shift = (i) => (i >= position ? i + fresh.length : i);
+      this._played = this._played.map(shift);
+      this._nextPass = null;
+      if (this._order) this._order = this._shuffleOrder(this._index); // the new items join what's to come
       if (this._index < 0 && this._items.length) this._select(0, false, "load");
       else this._renderInfo();
     }
@@ -313,6 +327,8 @@
       }
       this._items.splice(index, 1);
       if (index < this._index) this._index -= 1;
+      this._played = this._played.filter((i) => i !== index).map((i) => (i > index ? i - 1 : i));
+      this._nextPass = null;
       if (this._order) this._order = this._shuffleOrder(Math.max(this._index, 0));
       if (wasCurrent) {
         if (this._items.length) this._select(Math.min(index, this._items.length - 1), !this._video.paused, "remove");
@@ -326,6 +342,8 @@
       this._unload("clear");
       this._items = [];
       this._order = null;
+      this._played = [];
+      this._nextPass = null;
       this._index = -1;
       this._renderInfo();
     }
@@ -336,12 +354,36 @@
     }
 
     next() {
+      this._advance("next");
+    }
+
+    // Moving on, by Next or at an item's end. Past the last item with repeat
+    // all, a shuffled queue starts a new pass in a new order.
+    _advance(reason) {
       const step = this._step(1);
       if (step == null) {
         this._emit("queueend", { index: this._index });
         return;
       }
-      this._select(step, true, "next");
+      if (this._atEnd()) { // a new pass: shuffled, in a new order
+        if (this._order) this._order = this._nextPass || this._newPass();
+        this._nextPass = null;
+        this._played = [];
+      }
+      this._select(step, true, reason);
+    }
+
+    _atEnd() {
+      const order = this._order || this._items.map((_, i) => i);
+      return order.indexOf(this._index) === order.length - 1;
+    }
+
+    // A whole new shuffled pass, not starting with the item that just played
+    // (which would sound like a repeat).
+    _newPass() {
+      const order = shuffled(this._items.map((_, i) => i));
+      if (order.length > 1 && order[0] === this._index) [order[0], order[1]] = [order[1], order[0]];
+      return order;
     }
 
     previous() {
@@ -358,13 +400,27 @@
       const at = order.indexOf(this._index);
       const target = at + delta;
       if (target >= 0 && target < order.length) return order[target];
-      if (this._repeat === "all" && order.length) return order[(target + order.length) % order.length];
+      if (this._repeat === "all" && order.length) {
+        // Shuffled, the next pass is a new order: deal it now, so "up next"
+        // and the item that actually follows agree.
+        if (this._order && delta > 0) {
+          this._nextPass = this._nextPass || this._newPass();
+          return this._nextPass[0];
+        }
+        return order[(target + order.length) % order.length];
+      }
       return null;
     }
 
-    _shuffleOrder(first) {
-      const rest = this._items.map((_, i) => i).filter((i) => i !== first);
-      return [first, ...shuffled(rest)].filter((i) => i >= 0 && i < this._items.length);
+    // The shuffled order around the current item: what already played this
+    // pass stays behind it, in the order it played (so Previous retraces it),
+    // and only what hasn't played yet is shuffled to come after.
+    _shuffleOrder(current) {
+      const valid = (i) => i >= 0 && i < this._items.length;
+      const behind = this._played.filter((i) => valid(i) && i !== current);
+      const done = new Set(behind);
+      const ahead = this._items.map((_, i) => i).filter((i) => i !== current && !done.has(i));
+      return [...behind, ...(valid(current) ? [current] : []), ...shuffled(ahead)];
     }
 
     // ── Playing one item ─────────────────────────────────────────────────
@@ -373,6 +429,7 @@
       const previous = this._index;
       if (previous !== index) this._unload(reason);
       this._index = index;
+      if (index >= 0 && !this._played.includes(index)) this._played.push(index);
       this._autoplay = autoplay;
       this._recovered = { network: false, media: false };
       const item = this._items[index];
@@ -489,9 +546,7 @@
         this._tryPlay();
         return;
       }
-      const step = this._step(1);
-      if (step == null) this._emit("queueend", { index: this._index });
-      else this._select(step, true, "ended");
+      this._advance("ended");
     }
 
     // The item stops being current: tell the app (a media server session to
@@ -562,6 +617,7 @@
 
     setShuffle(on) {
       this._shuffle = Boolean(on);
+      this._nextPass = null;
       this._order = this._shuffle && this._items.length ? this._shuffleOrder(Math.max(this._index, 0)) : null;
       this._shuffleBtn.setAttribute("aria-pressed", String(this._shuffle));
       this._renderInfo();
@@ -730,6 +786,10 @@
       this._shuffleBtn.hidden = !multi || this._config.showShuffle === false;
       this._repeatBtn.hidden = this._config.showRepeat === false;
       this._root.toggleAttribute("data-empty", !item);
+      // An action is about the current item: with none, it can't be pressed.
+      this._actions.querySelectorAll(".wapyt-media-action").forEach((b) => {
+        b.disabled = !item || b.dataset.disabled === "true";
+      });
       this._updateDock();
       this._updateSession();
     }
@@ -974,6 +1034,38 @@
         album: item.album || "",
         artwork: item.poster ? [{ src: item.poster }] : [],
       }) : null;
+    }
+
+    /** Replace the app's buttons: [{id, icon, label, pressed?, disabled?}]. */
+    setActions(actions) {
+      this._actions.replaceChildren();
+      (actions || []).forEach((action) => {
+        if (!action || !action.id) return;
+        const button = iconButton(action.icon || "mdi-dots-horizontal", action.label || action.id, "wapyt-media-action");
+        button.dataset.action = action.id;
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const r = button.getBoundingClientRect();
+          // Where the button is on screen, so the app can open a menu beside it.
+          this._emit("action", Object.assign(this._payload(), {
+            action: action.id, rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height },
+          }));
+        });
+        this._actions.appendChild(button);
+        this.setAction(action.id, action);
+      });
+      this._actions.hidden = !this._actions.childElementCount;
+    }
+
+    /** Change one button: {icon, label, pressed, disabled}; omitted fields stay. */
+    setAction(id, patch) {
+      const button = this._actions.querySelector(`.wapyt-media-action[data-action="${CSS.escape(String(id))}"]`);
+      if (!button || !patch) return;
+      if (patch.icon) setIcon(button, patch.icon);
+      if (patch.label) { button.setAttribute("aria-label", patch.label); button.title = patch.label; }
+      if (patch.pressed !== undefined && patch.pressed !== null) button.setAttribute("aria-pressed", String(Boolean(patch.pressed)));
+      if (patch.disabled !== undefined && patch.disabled !== null) button.dataset.disabled = String(Boolean(patch.disabled));
+      button.disabled = this._index < 0 || button.dataset.disabled === "true";
     }
 
     _payload() {

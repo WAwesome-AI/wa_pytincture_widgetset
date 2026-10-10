@@ -24,7 +24,7 @@ from .sidebar.sidebar_config import SidebarConfig, SidebarHeading, SidebarItem, 
 from .modal.modal import ModalWindow, ModalConfig
 from .window.window import Window, WindowConfig
 from .chart import Chart, ChartConfig, ChartDataset
-from .mediaplayer import MediaItem, MediaPlayer, MediaPlayerConfig, MediaTextTrack
+from .mediaplayer import MediaAction, MediaItem, MediaPlayer, MediaPlayerConfig, MediaTextTrack
 from .scheduler import Scheduler, SchedulerConfig, ScheduleItem
 from .form.form import Form
 from .datatable.datatable import DataTable
@@ -94,6 +94,7 @@ __all__ = [
     "MediaPlayerConfig",
     "MediaItem",
     "MediaTextTrack",
+    "MediaAction",
     "Scheduler",
     "SchedulerConfig",
     "ScheduleItem",
