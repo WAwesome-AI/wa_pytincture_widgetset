@@ -198,7 +198,10 @@
       tracks.setAttribute("aria-haspopup", "menu");
       tracks.setAttribute("aria-expanded", "false");
       const full = iconButton("mdi-fullscreen", "Full screen", "wapyt-media-full");
-      controls.append(prev, play, next, current, scrub, duration, mute, volume, shuffle, repeat, tracks, full);
+      // The app's own buttons (config.actions): "add to playlist", "save",
+      // "reply". Each emits an "action" event about the current item.
+      const actions = el("span", "wapyt-media-actions");
+      controls.append(prev, play, next, current, scrub, duration, mute, volume, shuffle, repeat, actions, tracks, full);
       bar.append(cover, info, controls);
 
       const menu = el("div", "wapyt-media-menu", { role: "menu" });
@@ -210,8 +213,9 @@
         _root: root, _stage: stage, _video: video, _status: status, _bigPlay: bigPlay, _bar: bar,
         _cover: cover, _title: title, _subtitle: subtitle, _queueLine: queueLine, _prev: prev, _play: play,
         _next: next, _current: current, _scrub: scrub, _duration: duration, _mute: mute, _volume: volume,
-        _shuffleBtn: shuffle, _repeatBtn: repeat, _tracksBtn: tracks, _full: full, _menu: menu,
+        _shuffleBtn: shuffle, _repeatBtn: repeat, _tracksBtn: tracks, _full: full, _menu: menu, _actions: actions,
       });
+      this.setActions(this._config.actions || []);
       if (this._config.controls === false) bar.hidden = true;
       this._renderRepeat();
     }
@@ -730,6 +734,10 @@
       this._shuffleBtn.hidden = !multi || this._config.showShuffle === false;
       this._repeatBtn.hidden = this._config.showRepeat === false;
       this._root.toggleAttribute("data-empty", !item);
+      // An action is about the current item: with none, it can't be pressed.
+      this._actions.querySelectorAll(".wapyt-media-action").forEach((b) => {
+        b.disabled = !item || b.dataset.disabled === "true";
+      });
       this._updateDock();
       this._updateSession();
     }
@@ -974,6 +982,38 @@
         album: item.album || "",
         artwork: item.poster ? [{ src: item.poster }] : [],
       }) : null;
+    }
+
+    /** Replace the app's buttons: [{id, icon, label, pressed?, disabled?}]. */
+    setActions(actions) {
+      this._actions.replaceChildren();
+      (actions || []).forEach((action) => {
+        if (!action || !action.id) return;
+        const button = iconButton(action.icon || "mdi-dots-horizontal", action.label || action.id, "wapyt-media-action");
+        button.dataset.action = action.id;
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const r = button.getBoundingClientRect();
+          // Where the button is on screen, so the app can open a menu beside it.
+          this._emit("action", Object.assign(this._payload(), {
+            action: action.id, rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height },
+          }));
+        });
+        this._actions.appendChild(button);
+        this.setAction(action.id, action);
+      });
+      this._actions.hidden = !this._actions.childElementCount;
+    }
+
+    /** Change one button: {icon, label, pressed, disabled}; omitted fields stay. */
+    setAction(id, patch) {
+      const button = this._actions.querySelector(`.wapyt-media-action[data-action="${CSS.escape(String(id))}"]`);
+      if (!button || !patch) return;
+      if (patch.icon) setIcon(button, patch.icon);
+      if (patch.label) { button.setAttribute("aria-label", patch.label); button.title = patch.label; }
+      if (patch.pressed !== undefined && patch.pressed !== null) button.setAttribute("aria-pressed", String(Boolean(patch.pressed)));
+      if (patch.disabled !== undefined && patch.disabled !== null) button.dataset.disabled = String(Boolean(patch.disabled));
+      button.disabled = this._index < 0 || button.dataset.disabled === "true";
     }
 
     _payload() {

@@ -60,6 +60,40 @@ class MediaTextTrack:
 
 
 @dataclass
+class MediaAction:
+    """
+    A button of the app's own in the player's bar — "add to playlist", "save",
+    "reply" — beside its standard controls. Pressing it emits ``action``
+    (``MediaPlayer.on_action``) about the current item, with the button's
+    position on screen so a menu can open beside it.
+
+    Args:
+        id: Names the action in the event.
+        icon: MDI class (``mdi-playlist-plus``).
+        label: Its accessible name and tooltip.
+        pressed: A toggle's state (``aria-pressed``), e.g. "liked"; None is a plain button.
+        disabled: Shown but not pressable. With no current item, every action is.
+    """
+
+    id: str
+    icon: str = "mdi-dots-horizontal"
+    label: Optional[str] = None
+    pressed: Optional[bool] = None
+    disabled: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        if not self.id:
+            raise ValueError("MediaAction needs an id")
+        return _clean({
+            "id": self.id,
+            "icon": self.icon,
+            "label": self.label or self.id,
+            "pressed": self.pressed,
+            "disabled": self.disabled or None,
+        })
+
+
+@dataclass
 class MediaItem:
     """
     One thing to play: a film, an episode, a song, a voice message.
@@ -161,6 +195,7 @@ class MediaPlayerConfig:
             its container; give that container a height.
         empty_text: Shown in the bar with nothing loaded.
         aria_label: The region's accessible name.
+        actions: Buttons of the app's own in the bar (:class:`MediaAction`).
 
     HLS plays through the bundled hls.js light build. The page's
     Content-Security-Policy must allow ``media-src 'self' blob:`` for it (and
@@ -192,9 +227,13 @@ class MediaPlayerConfig:
     height: Optional[Union[int, str]] = None
     empty_text: Optional[str] = None
     aria_label: Optional[str] = None
+    actions: List[MediaAction] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         _check(self.mode, MODES, "MediaPlayerConfig.mode")
+        ids = [a.id for a in self.actions]
+        if len(ids) != len(set(ids)):
+            raise ValueError("MediaPlayerConfig.actions need distinct ids")
         _check(self.repeat, REPEAT_MODES, "MediaPlayerConfig.repeat")
         _check(self.dock, DOCKS, "MediaPlayerConfig.dock")
         _check(self.preload, PRELOADS, "MediaPlayerConfig.preload")
@@ -233,4 +272,5 @@ class MediaPlayerConfig:
             "height": self.height,
             "emptyText": self.empty_text,
             "ariaLabel": self.aria_label,
+            "actions": [a.to_dict() for a in self.actions] or None,
         })

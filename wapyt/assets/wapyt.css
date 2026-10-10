@@ -4562,6 +4562,13 @@ html[data-wapyt-media-docked] body > .wapyt-layout {
 .wapyt-media[data-mode="compact"] .wapyt-media-repeat,
 .wapyt-media[data-mode="compact"] .wapyt-media-tracks { display: none; }
 
+/* The app's own buttons (MediaPlayerConfig.actions). */
+.wapyt-media-actions { display: inline-flex; align-items: center; gap: 2px; }
+.wapyt-media-actions[hidden] { display: none; }
+.wapyt-media-action[aria-pressed="true"] { color: var(--wapyt-accent, #2563eb); }
+.wapyt-media-action:disabled { opacity: 0.4; cursor: default; }
+.wapyt-media[data-mode="compact"] .wapyt-media-actions { display: none; }
+
 .wapyt-media[data-mode="compact"] .wapyt-media-play { width: 32px; height: 32px; font-size: 22px; }
 .wapyt-media[data-mode="compact"] .wapyt-media-scrub { min-width: 80px; }
 

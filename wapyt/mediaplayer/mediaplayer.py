@@ -219,6 +219,16 @@ class MediaPlayer:
         """Toggle full screen, or set it. Browsers allow it only from a user gesture."""
         self.player.fullscreen(js.undefined if on is None else bool(on))
 
+    def set_actions(self, actions: Sequence[Union["MediaAction", Dict[str, Any]]]) -> None:
+        """Replace the app's buttons in the bar (:class:`MediaAction`)."""
+        self.player.setActions(_to_js([a.to_dict() if hasattr(a, "to_dict") else a for a in actions]))
+
+    def set_action(self, action_id: str, *, icon: Optional[str] = None, label: Optional[str] = None,
+                   pressed: Optional[bool] = None, disabled: Optional[bool] = None) -> None:
+        """Change one of them; omitted fields stay as they are."""
+        patch = {k: v for k, v in (("icon", icon), ("label", label), ("pressed", pressed), ("disabled", disabled)) if v is not None}
+        self.player.setAction(action_id, _to_js(patch))
+
     def state(self) -> Dict[str, Any]:
         """``index``, ``count``, ``paused``, ``ended``, ``position``, ``duration``
         (None for live), ``live``, ``volume``, ``muted``, ``rate``, ``shuffle``,
@@ -290,6 +300,12 @@ class MediaPlayer:
         (``"csp"`` when the page's policy blocks the media)."""
         self._bind_event("error", handler)
 
+    def on_action(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """One of the app's buttons (``MediaPlayerConfig.actions``) was pressed:
+        the current item's payload plus ``action`` (its id) and ``rect`` (the
+        button on screen: ``left``, ``top``, ``right``, ``bottom``)."""
+        self._bind_event("action", handler)
+
     def on_queue_end(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         """The last item ended (or ``next`` was asked for past it) with repeat off."""
         self._bind_event("queueend", handler)
@@ -319,4 +335,4 @@ class MediaPlayer:
         self._event_proxies.clear()
 
 
-__all__ = ["MediaPlayer", "MediaPlayerConfig", "MediaItem", "MediaTextTrack"]
+__all__ = ["MediaPlayer", "MediaPlayerConfig", "MediaItem", "MediaTextTrack", "MediaAction"]

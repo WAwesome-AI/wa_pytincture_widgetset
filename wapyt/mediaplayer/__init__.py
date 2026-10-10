@@ -1,4 +1,4 @@
 from .mediaplayer import MediaPlayer
-from .mediaplayer_config import MediaItem, MediaPlayerConfig, MediaTextTrack
+from .mediaplayer_config import MediaAction, MediaItem, MediaPlayerConfig, MediaTextTrack
 
-__all__ = ["MediaPlayer", "MediaPlayerConfig", "MediaItem", "MediaTextTrack"]
+__all__ = ["MediaPlayer", "MediaPlayerConfig", "MediaItem", "MediaTextTrack", "MediaAction"]

@@ -90,3 +90,21 @@ def test_assets_are_in_the_manifest_in_order():
     manifest = json.loads((Path(wapyt.__file__).parent / "pytincture-assets.json").read_text())
     paths = [a["path"] for a in manifest["assets"]]
     assert paths.index("wapyt/assets/vendor-hlsjs.light.min.js") < paths.index("wapyt/assets/mediaplayer.js")
+
+
+def test_actions_are_the_apps_own_buttons():
+    from wapyt import MediaAction
+    payload = MediaPlayerConfig(actions=[
+        MediaAction("playlist", "mdi-playlist-plus", "Add to playlist"),
+        MediaAction("like", "mdi-heart-outline", "Like", pressed=False, disabled=True),
+    ]).to_dict()
+    assert payload["actions"] == [
+        {"id": "playlist", "icon": "mdi-playlist-plus", "label": "Add to playlist"},
+        {"id": "like", "icon": "mdi-heart-outline", "label": "Like", "pressed": False, "disabled": True},
+    ]
+    assert MediaAction("x").to_dict() == {"id": "x", "icon": "mdi-dots-horizontal", "label": "x"}
+    with pytest.raises(ValueError):
+        MediaAction("").to_dict()
+    with pytest.raises(ValueError):
+        MediaPlayerConfig(actions=[MediaAction("a"), MediaAction("a")]).to_dict()
+    assert "actions" not in MediaPlayerConfig().to_dict()
