@@ -612,10 +612,13 @@ ModalWindow events (12) and Message (29) suites still pass.
 ## MediaPlayer (added 2026-10-09)
 
 `MediaPlayer` (`assets/mediaplayer.js`, `wapyt/mediaplayer/`, `Layout.add_mediaplayer`)
-plays video and audio, one item or a queue. Built for Orpheus (a self-hosted
-media server's films and albums) and kept general: a voice message in a chat,
-a clip in an app. Config: `MediaPlayerConfig`; items: `MediaItem`, with
-`MediaTextTrack`s.
+plays video and audio, one item or a queue. First built for Orpheus (a
+self-hosted media server's films and albums) and **server-agnostic**: it plays
+URLs and asks the app for them; files on the viewer's disk (`blob:` URLs), a
+CDN, cookies, Bearer headers, expiring signed URLs, per-play transcoding
+sessions and live streams are each a few lines (wiki: "MediaPlayer: connecting
+your media server"). Config: `MediaPlayerConfig`; items: `MediaItem`, with
+`MediaTextTrack`s; the app's own bar buttons: `MediaAction`.
 
 - **One `<video>` element, three shapes** by `data-mode` on the root:
   `video` (the picture fills the container; controls overlay it and fade
@@ -654,8 +657,10 @@ a clip in an app. Config: `MediaPlayerConfig`; items: `MediaItem`, with
   whenever an item stops being current (`reason`: load, next, ended, stop,
   remove, clear, destroy): where a media-server session is closed. Every
   event carries the item's `data`, so apps never map indices back.
-- **Queue:** previous (back to the start within 3 s), next, shuffle (keeps
-  the current item first, rearranges the rest), repeat off/all/one,
+- **Queue:** previous (back to the start within 3 s), next, shuffle (deals
+  every item once before any repeats: the player keeps `_played` for the pass;
+  turned on mid-queue, played items stay behind the current one; with repeat
+  all, each pass is a new order — #71), repeat off/all/one,
   "3 of 14 · up next: …", `queueend`. `group="chat"` makes players exclusive:
   starting one pauses the others.
 - **Dock:** `dock="bottom"` pins the audio bar to the window's foot, hidden
@@ -683,6 +688,35 @@ a clip in an app. Config: `MediaPlayerConfig`; items: `MediaItem`, with
   0 turns it off); the scrubber updates every frame in JS.
 - Text only through `textContent` (a title of `"<b>"` shows the brackets);
   URLs only as properties.
+- **Any media source (#72).** `MediaItem.headers` go on every hls.js request
+  through `xhrSetup` (a plain file's request is the browser's own: it can't
+  carry headers, and the player `console.warn`s rather than fail on a 401);
+  `cross_origin="use-credentials"` also sets `xhr.withCredentials`.
+  `MediaItem.live` starts at the live edge (`startPosition: -1`) with
+  `liveDurationInfinity`, so the bar says LIVE. **Quality:** `levels` events on
+  MANIFEST_PARSED / LEVEL_SWITCHED, `setQuality(i | -1)`, a Quality section in
+  the tracks menu (the button becomes a gear when there are no subtitles).
+  **`refresh(index)`**: forgets the URL, emits `unload` (reason `refresh`) and
+  `resolve` (`refresh: true`, `position`), resumes at `_resumeAt`. Errors carry
+  `code` (`network`/`media`/`decode`/`unsupported`/`aborted`/`csp`) and `status`
+  (HTTP, hls.js only). **A refused request (4xx) or a playlist that never
+  loaded fails at once**: the old one-retry `startLoad()` doesn't reload a
+  playlist, so a 401 on the master playlist sat on "Loading…" for ever.
+- **Testing against a server:** a protected response must be `no-store` /
+  `Vary: Authorization`, or Chrome serves the authorised playlist from cache to
+  the unauthorised request and the "refused" test plays. A cross-origin media
+  server also needs `connect-src` (hls.js uses XHR), not just `media-src`.
+
+Its **Sources** column (#72): "On this computer" plays files chosen, a folder,
+or a drop, as `blob:` URLs (songs to the dock, video with a same-named `.vtt`);
+"Your server" plays from `tests/mediaplayer_demo_server.py` (another origin;
+media made with ffmpeg into `tests/.mediaplayer_demo`): open HLS with two
+renditions, a Bearer header, a signed URL revoked after 10 s and refreshed, a
+live window. The video player gets a 6 s hls.js buffer so the expiry bites in
+the demo; apps keep the default. 9 Playwright checks in Chrome for Testing
+passed, plus 11 against a bare-page fixture (headers on all 32 requests, 401
+without, quality switch and menu, live edge, 403 → refresh → resume, the
+plain-file warning).
 
 `tests/mediaplayer_demo.py` runs with `create_app` (not `launch_service`, which
 cannot add a media route) and generates its test media with ffmpeg into
