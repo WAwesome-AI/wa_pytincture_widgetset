@@ -108,3 +108,20 @@ def test_actions_are_the_apps_own_buttons():
     with pytest.raises(ValueError):
         MediaPlayerConfig(actions=[MediaAction("a"), MediaAction("a")]).to_dict()
     assert "actions" not in MediaPlayerConfig().to_dict()
+
+
+def test_headers_and_live_for_any_media_server():
+    item = MediaItem("/live/channel.m3u8", headers={"Authorization": "Bearer abc", "X-Api-Key": "k"}, live=True)
+    assert item.to_dict() == {"src": "/live/channel.m3u8", "headers": {"Authorization": "Bearer abc", "X-Api-Key": "k"}, "live": True}
+    for bad in ({"Bad Name": "x"}, {"X": "two\r\nlines"}, {"X": 3}):
+        with pytest.raises(ValueError):
+            MediaItem("/a.m3u8", headers=bad).to_dict()
+    assert resolve_patch("/s.m3u8", headers={"Authorization": "Bearer t"}, live=False) == {
+        "src": "/s.m3u8", "headers": {"Authorization": "Bearer t"}, "live": False}
+    with pytest.raises(ValueError):
+        resolve_patch("/s.m3u8", headers={"A": "b\nc"})
+
+
+def test_quality_menu_can_be_turned_off():
+    assert MediaPlayerConfig(show_quality=False).to_dict() == {"mode": "auto", "showQuality": False}
+    assert "showQuality" not in MediaPlayerConfig().to_dict()
