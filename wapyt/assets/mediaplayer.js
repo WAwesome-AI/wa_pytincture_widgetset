@@ -125,6 +125,11 @@
       this._items = [];
       this._index = -1;
       this._order = null;
+      // The items played this pass through the queue, in the order they played:
+      // a shuffle keeps them behind the current item and never deals them again
+      // until every item has played (then, with repeat all, a new pass).
+      this._played = [];
+      this._nextPass = null; // the shuffled order of the coming pass, once known
       this._repeat = REPEAT.includes(this._config.repeat) ? this._config.repeat : "off";
       this._shuffle = false;
       this._hls = null;
@@ -289,6 +294,8 @@
       this._unload("load");
       this._index = -1; // the old index means nothing in the new list
       this._items = (items || []).map((item) => Object.assign({}, item));
+      this._played = [];
+      this._nextPass = null;
       this._order = this._shuffle ? this._shuffleOrder(startIndex || 0) : null;
       if (!this._items.length) {
         this._index = -1;
@@ -303,7 +310,10 @@
       const position = at == null || at < 0 || at > this._items.length ? this._items.length : at;
       this._items.splice(position, 0, ...fresh);
       if (this._index >= position) this._index += fresh.length;
-      if (this._order) this._order = this._shuffleOrder(this._index);
+      const shift = (i) => (i >= position ? i + fresh.length : i);
+      this._played = this._played.map(shift);
+      this._nextPass = null;
+      if (this._order) this._order = this._shuffleOrder(this._index); // the new items join what's to come
       if (this._index < 0 && this._items.length) this._select(0, false, "load");
       else this._renderInfo();
     }
@@ -317,6 +327,8 @@
       }
       this._items.splice(index, 1);
       if (index < this._index) this._index -= 1;
+      this._played = this._played.filter((i) => i !== index).map((i) => (i > index ? i - 1 : i));
+      this._nextPass = null;
       if (this._order) this._order = this._shuffleOrder(Math.max(this._index, 0));
       if (wasCurrent) {
         if (this._items.length) this._select(Math.min(index, this._items.length - 1), !this._video.paused, "remove");
@@ -330,6 +342,8 @@
       this._unload("clear");
       this._items = [];
       this._order = null;
+      this._played = [];
+      this._nextPass = null;
       this._index = -1;
       this._renderInfo();
     }
@@ -340,12 +354,36 @@
     }
 
     next() {
+      this._advance("next");
+    }
+
+    // Moving on, by Next or at an item's end. Past the last item with repeat
+    // all, a shuffled queue starts a new pass in a new order.
+    _advance(reason) {
       const step = this._step(1);
       if (step == null) {
         this._emit("queueend", { index: this._index });
         return;
       }
-      this._select(step, true, "next");
+      if (this._atEnd()) { // a new pass: shuffled, in a new order
+        if (this._order) this._order = this._nextPass || this._newPass();
+        this._nextPass = null;
+        this._played = [];
+      }
+      this._select(step, true, reason);
+    }
+
+    _atEnd() {
+      const order = this._order || this._items.map((_, i) => i);
+      return order.indexOf(this._index) === order.length - 1;
+    }
+
+    // A whole new shuffled pass, not starting with the item that just played
+    // (which would sound like a repeat).
+    _newPass() {
+      const order = shuffled(this._items.map((_, i) => i));
+      if (order.length > 1 && order[0] === this._index) [order[0], order[1]] = [order[1], order[0]];
+      return order;
     }
 
     previous() {
@@ -362,13 +400,27 @@
       const at = order.indexOf(this._index);
       const target = at + delta;
       if (target >= 0 && target < order.length) return order[target];
-      if (this._repeat === "all" && order.length) return order[(target + order.length) % order.length];
+      if (this._repeat === "all" && order.length) {
+        // Shuffled, the next pass is a new order: deal it now, so "up next"
+        // and the item that actually follows agree.
+        if (this._order && delta > 0) {
+          this._nextPass = this._nextPass || this._newPass();
+          return this._nextPass[0];
+        }
+        return order[(target + order.length) % order.length];
+      }
       return null;
     }
 
-    _shuffleOrder(first) {
-      const rest = this._items.map((_, i) => i).filter((i) => i !== first);
-      return [first, ...shuffled(rest)].filter((i) => i >= 0 && i < this._items.length);
+    // The shuffled order around the current item: what already played this
+    // pass stays behind it, in the order it played (so Previous retraces it),
+    // and only what hasn't played yet is shuffled to come after.
+    _shuffleOrder(current) {
+      const valid = (i) => i >= 0 && i < this._items.length;
+      const behind = this._played.filter((i) => valid(i) && i !== current);
+      const done = new Set(behind);
+      const ahead = this._items.map((_, i) => i).filter((i) => i !== current && !done.has(i));
+      return [...behind, ...(valid(current) ? [current] : []), ...shuffled(ahead)];
     }
 
     // ── Playing one item ─────────────────────────────────────────────────
@@ -377,6 +429,7 @@
       const previous = this._index;
       if (previous !== index) this._unload(reason);
       this._index = index;
+      if (index >= 0 && !this._played.includes(index)) this._played.push(index);
       this._autoplay = autoplay;
       this._recovered = { network: false, media: false };
       const item = this._items[index];
@@ -493,9 +546,7 @@
         this._tryPlay();
         return;
       }
-      const step = this._step(1);
-      if (step == null) this._emit("queueend", { index: this._index });
-      else this._select(step, true, "ended");
+      this._advance("ended");
     }
 
     // The item stops being current: tell the app (a media server session to
@@ -566,6 +617,7 @@
 
     setShuffle(on) {
       this._shuffle = Boolean(on);
+      this._nextPass = null;
       this._order = this._shuffle && this._items.length ? this._shuffleOrder(Math.max(this._index, 0)) : null;
       this._shuffleBtn.setAttribute("aria-pressed", String(this._shuffle));
       this._renderInfo();

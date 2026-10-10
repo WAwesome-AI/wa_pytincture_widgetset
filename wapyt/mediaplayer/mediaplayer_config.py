@@ -174,8 +174,10 @@ class MediaPlayerConfig:
             from Python.
         muted, volume, rate: Initial state (volume 0–1, rate 0.25–4).
         repeat: ``"off"``, ``"all"`` (the queue) or ``"one"``.
-        shuffle: Start shuffled. Shuffle keeps the current item where it is
-            and rearranges what is still to come.
+        shuffle: Start shuffled. Shuffle deals every item once, in a random
+            order, before any plays again: turned on mid-queue, it keeps what
+            already played behind the current item and shuffles only the
+            rest; with ``repeat="all"`` each new pass is a new order.
         dock: ``"bottom"`` pins the audio bar to the foot of the window.
         group: An exclusive group name: starting one player pauses the others
             in the group (the voice messages of a chat).
