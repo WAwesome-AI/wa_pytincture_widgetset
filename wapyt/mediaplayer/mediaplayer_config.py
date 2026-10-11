@@ -116,6 +116,13 @@ class MediaItem:
         text_tracks: WebVTT tracks for this item.
         data: Anything JSON-serialisable; handed back in every event about the
             item (an id, a session) so the app never has to map indices back.
+        headers: HTTP headers for every request of an HLS stream — playlist,
+            keys, segments — e.g. ``{"Authorization": "Bearer …"}``. A plain
+            file URL can't carry headers (the browser makes that request):
+            use a cookie, a token in the URL, or a signed URL for those.
+            Cross-origin, the server must allow the headers (CORS).
+        live: A live stream: start at its live edge, not its beginning, and
+            show LIVE rather than a duration.
     """
 
     src: Optional[str] = None
@@ -128,10 +135,13 @@ class MediaItem:
     start: Number = 0
     text_tracks: List[MediaTextTrack] = field(default_factory=list)
     data: Any = None
+    headers: Optional[Dict[str, str]] = None
+    live: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         if self.kind is not None:
             _check(self.kind, ITEM_KINDS, "MediaItem.kind")
+        _check_headers(self.headers, "MediaItem.headers")
         if self.start and self.start < 0:
             raise ValueError("MediaItem.start must not be negative")
         if self.data is not None:
@@ -150,7 +160,18 @@ class MediaItem:
             "start": self.start or None,
             "textTracks": [t.to_dict() if hasattr(t, "to_dict") else t for t in self.text_tracks] or None,
             "data": self.data,
+            "headers": dict(self.headers) if self.headers else None,
+            "live": self.live or None,
         })
+
+
+def _check_headers(headers: Optional[Dict[str, str]], where: str) -> None:
+    """Header names are tokens and values single lines: what XHR accepts."""
+    for name, value in (headers or {}).items():
+        if not isinstance(name, str) or not name or any(c in name for c in " :\r\n\t"):
+            raise ValueError(f"{where}: {name!r} is not a header name")
+        if not isinstance(value, str) or "\r" in value or "\n" in value:
+            raise ValueError(f"{where}[{name!r}] must be a single-line string")
 
 
 def item_payload(item: Union[MediaItem, Dict[str, Any]]) -> Dict[str, Any]:
@@ -187,6 +208,8 @@ class MediaPlayerConfig:
             (the most recently played player owns them).
         queue_line: Show "3 of 14 · up next: …" in the audio bar.
         show_shuffle, show_repeat: Offer those buttons.
+        show_quality: Offer an HLS stream's renditions (1080p, 720p…) in the
+            bar's menu, beside subtitles and audio. Automatic either way.
         time_update_interval: Seconds between ``timeupdate`` events to Python
             (0 turns them off). The scrubber itself updates every frame in JS.
         preload: ``"none"``, ``"metadata"`` (default) or ``"auto"``.
@@ -222,6 +245,7 @@ class MediaPlayerConfig:
     queue_line: bool = True
     show_shuffle: bool = True
     show_repeat: bool = True
+    show_quality: bool = True
     time_update_interval: Number = 1.0
     preload: str = "metadata"
     cross_origin: Optional[str] = None
@@ -267,6 +291,7 @@ class MediaPlayerConfig:
             "queueLine": False if not self.queue_line else None,
             "showShuffle": False if not self.show_shuffle else None,
             "showRepeat": False if not self.show_repeat else None,
+            "showQuality": False if not self.show_quality else None,
             "timeUpdateInterval": self.time_update_interval if self.time_update_interval != 1 else None,
             "preload": self.preload if self.preload != "metadata" else None,
             "crossOrigin": self.cross_origin,

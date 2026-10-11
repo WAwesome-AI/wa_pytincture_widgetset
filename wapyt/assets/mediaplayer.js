@@ -130,6 +130,7 @@
       // until every item has played (then, with repeat all, a new pass).
       this._played = [];
       this._nextPass = null; // the shuffled order of the coming pass, once known
+      this._resumeAt = null; // where a refresh() resumes the current item
       this._repeat = REPEAT.includes(this._config.repeat) ? this._config.repeat : "off";
       this._shuffle = false;
       this._hls = null;
@@ -255,7 +256,11 @@
       on(v, "ended", () => this._ended());
       on(v, "loadedmetadata", () => {
         const item = this._items[this._index];
-        if (item && item.start > 0 && !this._hls && Math.abs(v.currentTime - item.start) > 0.5) v.currentTime = item.start;
+        if (item && !this._hls) {
+          const at = this._resumeAt != null ? this._resumeAt : item.start;
+          this._resumeAt = null;
+          if (at > 0 && Math.abs(v.currentTime - at) > 0.5) v.currentTime = at;
+        }
         this._renderTime();
         this._renderTracks();
       });
@@ -272,7 +277,9 @@
         const code = v.error ? v.error.code : 0;
         const message = ["", "Playback was aborted.", "A network error stopped playback.",
           "This file could not be decoded.", "This format is not supported here."][code] || "Playback failed.";
-        this._fail(message, true);
+        // A media element reports no HTTP status: a 403 on a plain file is
+        // "network" or "unsupported" here, with no way to tell them apart.
+        this._fail(message, true, ["error", "aborted", "network", "decode", "unsupported"][code] || "error");
       });
       if (v.textTracks) on(v.textTracks, "change", () => this._renderTrackButton());
 
@@ -472,23 +479,49 @@
         if (track.default) node.default = true;
         v.appendChild(node);
       });
+      const headers = item.headers && Object.keys(item.headers).length ? item.headers : null;
       if (isHls(item)) {
         const Hls = globalThis.Hls;
         if (Hls && Hls.isSupported()) {
-          const hls = new Hls(Object.assign({ startPosition: item.start || 0 }, this._config.hlsConfig || {}));
+          // Where to start: a refresh resumes where it was; a live stream at
+          // its live edge (-1); anything else at its start, or 0 — never at
+          // hls.js's default "live edge", which a growing VOD playlist fools.
+          const resume = this._resumeAt;
+          this._resumeAt = null;
+          const options = { startPosition: item.live ? -1 : resume != null ? resume : item.start || 0 };
+          // Live: an infinite duration, so the bar says LIVE and state() is live,
+          // rather than hls.js's default of the window's finite length.
+          if (item.live) options.liveDurationInfinity = true;
+          const credentials = this._config.crossOrigin === "use-credentials";
+          if (headers || credentials) {
+            // Every playlist, key and segment request: a bearer token, a
+            // gateway's API key, cookies on another origin.
+            options.xhrSetup = (xhr) => {
+              if (credentials) xhr.withCredentials = true;
+              if (headers) Object.entries(headers).forEach(([name, value]) => xhr.setRequestHeader(name, String(value)));
+            };
+          }
+          const hls = new Hls(Object.assign(options, this._config.hlsConfig || {}));
           this._hls = hls;
           hls.on(Hls.Events.ERROR, (_event, data) => this._hlsError(hls, data));
-          hls.on(Hls.Events.MANIFEST_PARSED, () => this._renderTracks());
+          hls.on(Hls.Events.MANIFEST_PARSED, () => { this._renderTracks(); this._emitLevels(); });
+          hls.on(Hls.Events.LEVEL_SWITCHED, () => this._emitLevels());
           hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => this._renderTracks());
           hls.loadSource(item.src);
           hls.attachMedia(v);
         } else if (v.canPlayType("application/vnd.apple.mpegurl")) {
           v.src = item.src; // Safari: genuinely native HLS
         } else {
-          this._fail("This browser cannot play HLS streams.", true);
+          this._fail("This browser cannot play HLS streams.", true, "unsupported");
           return;
         }
       } else {
+        if (headers) {
+          // A media element's own requests can't carry headers: the browser
+          // decides. Say so once, rather than fail mysteriously with a 401.
+          console.warn("wapyt.MediaPlayer: item.headers apply only to HLS; a plain file URL can't carry " +
+            "headers. Use a cookie, a token in the URL, or a signed URL for it.");
+        }
         v.src = item.src;
       }
       if (this._autoplay) this._tryPlay();
@@ -508,7 +541,16 @@
     _hlsError(hls, data) {
       if (!data || !data.fatal) return;
       const Hls = globalThis.Hls;
-      if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !this._recovered.network) {
+      const status = data.response && data.response.code ? data.response.code : null;
+      // Retry a network error once — a timeout, a 5xx, a dropped connection —
+      // but not a refusal (401/403/404/410: the same request fails the same
+      // way) nor a playlist that never loaded (startLoad() doesn't reload it,
+      // and the player would wait on "Loading…" for ever). Those are reported
+      // at once, so the app can refresh() an expired URL.
+      const refused = status >= 400 && status < 500;
+      const noPlaylist = data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR || data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT ||
+        data.details === Hls.ErrorDetails.MANIFEST_PARSING_ERROR;
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !this._recovered.network && !refused && !noPlaylist) {
         this._recovered.network = true;
         hls.startLoad();
         return;
@@ -518,7 +560,11 @@
         hls.recoverMediaError();
         return;
       }
-      this._fail(`Stream error: ${data.details || data.type}`, true);
+      const code = data.type === Hls.ErrorTypes.NETWORK_ERROR ? "network" : data.type === Hls.ErrorTypes.MEDIA_ERROR ? "media" : "error";
+      // The HTTP status, when there was one, lets the app tell an expired
+      // signed URL (401/403/410: refresh() it) from a server that's down.
+      this._fail(`Stream error: ${data.details || data.type}${status ? ` (HTTP ${status})` : ""}`, true, code,
+        { status, details: data.details || "" });
     }
 
     _cspBlocked(directive, blocked) {
@@ -528,14 +574,14 @@
         "Allow media-src 'self' blob: for it to play.", true, "csp");
     }
 
-    _fail(message, fatal, code) {
+    _fail(message, fatal, code, extra) {
       // A blocked policy is the cause; the "no supported source" the browser
       // reports a moment later is only its symptom, and must not replace it.
       if (this._failure === "csp" && code !== "csp") return;
       this._failure = code || "error";
       this._showStatus(message, true);
       this._renderPlaying();
-      this._emit("error", Object.assign(this._payload(), { message, fatal: Boolean(fatal), code: code || "" }));
+      this._emit("error", Object.assign(this._payload(), { message, fatal: Boolean(fatal), code: code || "", status: null }, extra || {}));
     }
 
     _ended() {
@@ -615,6 +661,62 @@
       this._video.playbackRate = this._rate;
     }
 
+    /**
+     * Fetch the item's URL again and carry on where it was: for a signed URL
+     * that expired, a session the server dropped, a stream that moved. The
+     * current item emits "unload" (reason "refresh") and then "resolve", and
+     * resumes at its position (a live item at its live edge). Another item
+     * just forgets its URL, and is resolved again when it is reached.
+     */
+    refresh(index, keepPosition) {
+      const i = index == null || index < 0 ? this._index : index;
+      const item = this._items[i];
+      if (!item) return;
+      delete item.src;
+      if (i !== this._index) return;
+      const v = this._video;
+      const resume = keepPosition === false || item.live || !Number.isFinite(v.currentTime) ? null : v.currentTime;
+      const playing = !v.paused || this._autoplay;
+      this._unload("refresh");
+      this._index = i; // _unload keeps it; stated for the reader
+      this._recovered = { network: false, media: false };
+      this._failure = "";
+      this._resumeAt = resume;
+      this._autoplay = playing;
+      this._awaiting = i;
+      this._showStatus("Loading…");
+      this._emit("resolve", Object.assign(this._payload(), { refresh: true, position: resume }));
+    }
+
+    /** The stream's renditions (HLS): [{index, height, width, bitrate, label}], the one playing, and whether it's automatic. */
+    _levelPayload() {
+      const hls = this._hls;
+      if (!hls || !hls.levels || !hls.levels.length) return { levels: [], current: -1, auto: true };
+      const heights = hls.levels.map((level) => level.height || 0);
+      const levels = hls.levels.map((level, i) => {
+        const kbps = level.bitrate ? Math.round(level.bitrate / 1000) : 0;
+        const twin = level.height && heights.filter((h) => h === level.height).length > 1;
+        const label = level.height ? `${level.height}p${twin && kbps ? ` · ${kbps} kbps` : ""}` : kbps ? `${kbps} kbps` : `Level ${i + 1}`;
+        return { index: i, height: level.height || null, width: level.width || null, bitrate: level.bitrate || null, label };
+      });
+      return { levels, current: hls.currentLevel, auto: hls.autoLevelEnabled };
+    }
+
+    _emitLevels() {
+      this._renderTrackButton();
+      this._emit("levels", Object.assign(this._payload(), this._levelPayload()));
+    }
+
+    /** Pick a rendition by index, or null / -1 for automatic (the default). */
+    setQuality(index) {
+      const hls = this._hls;
+      if (!hls || !hls.levels) return;
+      const i = index == null ? -1 : Number(index);
+      if (i >= hls.levels.length) return;
+      hls.currentLevel = i < 0 ? -1 : i;
+      this._emitLevels();
+    }
+
     setShuffle(on) {
       this._shuffle = Boolean(on);
       this._nextPass = null;
@@ -680,6 +782,7 @@
         mode: this._mode(),
         order: this._order ? this._order.slice() : null,
         tracks: this._trackPayload(),
+        quality: this._levelPayload(),
       };
     }
 
@@ -913,9 +1016,15 @@
 
     _renderTrackButton() {
       const { text, audio } = this._trackPayload();
-      this._tracksBtn.hidden = !text.length && audio.length < 2;
+      const qualities = this._config.showQuality === false ? 0 : this._levelPayload().levels.length;
+      this._tracksBtn.hidden = !text.length && audio.length < 2 && qualities < 2;
       const showing = text.some((track) => track.showing);
-      setIcon(this._tracksBtn, showing ? "mdi-closed-caption" : "mdi-closed-caption-outline");
+      // Subtitles keep their CC icon; a menu of only audio and quality is a gear.
+      setIcon(this._tracksBtn, text.length ? (showing ? "mdi-closed-caption" : "mdi-closed-caption-outline") : "mdi-cog-outline");
+      const label = [text.length ? "Subtitles" : "", audio.length > 1 ? "audio" : "", qualities > 1 ? "quality" : ""]
+        .filter(Boolean).join(", ").replace(/^./, (c) => c.toUpperCase()) || "Subtitles and audio";
+      this._tracksBtn.setAttribute("aria-label", label);
+      this._tracksBtn.title = label;
       this._tracksBtn.setAttribute("aria-pressed", String(showing));
     }
 
@@ -950,6 +1059,14 @@
       if (audio.length > 1) {
         section("Audio");
         audio.forEach((track) => option(track.label, track.enabled, () => this.setAudioTrack(track.index)));
+      }
+      const { levels, current, auto } = this._levelPayload();
+      if (levels.length > 1 && this._config.showQuality !== false) {
+        section("Quality");
+        const playing = levels[current];
+        option(auto && playing ? `Auto (${playing.label})` : "Auto", auto, () => this.setQuality(-1));
+        levels.slice().sort((a, b) => (b.height || 0) - (a.height || 0) || (b.bitrate || 0) - (a.bitrate || 0))
+          .forEach((level) => option(level.label, !auto && level.index === current, () => this.setQuality(level.index)));
       }
       this._menu.hidden = false;
       this._tracksBtn.setAttribute("aria-expanded", "true");

@@ -42,11 +42,16 @@ def resolve_patch(
     text_tracks: Optional[Sequence[Union[MediaTextTrack, Dict[str, Any]]]] = None,
     data: Any = None,
     error: Optional[str] = None,
+    headers: Optional[Dict[str, str]] = None,
+    live: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """The fields ``MediaPlayer.resolve`` sends, in the JS payload's shape."""
+    from .mediaplayer_config import _check_headers
+    _check_headers(headers, "resolve headers")
     patch: Dict[str, Any] = {
         "src": src, "type": type, "kind": kind, "poster": poster, "title": title,
         "subtitle": subtitle, "start": start, "data": data, "error": error,
+        "headers": dict(headers) if headers else None, "live": live,
     }
     if text_tracks is not None:
         patch["textTracks"] = [t.to_dict() if hasattr(t, "to_dict") else t for t in text_tracks]
@@ -219,6 +224,19 @@ class MediaPlayer:
         """Toggle full screen, or set it. Browsers allow it only from a user gesture."""
         self.player.fullscreen(js.undefined if on is None else bool(on))
 
+    def refresh(self, index: Optional[int] = None, keep_position: bool = True) -> None:
+        """Fetch an item's URL again — an expired signed URL, a dropped server
+        session — and carry on. The current item (the default) emits
+        ``unload`` (reason ``refresh``), then ``resolve`` with ``refresh`` and
+        ``position``, and resumes there (a live item at its live edge).
+        Another item forgets its URL and is resolved when it is reached."""
+        self.player.refresh(-1 if index is None else int(index), bool(keep_position))
+
+    def set_quality(self, level: Optional[int] = None) -> None:
+        """An HLS rendition by its ``index`` in ``on_levels``; None for
+        automatic (the default), which adapts to the connection."""
+        self.player.setQuality(-1 if level is None else int(level))
+
     def set_actions(self, actions: Sequence[Union["MediaAction", Dict[str, Any]]]) -> None:
         """Replace the app's buttons in the bar (:class:`MediaAction`)."""
         self.player.setActions(_to_js([a.to_dict() if hasattr(a, "to_dict") else a for a in actions]))
@@ -232,7 +250,8 @@ class MediaPlayer:
     def state(self) -> Dict[str, Any]:
         """``index``, ``count``, ``paused``, ``ended``, ``position``, ``duration``
         (None for live), ``live``, ``volume``, ``muted``, ``rate``, ``shuffle``,
-        ``repeat``, ``mode``, ``order`` and ``tracks`` (``text`` / ``audio``)."""
+        ``repeat``, ``mode``, ``order``, ``tracks`` (``text`` / ``audio``) and
+        ``quality`` (``levels`` / ``current`` / ``auto``)."""
         return to_plain(self.player.getState())
 
     # Events ------------------------------------------------------------
@@ -296,8 +315,12 @@ class MediaPlayer:
         self._bind_event("timeupdate", handler)
 
     def on_error(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
-        """Playback failed: payload plus ``message``, ``fatal`` and ``code``
-        (``"csp"`` when the page's policy blocks the media)."""
+        """Playback failed: payload plus ``message``, ``fatal``, ``code`` and
+        ``status``. ``code`` is ``network``, ``media``, ``decode``,
+        ``unsupported``, ``aborted``, ``csp`` (the page's policy blocks the
+        media) or ``error``; ``status`` is the HTTP status of a failed HLS
+        request (401/403/410 usually mean an expired URL: ``refresh()`` it),
+        and None where the browser gives none (plain files)."""
         self._bind_event("error", handler)
 
     def on_action(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
@@ -305,6 +328,12 @@ class MediaPlayer:
         the current item's payload plus ``action`` (its id) and ``rect`` (the
         button on screen: ``left``, ``top``, ``right``, ``bottom``)."""
         self._bind_event("action", handler)
+
+    def on_levels(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
+        """An HLS stream's renditions are known, or another is playing:
+        ``levels`` (``index``, ``height``, ``width``, ``bitrate``, ``label``),
+        ``current`` (the index playing) and ``auto``."""
+        self._bind_event("levels", handler)
 
     def on_queue_end(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         """The last item ended (or ``next`` was asked for past it) with repeat off."""
