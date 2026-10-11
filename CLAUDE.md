@@ -265,9 +265,9 @@ against the local `1.0.0rc5`; a bare `>=` pin would not select a pre-release fro
 
 ## Versioning, CI and releasing (added 2026-10-07)
 
-**Version:** `0.2.0.dev0` since 2026-10-07, a PEP 440 development release on
-the way to 0.2.0. 0.2.0 ships once the roadmap's parity items and the
-Scheduler are done. The version lives in three places that must agree:
+**Version:** `0.2.0`, released 2026-10-11 after the development releases
+`0.2.0.dev1` and `0.2.0.dev2`. The remaining roadmap items (dhxpyt parity,
+the Scheduler's resource timeline) follow in later versions. The version lives in three places that must agree:
 `pyproject.toml`, `wapyt/__init__.py` (`__version__`, a plain string literal
 because pytincture reads it by parsing the file) and
 `wapyt/pytincture-assets.json`. `tests/test_release_metadata.py` and the
@@ -305,7 +305,7 @@ fails, with the command to run.
 
 **Releasing** (`.github/workflows/release.yml`):
 
-1. Set the version in all three places (for the release, drop `.dev0`), run
+1. Set the version in all three places (for a final release, no `.devN` suffix), run
    the manifest script, merge.
 2. Tag and push from `main`: `git tag v0.2.0 && git push origin v0.2.0`.
 3. The workflow checks that the tag equals all three versions, re-runs the
