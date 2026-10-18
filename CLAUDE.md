@@ -260,8 +260,8 @@ uv run --group dev pytest tests/
 
 `uv` is at `/home/linuxbrew/.linuxbrew/bin/uv` (Homebrew). Host Python is 3.14.7.
 
-`tests/pyproject.toml` now sources `pytincture` from `../../pytincture` so the demos run
-against the local `1.0.0rc5`; a bare `>=` pin would not select a pre-release from PyPI.
+`tests/pyproject.toml` requires `pytincture>=1.0.0` (final, on PyPI since 2026-10-18) and
+sources it from `../../pytincture` so the demos run against the local v1.0.0 checkout.
 
 ## Versioning, CI and releasing (added 2026-10-07)
 
