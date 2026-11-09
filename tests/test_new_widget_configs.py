@@ -56,6 +56,11 @@ def test_terminal_clipboard_is_on_by_default_and_can_be_turned_off():
     assert roundtrip(TerminalConfig(clipboard=False))["clipboard"] is False
 
 
+def test_terminal_osc52_is_on_by_default_and_can_be_turned_off():
+    assert roundtrip(TerminalConfig())["osc52"] is True
+    assert roundtrip(TerminalConfig(osc52=False))["osc52"] is False
+
+
 def test_terminal_extra_passes_through():
     payload = roundtrip(TerminalConfig(extra={"customFlag": 7}))
     assert payload["customFlag"] == 7

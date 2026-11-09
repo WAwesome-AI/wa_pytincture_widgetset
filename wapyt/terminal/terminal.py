@@ -115,7 +115,8 @@ class Terminal:
         self._bind_event("title", handler)
 
     def on_copy(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
-        """Selection copied to the clipboard; payload carries ``chars``."""
+        """Text copied to the clipboard; payload carries ``chars``, and
+        ``source: "remote"`` when the remote program copied it (OSC 52)."""
         self._bind_event("copy", handler)
 
     def on_clipboard_error(self, handler: Callable[[Dict[str, Any]], Any]) -> None:

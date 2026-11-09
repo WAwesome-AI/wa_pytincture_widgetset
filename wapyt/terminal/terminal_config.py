@@ -57,6 +57,11 @@ class TerminalConfig:
             a selection (and interrupts without one), Ctrl+Shift+C always
             copies, Ctrl+V and Ctrl+Shift+V paste, Cmd on a Mac; plus a
             right-click menu. Costs the ability to send a literal Ctrl+V.
+        osc52: Let the remote program copy to the clipboard with OSC 52, the
+            way full-screen apps that take the mouse (Claude Code, tmux, vim
+            with ``mouse=a``) copy their own selection. Writes only; a remote
+            can never read the clipboard. In those apps, holding Shift while
+            dragging still makes a terminal selection instead.
         reconnect: Reconnect automatically when the socket drops.
         reconnect_max_attempts: Give up after this many consecutive failures.
         reconnect_base_ms: First backoff delay; doubles per attempt.
@@ -79,6 +84,7 @@ class TerminalConfig:
     theme: Optional[TerminalTheme] = None
     search: bool = True
     clipboard: bool = True
+    osc52: bool = True
     reconnect: bool = True
     reconnect_max_attempts: int = 5
     reconnect_base_ms: int = 1000
@@ -96,6 +102,7 @@ class TerminalConfig:
             "theme": self.theme.to_dict() if self.theme is not None else None,
             "search": self.search,
             "clipboard": self.clipboard,
+            "osc52": self.osc52,
             "reconnect": self.reconnect,
             "reconnectMaxAttempts": self.reconnect_max_attempts,
             "reconnectBaseMs": self.reconnect_base_ms,
