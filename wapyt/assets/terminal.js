@@ -109,6 +109,7 @@
           theme: null,
           search: true,
           clipboard: true,
+          osc52: true,
           reconnect: true,
           reconnectMaxAttempts: 5,
           reconnectBaseMs: 1000,
@@ -240,6 +241,10 @@
 
       if (this.options.clipboard) {
         this._host.addEventListener("contextmenu", (event) => this._openMenu(event));
+      }
+
+      if (this.options.osc52) {
+        this._term.parser.registerOscHandler(52, (data) => this._osc52(data));
       }
 
       this._term.onTitleChange((title) => this._emit("title", { title }));
@@ -549,11 +554,26 @@
     async copySelection() {
       const text = this._term ? this._term.getSelection() : "";
       if (!text) return 0;
+      const error = await this._writeClipboard(text);
+      if (error) {
+        this._emit("clipboard_error", { action: "copy", message: error });
+        return 0;
+      }
+      this._term.clearSelection();
+      this._term.focus();
+      this._emit("copy", { chars: text.length });
+      return text.length;
+    }
+
+    /** Put text on the clipboard. Resolves to "" or an error message. */
+    async _writeClipboard(text) {
       try {
         await navigator.clipboard.writeText(text);
+        return "";
       } catch (error) {
         // No async clipboard (a non-secure origin): the old way still works
         // inside a user gesture.
+        const focused = document.activeElement;
         const area = document.createElement("textarea");
         area.value = text;
         area.setAttribute("readonly", "");
@@ -561,17 +581,46 @@
         area.style.opacity = "0";
         document.body.appendChild(area);
         area.select();
-        const ok = document.execCommand("copy");
+        let ok = false;
+        try { ok = document.execCommand("copy"); } catch (_) { ok = false; }
         area.remove();
-        if (!ok) {
-          this._emit("clipboard_error", { action: "copy", message: String(error && error.message || error) });
-          return 0;
-        }
+        if (focused && focused.focus) focused.focus();
+        return ok ? "" : String(error && error.message || error);
       }
-      this._term.clearSelection();
-      this._term.focus();
-      this._emit("copy", { chars: text.length });
-      return text.length;
+    }
+
+    // OSC 52: the remote program copies. Full-screen apps that take the
+    // mouse (Claude Code, tmux, vim with mouse=a, mc) draw their own
+    // selection and hand the text over as ESC ] 52 ; c ; <base64> BEL,
+    // because the terminal never sees a selection of its own. Without this
+    // handler their copy goes nowhere. Writes only: a "?" query, which
+    // asks the terminal to send the clipboard back to the remote, is
+    // ignored, so a remote host can never read this computer's clipboard.
+    _osc52(data) {
+      const semi = data.indexOf(";");
+      if (semi < 0) return true;
+      const payload = data.slice(semi + 1);
+      if (!payload || payload === "?") return true;
+      let text;
+      try {
+        const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
+        text = new TextDecoder().decode(bytes);
+      } catch (_) {
+        return true; // not base64: drop it, as other terminals do
+      }
+      if (!text) return true;
+      this._writeClipboard(text).then((error) => {
+        if (error) {
+          this._emit("clipboard_error", {
+            action: "copy",
+            message: "The browser would not let the remote program copy. "
+              + "Hold Shift while selecting, then press Ctrl+C.",
+          });
+        } else {
+          this._emit("copy", { chars: text.length, source: "remote" });
+        }
+      });
+      return true;
     }
 
     /** Paste from the clipboard (used by the menu; keys use the paste event). */
