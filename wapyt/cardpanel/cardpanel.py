@@ -8,8 +8,7 @@ from wapyt.cardpanel.cardpanel_config import CardPanelConfig, CardPanelCardConfi
 
 logger = logging.getLogger(__name__)
 WRAPPER_REVISION = "wapyt-cardpanel-wrapper/2024-05-20"
-logger.info("CardPanel wrapper loaded (%s)", WRAPPER_REVISION)
-print(f"[CardPanel] Wrapper ready ({WRAPPER_REVISION})")
+logger.debug("CardPanel wrapper loaded (%s)", WRAPPER_REVISION)
 
 
 class CardPanel:
@@ -103,12 +102,11 @@ class CardPanel:
             cls._template_proxies.setdefault(name, []).append(proxied)
             factory_ref = proxied
         else:
-            print(f"[CardPanel] register_template received factory of type {type(factory)}")
+            logger.debug("CardPanel.register_template: factory of type %s", type(factory))
 
-        logger.info(
+        logger.debug(
             "CardPanel.register_template called for '%s' (%s)", name, WRAPPER_REVISION
         )
-        print(f"[CardPanel] register_template -> '{name}' ({WRAPPER_REVISION})")
         register(name, factory_ref)
 
     @classmethod

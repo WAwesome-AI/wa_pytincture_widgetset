@@ -10,8 +10,7 @@ from wapyt.chat.chat_config import ChatConfig, ChatAgentConfig, ChatMessageConfi
 
 logger = logging.getLogger(__name__)
 WRAPPER_REVISION = "wapyt-chat-wrapper/2024-05-20"
-logger.info("Chat widget wrapper loaded (%s)", WRAPPER_REVISION)
-print(f"[ChatWidget] Wrapper ready ({WRAPPER_REVISION})")
+logger.debug("Chat widget wrapper loaded (%s)", WRAPPER_REVISION)
 
 
 class ChatStreamError(RuntimeError):
