@@ -654,8 +654,52 @@
     }
   }
 
+  // ── Page theme ─────────────────────────────────────────────────────────────
+  // Every widget styles its dark mode from <html data-wapyt-theme="dark">, and
+  // Chart, Scheduler and Chat watch that attribute. "system" follows the OS
+  // (prefers-color-scheme) and keeps the attribute at the resolved light/dark,
+  // so nothing else needs to know about it. data-wapyt-theme-mode records what
+  // was asked for.
+  const darkQuery =
+    typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)") : null;
+  let themeMode = null;
+
+  function systemTheme() {
+    return darkQuery && darkQuery.matches ? "dark" : "light";
+  }
+
+  function onSystemChange() {
+    if (themeMode === "system") {
+      document.documentElement.setAttribute("data-wapyt-theme", systemTheme());
+    }
+  }
+
+  if (darkQuery) {
+    if (typeof darkQuery.addEventListener === "function") {
+      darkQuery.addEventListener("change", onSystemChange);
+    } else if (typeof darkQuery.addListener === "function") {
+      darkQuery.addListener(onSystemChange);
+    }
+  }
+
+  function setTheme(mode) {
+    const value = String(mode || "light").trim().toLowerCase();
+    const root = document.documentElement;
+    themeMode = value;
+    root.setAttribute("data-wapyt-theme-mode", value);
+    root.setAttribute("data-wapyt-theme", value === "system" ? systemTheme() : value);
+  }
+
+  function getTheme() {
+    const root = document.documentElement;
+    const resolved = root.getAttribute("data-wapyt-theme") || "light";
+    return { mode: themeMode || resolved, resolved };
+  }
+
   globalThis.wapyt = globalThis.wapyt || {};
   globalThis.wapyt.Layout = Layout;
   globalThis.wapyt.LayoutCell = LayoutCell;
+  globalThis.wapyt.setTheme = setTheme;
+  globalThis.wapyt.getTheme = getTheme;
 })();
 
