@@ -14,8 +14,7 @@ def _ensure_dict(item: Any) -> Any:
     raise TypeError(f"Unsupported layout configuration entry: {type(item)!r}")
 
 
-def _clean(mapping: Dict[str, Any]) -> Dict[str, Any]:
-    return {key: value for key, value in mapping.items() if value is not None}
+from .._config import drop_none as _clean
 
 
 Size = Union[int, float, str]

@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
+from .._config import drop_none
+
 
 @dataclass
 class SidebarItem:
@@ -107,13 +109,14 @@ class SidebarConfig:
     expanded: Optional[List[str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        payload = {
-            "title": self.title,
+        payload = drop_none({
             "collapseButton": self.collapse_button,
             "collapsed": self.collapsed,
             "items": [_entry(item) for item in self.items],
             "active": self.active,
-        }
-        if self.expanded is not None:
-            payload["expanded"] = list(self.expanded)
+            "expanded": list(self.expanded) if self.expanded is not None else None,
+        })
+        # None means no heading, so it reaches JS as null: a dropped key lets
+        # the JS default ("Navigation") back in.
+        payload["title"] = self.title
         return payload

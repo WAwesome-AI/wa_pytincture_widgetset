@@ -4,9 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 
-def _clean(mapping: Dict[str, Any]) -> Dict[str, Any]:
-    """Drop ``None`` values so the JS defaults win for anything unset."""
-    return {key: value for key, value in mapping.items() if value is not None}
+from .._config import drop_none as _clean
 
 
 @dataclass
