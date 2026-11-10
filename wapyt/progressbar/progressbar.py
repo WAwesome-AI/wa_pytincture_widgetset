@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 from typing import Any, Optional, Union
 
+from .._base import WidgetBase
 from .._runtime import require_js
 from .progressbar_config import STATES, ProgressBarConfig, _check_state, progress_html
 
@@ -18,7 +19,7 @@ except Exception:  # pragma: no cover - executed on CPython
 Number = Union[int, float]
 
 
-class ProgressBar:
+class ProgressBar(WidgetBase):
     """
     A progress bar.
 
@@ -36,6 +37,8 @@ class ProgressBar:
     use :func:`progress_html` instead.
     """
 
+    _js_attr = "bar"
+
     def __init__(
         self,
         config: Optional[ProgressBarConfig] = None,
@@ -51,21 +54,6 @@ class ProgressBar:
         if root_element is None:
             raise RuntimeError("Unable to resolve root element for ProgressBar.")
         self.bar = js.wapyt.ProgressBar.new(root_element, js.JSON.parse(json.dumps(self.config.to_dict())))
-
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        target = container
-        if target is not None:
-            if hasattr(target, "getContainer"):
-                return target.getContainer()
-            if hasattr(target, "element"):
-                return target.element
-            return target
-        if isinstance(root, str):
-            element = js.document.querySelector(root)
-            if not element:
-                element = js.document.getElementById(root)
-            return element
-        return root
 
     def set_value(self, value: Number, max: Optional[Number] = None, *, text: Optional[str] = None) -> None:
         """
@@ -89,7 +77,7 @@ class ProgressBar:
         self.bar.setIndeterminate(bool(indeterminate))
 
     def destroy(self) -> None:
-        self.bar.destroy()
+        self._dispose()
 
 
 __all__ = ["ProgressBar", "ProgressBarConfig", "progress_html", "STATES"]

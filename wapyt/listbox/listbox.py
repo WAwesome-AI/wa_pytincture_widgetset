@@ -7,7 +7,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from .._runtime import create_proxy, require_js, to_plain
+from .._base import WidgetBase
+from .._runtime import require_js, to_plain
 from .listbox_config import ListAction, ListboxConfig
 
 try:  # pragma: no cover - only available inside Pyodide
@@ -16,7 +17,7 @@ except Exception:  # pragma: no cover - executed on CPython
     js = None  # type: ignore
 
 
-class Listbox:
+class Listbox(WidgetBase):
     """
     A list of rich items, and the column type of a Kanban board.
 
@@ -46,6 +47,8 @@ class Listbox:
     neighbouring list of its group, Space drops, Escape cancels.
     """
 
+    _js_attr = "listbox"
+
     def __init__(
         self,
         config: Optional[ListboxConfig] = None,
@@ -57,31 +60,10 @@ class Listbox:
             raise ValueError("Listbox requires a container or a root element.")
         require_js("Listbox")
         self.config = config or ListboxConfig()
-        self._event_proxies: Dict[str, List[Any]] = {}
         root_element = self._resolve_root(container=container, root=root)
         if root_element is None:
             raise RuntimeError("Unable to resolve root element for Listbox.")
         self.listbox = js.wapyt.Listbox.new(root_element, js.JSON.parse(json.dumps(self.config.to_dict())))
-
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        target = container
-        if target is not None:
-            if hasattr(target, "getContainer"):
-                return target.getContainer()
-            if hasattr(target, "element"):
-                return target.element
-            return target
-        if isinstance(root, str):
-            element = js.document.querySelector(root)
-            if not element:
-                element = js.document.getElementById(root)
-            return element
-        return root
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda *args, **kwargs: handler(*[to_plain(arg) for arg in args], **kwargs))
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.listbox.on(event_name, proxy)
 
     # Events ---------------------------------------------------------------
 
@@ -160,14 +142,7 @@ class Listbox:
         self.listbox.setFilter(str(text or ""))
 
     def destroy(self) -> None:
-        self.listbox.destroy()
-        for proxies in self._event_proxies.values():
-            for proxy in proxies:
-                try:
-                    proxy.destroy()
-                except Exception:
-                    pass
-        self._event_proxies.clear()
+        self._dispose()
 
 
 __all__ = ["Listbox", "ListboxConfig", "ListAction"]

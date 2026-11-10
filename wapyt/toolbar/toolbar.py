@@ -7,7 +7,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from .._runtime import create_proxy, require_js, to_plain
+from .._base import WidgetBase
+from .._runtime import require_js
 from ..contextmenu.contextmenu_config import MenuItem, check_unique_ids
 from .toolbar_config import (
     ToolbarButton,
@@ -24,7 +25,7 @@ except Exception:  # pragma: no cover - executed on CPython
 
 
 
-class Toolbar:
+class Toolbar(WidgetBase):
     """
     A row of buttons.
 
@@ -54,6 +55,8 @@ class Toolbar:
     Labels, tooltips, badges and text are set as text, never markup.
     """
 
+    _js_attr = "toolbar"
+
     def __init__(
         self,
         config: Optional[ToolbarConfig] = None,
@@ -66,7 +69,6 @@ class Toolbar:
 
         require_js("Toolbar")
         self.config = config or ToolbarConfig()
-        self._event_proxies: Dict[str, List[Any]] = {}
 
         root_element = self._resolve_root(container=container, root=root)
         if root_element is None:
@@ -80,26 +82,6 @@ class Toolbar:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        target = container
-        if target is not None:
-            if hasattr(target, "getContainer"):
-                return target.getContainer()
-            if hasattr(target, "element"):
-                return target.element
-            return target
-        if isinstance(root, str):
-            element = js.document.querySelector(root)
-            if not element:
-                element = js.document.getElementById(root)
-            return element
-        return root
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda *args, **kwargs: handler(*[to_plain(arg) for arg in args], **kwargs))
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.toolbar.on(event_name, proxy)
 
     # ------------------------------------------------------------------
     # Events
@@ -206,7 +188,7 @@ class Toolbar:
         return str(value) if value else None
 
     def destroy(self) -> None:
-        self.toolbar.destroy()
+        self._dispose()
 
 
 __all__ = [

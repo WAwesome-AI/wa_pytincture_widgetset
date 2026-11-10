@@ -19,6 +19,7 @@ Sibling clones under `~/Development/Pytinc/`, each with its own `CLAUDE.md`:
 ```
 wapyt/
   _runtime.py        # Pyodide bridge: require_js, create_proxy, asset self-loading
+  _base.py           # WidgetBase: root lookup, event binding, proxy release (every wrapper but Layout)
   <widget>/          # one dir per widget:
     <widget>.py      #   Python wrapper — thin, forwards to the JS constructor
     <widget>_config.py  #  @dataclass config with .to_dict() → camelCase payload
@@ -348,8 +349,8 @@ need updating when they move to 0.2.x.
   `allow-same-origin` — with `allow-scripts` it cancels the sandbox entirely.
 
 **Pyodide.** Never call `asyncio.run` — it creates and closes a second loop and breaks the WebLoop for
-the session. Use `asyncio.ensure_future`. Proxies from `create_proxy` are never destroyed anywhere in
-this codebase; `destroy()` methods clear the dict without calling `.destroy()`, so they leak.
+the session. Use `asyncio.ensure_future`. Event proxies go through `WidgetBase._bind_event` and are
+released by `destroy()` (or `close()` for ModalWindow / Window): see *Widget base class* below.
 
 **Backends.** Streaming proxies report failures *in-band* as `{"error": {...}}` chunks rather than
 raising. `Chat.consume_stream` turns those into `ChatStreamError`; anything else consuming a stream
@@ -1810,6 +1811,41 @@ in-memory pagers; a 24-check Playwright run (busy state, jump box clamping and
 reverting, page size, shrinking totals, number windows, unknown totals,
 page_rows, keyboard, dark borders, wrapping at 360px) passed.
 
+## Widget base class (added 2026-11-10)
+
+Every wrapper except Layout subclasses `wapyt._base.WidgetBase` and names the
+attribute holding its JS widget in `_js_attr` (`"chart"`, `"board"`,
+`"pager"`...). The base owns what 22 wrappers used to copy:
+
+- `_resolve_root(container=, root=)`: a cell's `getContainer()`, a wrapper's
+  `element`, an element, or a selector / id string.
+- `_bind_event(name, handler)`: the handler gets exactly the arguments the
+  JS emitted, each through `_convert_payload` (`to_plain` by default;
+  Scheduler overrides it to turn ISO strings into dates). Every widget emits
+  one payload except CardPanel's `add`, which emits none, so variadic is the
+  shape that changed nothing for apps. An `async` handler is scheduled with
+  `ensure_future` (MediaPlayer's old behaviour, now everywhere); a plain
+  handler's return value goes back to JS, which Chat uses (`true` = handled).
+  Handlers are kept per event in a list (ResourceBoard's dict used to drop
+  the first when a second was bound).
+- `_release_proxies()`: `off(event, proxy)` on the JS widget when it has
+  `off`, then `proxy.destroy()`. Unhooking first matters for late events:
+  Terminal's socket `onclose` emits `disconnect` *after* `destroy()`, and
+  would otherwise call a destroyed proxy.
+- `_dispose()`: JS `destroy()` (if any), then release in a `finally`.
+  Public `destroy()` stays only on the widgets that had one;
+  ModalWindow / Window release in `close()`. Form, TabWidget and
+  ResourceBoard have no JS `destroy`, so they have no `destroy()` and their
+  handlers live as long as the page.
+- `_proxies` is created on first use, so wrappers built with
+  `object.__new__` (the Form unit tests) work.
+
+`tests/test_widget_base.py` covers the base and runs every widget through
+bind / destroy / close with fakes. Checked in Chromium with a throwaway app
+running the same steps against real Pyodide proxies (JsNull, async, a late
+emit after destroy, the held proxy destroyed, Modal's `on_close` still
+delivered).
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:
@@ -1818,8 +1854,8 @@ Not bugs to fix blindly — context for when they surface:
   strip `None` via a `_clean` helper, `cardpanel` uses hand-written `if x is not None` chains,
   `sidebar` strips nothing and ships `"title": null`. Also means no optional field can be explicitly
   *cleared* — `None` means "omit", so the JS default wins.
-- **Copy-paste**: `_resolve_root` duplicated 5×, `_clean` 3×, `_bind_event` 5× with three different
-  argument-conversion behaviours. A `_base.py` mixin would remove ~150 lines.
+- **Copy-paste**: `_clean` is still copied into most config modules (the `None` convention item).
+  `_resolve_root` / `_bind_event` / proxy release moved into `wapyt/_base.py` (2026-11-10).
 - **Theming is split**: `wapyt.css` defines `--wapyt-*` tokens but only `modal.js` uses them (4 refs).
   `chat.js` references zero and hardcodes a palette (`sidebar.js` moved onto the tokens on 2026-10-06); `cardpanel.js` / `resourceboard.js`
   define their own private variable sets. No file uses `prefers-color-scheme`.

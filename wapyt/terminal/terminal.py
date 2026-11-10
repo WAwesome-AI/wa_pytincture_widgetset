@@ -4,9 +4,10 @@ Terminal widget: an xterm.js surface wired to a WebSocket shell relay.
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
-from .._runtime import create_proxy, require_js, to_plain
+from .._base import WidgetBase
+from .._runtime import require_js
 from .terminal_config import TerminalConfig, TerminalTheme
 
 try:  # pragma: no cover - only available inside Pyodide
@@ -15,7 +16,7 @@ except Exception:  # pragma: no cover - executed on CPython
     js = None  # type: ignore
 
 
-class Terminal:
+class Terminal(WidgetBase):
     """
     A connected terminal pane.
 
@@ -35,6 +36,8 @@ class Terminal:
     connect, resize, search, focus, tear down.
     """
 
+    _js_attr = "terminal"
+
     def __init__(
         self,
         config: Optional[TerminalConfig] = None,
@@ -47,7 +50,6 @@ class Terminal:
 
         require_js("Terminal")
         self.config = config or TerminalConfig()
-        self._event_proxies: Dict[str, List[Any]] = {}
 
         root_element = self._resolve_root(container=container, root=root)
         if root_element is None:
@@ -61,28 +63,6 @@ class Terminal:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        target = container
-        if target is not None:
-            if hasattr(target, "getContainer"):
-                return target.getContainer()
-            if hasattr(target, "element"):
-                return target.element
-            return target
-        if isinstance(root, str):
-            element = js.document.querySelector(root)
-            if not element:
-                element = js.document.getElementById(root)
-            return element
-        return root
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda *args, **kwargs: handler(*[
-            to_plain(arg) for arg in args
-        ], **kwargs))
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.terminal.on(event_name, proxy)
 
     # ------------------------------------------------------------------
     # Event bindings
@@ -176,7 +156,7 @@ class Terminal:
 
     def destroy(self) -> None:
         """Close the socket, drop observers and empty the host element."""
-        self.terminal.destroy()
+        self._dispose()
 
 
 __all__ = ["Terminal", "TerminalConfig", "TerminalTheme"]
