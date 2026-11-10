@@ -6,7 +6,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
-from .._runtime import create_proxy, require_js, to_plain
+from .._base import WidgetBase
+from .._runtime import require_js
 from .chart_config import ChartConfig, ChartDataset, check_palette
 
 try:  # pragma: no cover - only available inside Pyodide
@@ -19,7 +20,7 @@ def _dataset_payload(datasets: Sequence[Union[ChartDataset, Dict[str, Any]]]) ->
     return [d.to_dict() if hasattr(d, "to_dict") else d for d in datasets]
 
 
-class Chart:
+class Chart(WidgetBase):
     """
     A chart in a container.
 
@@ -39,6 +40,8 @@ class Chart:
     item), or set ``ChartConfig(height=...)``.
     """
 
+    _js_attr = "chart"
+
     def __init__(
         self,
         config: Optional[ChartConfig] = None,
@@ -50,27 +53,10 @@ class Chart:
             raise ValueError("Chart requires a container or a root element.")
         require_js("Chart")
         self.config = config or ChartConfig()
-        self._event_proxies: Dict[str, List[Any]] = {}
         target = self._resolve_root(container=container, root=root)
         if target is None:
             raise RuntimeError("Unable to resolve root element for Chart.")
         self.chart = js.wapyt.Chart.new(target, js.JSON.parse(json.dumps(self.config.to_dict())))
-
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        if container is not None:
-            if hasattr(container, "getContainer"):
-                return container.getContainer()
-            if hasattr(container, "element"):
-                return container.element
-            return container
-        if isinstance(root, str):
-            return js.document.querySelector(root) or js.document.getElementById(root)
-        return root
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda payload=None: handler(to_plain(payload)))
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.chart.on(event_name, proxy)
 
     # Events ------------------------------------------------------------
 
@@ -139,14 +125,7 @@ class Chart:
         return str(self.chart.toImage())
 
     def destroy(self) -> None:
-        self.chart.destroy()
-        for proxies in self._event_proxies.values():
-            for proxy in proxies:
-                try:
-                    proxy.destroy()
-                except Exception:
-                    pass
-        self._event_proxies.clear()
+        self._dispose()
 
 
 __all__ = ["Chart", "ChartConfig", "ChartDataset"]

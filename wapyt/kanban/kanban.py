@@ -6,7 +6,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from .._runtime import create_proxy, require_js, to_plain
+from .._base import WidgetBase
+from .._runtime import require_js, to_plain
 from ..listbox.listbox_config import ListAction
 from .kanban_config import KanbanColumn, KanbanConfig
 
@@ -16,7 +17,7 @@ except Exception:  # pragma: no cover - executed on CPython
     js = None  # type: ignore
 
 
-class Kanban:
+class Kanban(WidgetBase):
     """
     A board of columns whose cards drag between them.
 
@@ -40,6 +41,8 @@ class Kanban:
     a card up, arrows move it, Left / Right to the next column, Space drops.
     """
 
+    _js_attr = "board"
+
     def __init__(
         self,
         config: Optional[KanbanConfig] = None,
@@ -51,31 +54,10 @@ class Kanban:
             raise ValueError("Kanban requires a container or a root element.")
         require_js("Kanban")
         self.config = config or KanbanConfig()
-        self._event_proxies: Dict[str, List[Any]] = {}
         root_element = self._resolve_root(container=container, root=root)
         if root_element is None:
             raise RuntimeError("Unable to resolve root element for Kanban.")
         self.board = js.wapyt.Kanban.new(root_element, js.JSON.parse(json.dumps(self.config.to_dict())))
-
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        target = container
-        if target is not None:
-            if hasattr(target, "getContainer"):
-                return target.getContainer()
-            if hasattr(target, "element"):
-                return target.element
-            return target
-        if isinstance(root, str):
-            element = js.document.querySelector(root)
-            if not element:
-                element = js.document.getElementById(root)
-            return element
-        return root
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda *args, **kwargs: handler(*[to_plain(arg) for arg in args], **kwargs))
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.board.on(event_name, proxy)
 
     # Events ---------------------------------------------------------------
 
@@ -175,14 +157,7 @@ class Kanban:
         self.board.setFilter(str(text or ""))
 
     def destroy(self) -> None:
-        self.board.destroy()
-        for proxies in self._event_proxies.values():
-            for proxy in proxies:
-                try:
-                    proxy.destroy()
-                except Exception:
-                    pass
-        self._event_proxies.clear()
+        self._dispose()
 
 
 __all__ = ["Kanban", "KanbanConfig", "KanbanColumn", "ListAction"]

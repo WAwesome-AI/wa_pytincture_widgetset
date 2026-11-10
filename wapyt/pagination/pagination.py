@@ -7,7 +7,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
-from .._runtime import create_proxy, require_js, to_plain
+from .._base import WidgetBase
+from .._runtime import require_js, to_plain
 from .pagination_config import PaginationConfig, _check_size
 
 try:  # pragma: no cover - only available inside Pyodide
@@ -22,7 +23,7 @@ def page_slice(rows: Sequence[Any], page: int, page_size: int) -> List[Any]:
     return list(rows[start:start + int(page_size)])
 
 
-class Pagination:
+class Pagination(WidgetBase):
     """
     Page controls for a list the server (or the app) pages.
 
@@ -45,6 +46,8 @@ class Pagination:
     never fire it, so a load handler can call them freely.
     """
 
+    _js_attr = "pager"
+
     def __init__(
         self,
         config: Optional[PaginationConfig] = None,
@@ -56,31 +59,10 @@ class Pagination:
             raise ValueError("Pagination requires a container or a root element.")
         require_js("Pagination")
         self.config = config or PaginationConfig()
-        self._event_proxies: Dict[str, List[Any]] = {}
         root_element = self._resolve_root(container=container, root=root)
         if root_element is None:
             raise RuntimeError("Unable to resolve root element for Pagination.")
         self.pager = js.wapyt.Pagination.new(root_element, js.JSON.parse(json.dumps(self.config.to_dict())))
-
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        target = container
-        if target is not None:
-            if hasattr(target, "getContainer"):
-                return target.getContainer()
-            if hasattr(target, "element"):
-                return target.element
-            return target
-        if isinstance(root, str):
-            element = js.document.querySelector(root)
-            if not element:
-                element = js.document.getElementById(root)
-            return element
-        return root
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda *args, **kwargs: handler(*[to_plain(arg) for arg in args], **kwargs))
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.pager.on(event_name, proxy)
 
     def on_change(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         """Fires with ``{page, page_size, offset}``."""
@@ -132,14 +114,7 @@ class Pagination:
         return page_slice(rows, state.get("page", 1), state.get("page_size", self.config.page_size))
 
     def destroy(self) -> None:
-        self.pager.destroy()
-        for proxies in self._event_proxies.values():
-            for proxy in proxies:
-                try:
-                    proxy.destroy()
-                except Exception:
-                    pass
-        self._event_proxies.clear()
+        self._dispose()
 
 
 __all__ = ["Pagination", "PaginationConfig", "page_slice"]

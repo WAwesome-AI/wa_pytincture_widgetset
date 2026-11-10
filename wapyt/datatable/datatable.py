@@ -6,7 +6,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from .._runtime import create_proxy, require_js, to_plain
+from .._base import WidgetBase
+from .._runtime import require_js, to_plain
 from .datatable_config import ColumnConfig, DataTableConfig, TableAction
 
 try:  # pragma: no cover - only available inside Pyodide
@@ -15,7 +16,7 @@ except Exception:  # pragma: no cover - executed on CPython
     js = None  # type: ignore
 
 
-class DataTable:
+class DataTable(WidgetBase):
     """
     A tabular list of dict rows.
 
@@ -42,6 +43,8 @@ class DataTable:
     and point ``sort_by`` at the raw field so ordering stays correct.
     """
 
+    _js_attr = "datatable"
+
     def __init__(
         self,
         config: Optional[DataTableConfig] = None,
@@ -54,7 +57,6 @@ class DataTable:
 
         require_js("DataTable")
         self.config = config or DataTableConfig()
-        self._event_proxies: Dict[str, List[Any]] = {}
 
         root_element = self._resolve_root(container=container, root=root)
         if root_element is None:
@@ -68,28 +70,6 @@ class DataTable:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        target = container
-        if target is not None:
-            if hasattr(target, "getContainer"):
-                return target.getContainer()
-            if hasattr(target, "element"):
-                return target.element
-            return target
-        if isinstance(root, str):
-            element = js.document.querySelector(root)
-            if not element:
-                element = js.document.getElementById(root)
-            return element
-        return root
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda *args, **kwargs: handler(*[
-            to_plain(arg) for arg in args
-        ], **kwargs))
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.datatable.on(event_name, proxy)
 
     @staticmethod
     def _to_py(value: Any) -> Any:
@@ -311,8 +291,8 @@ class DataTable:
         self.datatable.setEmptyText(text)
 
     def destroy(self) -> None:
-        """Tear down the context menu and its document-level listeners."""
-        self.datatable.destroy()
+        """Remove the table, its context menu and its event handlers."""
+        self._dispose()
 
 
 __all__ = ["DataTable", "DataTableConfig", "ColumnConfig", "TableAction"]
