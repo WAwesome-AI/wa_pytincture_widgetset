@@ -12,9 +12,7 @@ from .._runtime import create_proxy, js, require_js, to_plain
 Size = Union[int, float, str]
 
 
-def _clean(mapping: Dict[str, Any]) -> Dict[str, Any]:
-    """Drop ``None`` values so the JS defaults win for anything unset."""
-    return {key: value for key, value in mapping.items() if value is not None}
+from .._config import drop_none as _clean
 
 
 @dataclass

@@ -1814,10 +1814,13 @@ page_rows, keyboard, dark borders, wrapping at 360px) passed.
 
 Not bugs to fix blindly — context for when they surface:
 
-- **Three different `None` conventions** across the config dataclasses: `layout`/`chat`/`resourceboard`
-  strip `None` via a `_clean` helper, `cardpanel` uses hand-written `if x is not None` chains,
-  `sidebar` strips nothing and ships `"title": null`. Also means no optional field can be explicitly
-  *cleared* — `None` means "omit", so the JS default wins.
+- **One `None` convention (2026-11-10):** a config field left at `None` is not sent, so the JS
+  default applies. Use `wapyt._config.drop_none` (it replaced 18 copies of `_clean`). The deliberate
+  exceptions send `null` because their `None` means "none", not "default", and dropping the key
+  would let a JS default back in: `FormConfig` `submit_text` / `cancel_text` (button hidden) and
+  `SidebarConfig.title` (no heading; `sidebar.js` defaults to "Navigation"). `tests/test_config_none.py`
+  walks every config dataclass and fails on any other `null`. There is still no general way to
+  *clear* a field whose JS default is not empty; add one when an app needs it.
 - **Copy-paste**: `_resolve_root` duplicated 5×, `_clean` 3×, `_bind_event` 5× with three different
   argument-conversion behaviours. A `_base.py` mixin would remove ~150 lines.
 - **Theming is split**: `wapyt.css` defines `--wapyt-*` tokens but only `modal.js` uses them (4 refs).

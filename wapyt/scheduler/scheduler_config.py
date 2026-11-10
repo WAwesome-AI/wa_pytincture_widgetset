@@ -9,9 +9,7 @@ ITEM_COLORS = ("blue", "orange", "aqua", "yellow", "magenta", "green", "violet",
 When = Union[str, _dt.date, _dt.datetime]
 
 
-def _clean(mapping: Dict[str, Any]) -> Dict[str, Any]:
-    """Drop ``None`` values so the JS defaults win for anything unset."""
-    return {key: value for key, value in mapping.items() if value is not None}
+from .._config import drop_none as _clean
 
 
 def iso(value: Optional[When], *, all_day: bool = False) -> Optional[str]:
