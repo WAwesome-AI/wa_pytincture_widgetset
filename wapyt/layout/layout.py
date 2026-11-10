@@ -316,7 +316,22 @@ class MainWindow(Layout):
         self.cookie_status = None
 
     def set_theme(self, theme: str) -> None:
-        js.document.documentElement.setAttribute("data-wapyt-theme", theme)
+        """
+        Set the page theme: ``"light"``, ``"dark"`` or ``"system"``.
+
+        ``"system"`` follows the operating system's light/dark setting
+        (``prefers-color-scheme``) and keeps following it while the page is
+        open. Every widget, modals included, picks the theme up.
+        """
+        setter = getattr(getattr(js, "wapyt", None), "setTheme", None)
+        if setter is not None:
+            setter(theme)
+        else:  # pragma: no cover - layout.js not loaded
+            js.document.documentElement.setAttribute("data-wapyt-theme", theme)
+
+    def get_theme(self) -> Dict[str, str]:
+        """``{"mode": "system", "resolved": "dark"}``: what was asked for and what shows."""
+        return to_plain(js.wapyt.getTheme())
 
     # Simple cookie helpers retained for compatibility -------------------
 

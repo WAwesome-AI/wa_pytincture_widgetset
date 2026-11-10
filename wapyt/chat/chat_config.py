@@ -2,12 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
 
-def _clean_dict(source: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Utility helper that removes ``None`` values from a dictionary. Nested dictionaries
-    are left intact to preserve explicit nulls if desired.
-    """
-    return {key: value for key, value in source.items() if value is not None}
+from .._config import drop_none as _clean_dict
 
 
 @dataclass

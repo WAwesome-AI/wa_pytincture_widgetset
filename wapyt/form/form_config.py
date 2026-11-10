@@ -31,9 +31,7 @@ def _label_width(value: Any) -> Any:
     raise ValueError(f"label_width must be a number of pixels or a CSS length; got {value!r}")
 
 
-def _clean(mapping: Dict[str, Any]) -> Dict[str, Any]:
-    """Drop ``None`` values so the JS defaults win for anything unset."""
-    return {key: value for key, value in mapping.items() if value is not None}
+from .._config import drop_none as _clean
 
 
 def iso_value(value: Any) -> Any:
@@ -540,7 +538,8 @@ class FormConfig:
         }
         payload.update(self.extra or {})
         cleaned = _clean(payload)
-        # None hides a button, so it has to reach JS as null: a dropped key
+        # The one exception to "None means the JS default" (wapyt/_config.py):
+        # None hides a button, so it has to reach JS as null; a dropped key
         # lets the JS default ("Save") back in.
         for key in ("submitText", "cancelText"):
             cleaned.setdefault(key, payload[key])
