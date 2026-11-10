@@ -1858,7 +1858,13 @@ Not bugs to fix blindly — context for when they surface:
   `_resolve_root` / `_bind_event` / proxy release moved into `wapyt/_base.py` (2026-11-10).
 - **Theming is split**: `wapyt.css` defines `--wapyt-*` tokens but only `modal.js` uses them (4 refs).
   `chat.js` references zero and hardcodes a palette (`sidebar.js` moved onto the tokens on 2026-10-06); `cardpanel.js` / `resourceboard.js`
-  define their own private variable sets. No file uses `prefers-color-scheme`.
+  define their own private variable sets.
+- **System theme (2026-11-10):** `MainWindow.set_theme("system")` follows `prefers-color-scheme`
+  live. `wapyt.setTheme` / `wapyt.getTheme` live in `layout.js`; "system" keeps
+  `<html data-wapyt-theme>` at the resolved `light` / `dark` (plus `data-wapyt-theme-mode`), so the
+  152 dark rules and the Chart / Scheduler / Chat attribute observers needed no change. Chat already
+  called `wapyt.setTheme` when present, so its own toggle now switches the page out of "system".
+  An open `ModalWindow` copied the attribute when shown and keeps it until it is shown again.
 - **Debug prints at import**: `chat.py:14` and `cardpanel.py:12` write to stdout on `import wapyt`,
   with stale `WRAPPER_REVISION` cache-busters.
 - **The modal's × button calls `hide()` unless `ModalConfig(dispose_on_close=True)`**
