@@ -1846,6 +1846,76 @@ running the same steps against real Pyodide proxies (JsNull, async, a late
 emit after destroy, the held proxy destroyed, Modal's `on_close` still
 delivered).
 
+## Accent, status and radius tokens (added 2026-11-10)
+
+`wapyt.css` had the accent blue, focus ring, danger red, muted text and
+success / warning colours as literals in about 240 places. They now go
+through `--wapyt-accent`, `-accent-strong` (hover), `-accent-text` (text on
+an accent tint), `-on-accent` (text on an accent fill), `-focus`, `-muted`,
+`-danger` / `-danger-strong`, `-success` / `-success-strong` and `-warning`.
+
+- **Each has `-light` and `-dark` values, and the plain name switches** in
+  `[data-wapyt-theme="dark"]`, so a rule written once is right in both
+  themes. (The older bg / surface / text / border / divider tokens are still
+  a plain name plus `-dark`, with explicit dark rules.) **Retheme by setting
+  the `-light` / `-dark` values**: an inline `--wapyt-accent` on `<html>`
+  outranks the dark switch.
+- Translucent tints are `color-mix(in srgb, var(--wapyt-accent) N%, transparent)`.
+- `--wapyt-radius` (6px) drives the 4-12px radii in proportion
+  (`calc(var(--wapyt-radius) * 4 / 3)` = 8px); 2px marks, pills and circles
+  stay fixed.
+- Dark defaults were picked to keep dark mode as it was: the dark accent
+  stays `#2563eb` because white text on `#3b82f6` is only 3.7:1.
+- Light success moved `#10b981` → `#059669`: the old green was 2.5:1 on
+  white, under the 3:1 for graphics.
+- A pixel diff of every demo in both themes before / after: 50 of 74 screens
+  identical; the rest are near-duplicate blues and reds merged into one
+  token.
+- Chat, CardPanel and ResourceBoard still carry their own colours in their JS.
+
+## ThemeEditor (added 2026-11-10)
+
+`ThemeEditor` (`assets/themeeditor.js`, `wapyt/themeeditor/`,
+`Layout.add_themeeditor`) picks a palette and adjusts any colour token for
+light and dark, the corner radius and the font, live on the page.
+
+- **`wapyt.theme` (JS) is the model**, separate from the editor so an app
+  can apply a saved theme at startup: `TOKENS` (key, label, group, the
+  `-light` / `-dark` property names, and what its contrast is measured
+  against), `PALETTES`, `FONTS`, `DEFAULT` (must equal `wapyt.css`; a test
+  checks), `resolve`, `apply`, `save` / `load` / `restore`,
+  `registerPalette`, `contrast`, `deriveAccent`. Python: `apply_theme`,
+  `restore_theme`, `current_theme`, `check_theme`.
+- **A theme is `{palette, light, dark, radius, font}` where light / dark
+  hold only overrides** on the palette; `apply` writes every token's
+  `-light` and `-dark` value (and `--wapyt-radius`, `--wapyt-font-family`)
+  inline on `<html>`, and `apply(None)` removes them.
+- Palettes: default, ocean, forest, sunset, grape, rose, graphite, paper,
+  contrast, plus `ThemePalette`s of the app's own (partial overrides on
+  Default). Every built-in one meets its own contrast targets in both modes
+  (`tests/test_themeeditor_js.py`): text and muted 4.5:1 on bg, accent /
+  focus / danger / success 3:1 on bg, on-accent 4.5:1 on accent. High
+  contrast's dark accent is yellow with black text.
+- **Editing the accent derives** accent-strong, accent-text, focus and
+  on-accent (black or white, whichever contrasts more) unless the person set
+  those themselves (`_touched`). Choosing a palette drops the adjustments;
+  radius and font stay.
+- The Light / Dark switch previews the page in that mode
+  (`wapyt.setTheme` when present, from #80, else the attribute) and follows
+  the page when something else changes it (MutationObserver).
+- A colour input applies on `input` (rAF-throttled) and emits `change` only
+  on commit; contrast badges show the ratio and pass / large-text-only /
+  fail. Copy (clipboard), Download (Blob), Import (file input, refuses a
+  non-object). `storage_key` saves to localStorage; `apply=False` edits
+  without touching the page.
+
+`tests/themeeditor_demo.py` (the editor beside a toolbar, form, table and
+progress bars); a 39-check Playwright run passed (palette and hex edits
+recolouring widgets, derived and hand-set accent family, invalid hex,
+contrast badges, dark editing independent of light, radius and font reaching
+widgets, per-token and full reset, palette keyboard, storage across a
+reload, download, import and a refused import, no console errors).
+
 ## Known rough edges
 
 Not bugs to fix blindly — context for when they surface:
@@ -1856,9 +1926,10 @@ Not bugs to fix blindly — context for when they surface:
   *cleared* — `None` means "omit", so the JS default wins.
 - **Copy-paste**: `_clean` is still copied into most config modules (the `None` convention item).
   `_resolve_root` / `_bind_event` / proxy release moved into `wapyt/_base.py` (2026-11-10).
-- **Theming is split**: `wapyt.css` defines `--wapyt-*` tokens but only `modal.js` uses them (4 refs).
-  `chat.js` references zero and hardcodes a palette (`sidebar.js` moved onto the tokens on 2026-10-06); `cardpanel.js` / `resourceboard.js`
-  define their own private variable sets. No file uses `prefers-color-scheme`.
+- **Theming is split**: `wapyt.css` is on the `--wapyt-*` tokens (accent, status and radius since
+  2026-11-10), so the ThemeEditor reaches it. `chat.js` references none and hardcodes a palette;
+  `cardpanel.js` / `resourceboard.js` define their own private variable sets. No file uses
+  `prefers-color-scheme` (#80 adds a "system" mode).
 - **Debug prints at import**: `chat.py:14` and `cardpanel.py:12` write to stdout on `import wapyt`,
   with stale `WRAPPER_REVISION` cache-busters.
 - **The modal's × button calls `hide()` unless `ModalConfig(dispose_on_close=True)`**

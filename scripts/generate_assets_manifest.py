@@ -37,6 +37,7 @@ ASSETS: list[tuple[str, str]] = [
     # Installs document-level listeners once; no widget calls it at load time.
     ("assets/tooltip.js", "javascript"),
     ("assets/layout.js", "javascript"),
+    ("assets/themeeditor.js", "javascript"),
     ("assets/modal.js", "javascript"),
     ("assets/window.js", "javascript"),
     ("assets/vendor-chartjs.min.js", "javascript"),
