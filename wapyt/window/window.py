@@ -5,9 +5,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
-from .._runtime import create_proxy, js, require_js, to_plain
+from .._base import WidgetBase
+from .._runtime import js, require_js, to_plain
 
 Size = Union[int, float, str]
 
@@ -82,7 +83,7 @@ class WindowConfig:
         })
 
 
-class Window:
+class Window(WidgetBase):
     """
     A floating window on top of the page.
 
@@ -100,16 +101,12 @@ class Window:
     ``"escape"`` or ``"code"``.
     """
 
+    _js_attr = "window"
+
     def __init__(self, config: Optional[WindowConfig] = None) -> None:
         require_js("Window")
         self.config = config or WindowConfig()
         self.window = js.wapyt.Window.new(js.JSON.parse(json.dumps(self.config.to_dict())))
-        self._event_proxies: Dict[str, List[Any]] = {}
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda payload=None: handler(to_plain(payload)))
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.window.on(event_name, proxy)
 
     # Events ------------------------------------------------------------
 
@@ -171,13 +168,7 @@ class Window:
     def close(self) -> None:
         """Remove the window; its event handlers are released afterwards."""
         self.window.close()
-        for proxies in self._event_proxies.values():
-            for proxy in proxies:
-                try:
-                    proxy.destroy()
-                except Exception:
-                    pass
-        self._event_proxies.clear()
+        self._release_proxies()
 
     def is_visible(self) -> bool:
         return bool(self.window.isVisible())

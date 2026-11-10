@@ -6,7 +6,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
-from .._runtime import create_proxy, require_js, to_plain
+from .._base import WidgetBase
+from .._runtime import require_js
 from ..contextmenu.contextmenu_config import MenuItem
 from .menubar_config import MenuBarConfig
 
@@ -20,7 +21,7 @@ def _id_list(ids: Union[str, Iterable[str]]) -> List[str]:
     return [ids] if isinstance(ids, str) else [str(i) for i in ids]
 
 
-class MenuBar:
+class MenuBar(WidgetBase):
     """
     A File / Edit / View style menu bar, usually in ``mainwindow_header``.
 
@@ -48,6 +49,8 @@ class MenuBar:
     open, pointing at another title switches to it.
     """
 
+    _js_attr = "bar"
+
     def __init__(
         self,
         config: Optional[MenuBarConfig] = None,
@@ -59,31 +62,10 @@ class MenuBar:
             raise ValueError("MenuBar requires a container or a root element.")
         require_js("MenuBar")
         self.config = config or MenuBarConfig()
-        self._event_proxies: Dict[str, List[Any]] = {}
         root_element = self._resolve_root(container=container, root=root)
         if root_element is None:
             raise RuntimeError("Unable to resolve root element for MenuBar.")
         self.bar = js.wapyt.MenuBar.new(root_element, js.JSON.parse(json.dumps(self.config.to_dict())))
-
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        target = container
-        if target is not None:
-            if hasattr(target, "getContainer"):
-                return target.getContainer()
-            if hasattr(target, "element"):
-                return target.element
-            return target
-        if isinstance(root, str):
-            element = js.document.querySelector(root)
-            if not element:
-                element = js.document.getElementById(root)
-            return element
-        return root
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda *args, **kwargs: handler(*[to_plain(arg) for arg in args], **kwargs))
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.bar.on(event_name, proxy)
 
     def on_select(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         """An item was chosen: ``{"id", "menu"}`` (``menu`` is the title's
@@ -132,14 +114,7 @@ class MenuBar:
         self.bar.setItems(js.JSON.parse(json.dumps(payload)))
 
     def destroy(self) -> None:
-        self.bar.destroy()
-        for proxies in self._event_proxies.values():
-            for proxy in proxies:
-                try:
-                    proxy.destroy()
-                except Exception:
-                    pass
-        self._event_proxies.clear()
+        self._dispose()
 
 
 __all__ = ["MenuBar", "MenuBarConfig", "MenuItem"]

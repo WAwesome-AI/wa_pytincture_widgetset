@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 
-from wapyt._runtime import js, create_proxy, require_js, to_plain
+from wapyt._base import WidgetBase
+from wapyt._runtime import js, require_js
 from wapyt.resourceboard.resourceboard_config import ResourceBoardConfig
 
 
@@ -28,7 +29,7 @@ def _sanitize_for_json(value: Any, _stack: Optional[Set[int]] = None) -> Any:
         _stack.remove(obj_id)
 
 
-class ResourceBoard:
+class ResourceBoard(WidgetBase):
     """
     Master/detail browser for resources with select/add/action events.
 
@@ -38,6 +39,8 @@ class ResourceBoard:
         board.on_select(lambda item: print("Row selected:", item["id"]))
         board.on_action(lambda payload: handle(payload["action"], payload["id"]))
     """
+
+    _js_attr = "board"
     def __init__(
         self,
         config: Optional[ResourceBoardConfig] = None,
@@ -59,22 +62,6 @@ class ResourceBoard:
             root_element,
             js.JSON.parse(json.dumps(config_payload)),
         )
-        self._event_proxies: Dict[str, Any] = {}
-
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        target = container
-        if target is not None:
-            if hasattr(target, "getContainer"):
-                return target.getContainer()
-            if hasattr(target, "element"):
-                return target.element
-            return target
-        if isinstance(root, str):
-            element = js.document.querySelector(root)
-            if not element:
-                element = js.document.getElementById(root)
-            return element
-        return root
 
     def set_items(self, items: List[Any]) -> None:
         payload = []
@@ -90,11 +77,6 @@ class ResourceBoard:
 
     def select(self, item_id: Optional[str]) -> None:
         self.board.select(item_id)
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda payload=None: handler(to_plain(payload)))
-        self._event_proxies[event_name] = proxy
-        self.board.on(event_name, proxy)
 
     def on_select(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         self._bind_event("select", handler)

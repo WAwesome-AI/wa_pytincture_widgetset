@@ -6,7 +6,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from .._runtime import create_proxy, require_js, to_plain
+from .._base import WidgetBase
+from .._runtime import require_js, to_plain
 from .scheduler_config import ScheduleItem, SchedulerConfig, When, iso, parse_when, to_ics
 
 try:  # pragma: no cover - only available inside Pyodide
@@ -33,7 +34,7 @@ def _dates(payload: Any) -> Any:
     return out
 
 
-class Scheduler:
+class Scheduler(WidgetBase):
     """
     A calendar of appointments people can create, move and resize.
 
@@ -53,33 +54,21 @@ class Scheduler:
     all-day items, whose ``end`` is exclusive).
     """
 
+    _js_attr = "scheduler"
+
     def __init__(self, config: Optional[SchedulerConfig] = None, *, container: Any = None,
                  root: Optional[Union[str, Any]] = None) -> None:
         if container is None and root is None:
             raise ValueError("Scheduler requires a container or a root element.")
         require_js("Scheduler")
         self.config = config or SchedulerConfig()
-        self._event_proxies: Dict[str, List[Any]] = {}
         target = self._resolve_root(container=container, root=root)
         if target is None:
             raise RuntimeError("Unable to resolve root element for Scheduler.")
         self.scheduler = js.wapyt.Scheduler.new(target, js.JSON.parse(json.dumps(self.config.to_dict())))
 
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        if container is not None:
-            if hasattr(container, "getContainer"):
-                return container.getContainer()
-            if hasattr(container, "element"):
-                return container.element
-            return container
-        if isinstance(root, str):
-            return js.document.querySelector(root) or js.document.getElementById(root)
-        return root
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda payload=None: handler(_dates(to_plain(payload))))
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.scheduler.on(event_name, proxy)
+    def _convert_payload(self, value: Any) -> Any:
+        return _dates(to_plain(value))
 
     # Events ------------------------------------------------------------
 
@@ -211,14 +200,7 @@ class Scheduler:
         self.scheduler.refresh()
 
     def destroy(self) -> None:
-        self.scheduler.destroy()
-        for proxies in self._event_proxies.values():
-            for proxy in proxies:
-                try:
-                    proxy.destroy()
-                except Exception:
-                    pass
-        self._event_proxies.clear()
+        self._dispose()
 
 
 __all__ = ["Scheduler", "SchedulerConfig", "ScheduleItem", "to_ics"]

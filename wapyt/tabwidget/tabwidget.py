@@ -4,7 +4,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from wapyt._runtime import js, create_proxy, require_js, to_plain
+from wapyt._base import WidgetBase
+from wapyt._runtime import js, require_js, to_plain
 
 
 from .._config import drop_none as _clean
@@ -78,7 +79,7 @@ class TabWidgetConfig:
         return _clean(payload)
 
 
-class TabWidget:
+class TabWidget(WidgetBase):
     """
     Minimal tab system.
 
@@ -90,6 +91,8 @@ class TabWidget:
         tabs.attach_html("chat", "<h1>Hello</h1>")
         tabs.on_change(lambda tab_id: print("Active tab:", tab_id))
     """
+
+    _js_attr = "tabwidget"
 
     def __init__(
         self,
@@ -103,7 +106,6 @@ class TabWidget:
 
         require_js("TabWidget")
         self.config = config or TabWidgetConfig()
-        self._event_proxies: Dict[str, List[Any]] = {}
 
         root_element = self._resolve_root(container=container, root=root)
         if root_element is None:
@@ -118,28 +120,6 @@ class TabWidget:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        target = container
-        if target is not None:
-            if hasattr(target, "getContainer"):
-                return target.getContainer()
-            if hasattr(target, "element"):
-                return target.element
-            return target
-        if isinstance(root, str):
-            element = js.document.querySelector(root)
-            if not element:
-                element = js.document.getElementById(root)
-            return element
-        return root
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda *args, **kwargs: handler(*[
-            to_plain(arg) for arg in args
-        ], **kwargs))
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.tabwidget.on(event_name, proxy)
 
     # ------------------------------------------------------------------
     # Event bindings

@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from wapyt._runtime import js, create_proxy, require_js, to_plain
+from wapyt._base import WidgetBase
+from wapyt._runtime import js, require_js, to_plain
 from wapyt.sidebar.sidebar_config import SidebarConfig, _entry
 
 
-class Sidebar:
+class Sidebar(WidgetBase):
     """
     Collapsible navigation rail that emits `select` events.
 
@@ -21,6 +22,8 @@ class Sidebar:
     when the sidebar is collapsed to icons. Arrow keys move between visible
     items; Right / Left open and close a group or step to its parent.
     """
+
+    _js_attr = "sidebar"
     def __init__(
         self,
         config: Optional[SidebarConfig] = None,
@@ -33,7 +36,6 @@ class Sidebar:
             raise ValueError("Sidebar requires either a container or a root element.")
 
         self.config = config or SidebarConfig()
-        self._event_proxies: Dict[str, Any] = {}
 
         root_element = self._resolve_root(container=container, root=root)
         if root_element is None:
@@ -44,28 +46,6 @@ class Sidebar:
             root_element,
             js.JSON.parse(json.dumps(config_payload)),
         )
-
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        target = container
-        if target is not None:
-            if hasattr(target, "getContainer"):
-                return target.getContainer()
-            if hasattr(target, "element"):
-                return target.element
-            return target
-        if isinstance(root, str):
-            element = js.document.querySelector(root)
-            if not element:
-                element = js.document.getElementById(root)
-            return element
-        return root
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda payload=None: handler(to_plain(payload)))
-        # A list per event: a second handler used to replace the first proxy
-        # in this dict while both stayed registered in JS.
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.sidebar.on(event_name, proxy)
 
     def on_select(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         """An item (not a group) was clicked: ``{"id", "data"}``."""
@@ -121,11 +101,5 @@ class Sidebar:
         self.sidebar.setItems(js.JSON.parse(json.dumps([_entry(item) for item in items])))
 
     def destroy(self) -> None:
-        self.sidebar.destroy()
-        for proxies in self._event_proxies.values():
-            for proxy in proxies:
-                try:
-                    proxy.destroy()
-                except Exception:
-                    pass
-        self._event_proxies.clear()
+        self._dispose()
+

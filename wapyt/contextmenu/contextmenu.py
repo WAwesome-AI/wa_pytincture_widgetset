@@ -7,7 +7,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
-from .._runtime import create_proxy, require_js, to_plain
+from .._base import WidgetBase
+from .._runtime import require_js
 from .contextmenu_config import ContextMenuConfig, MenuItem
 
 try:  # pragma: no cover - only available inside Pyodide
@@ -17,7 +18,7 @@ except Exception:  # pragma: no cover - executed on CPython
 
 
 
-class ContextMenu:
+class ContextMenu(WidgetBase):
     """
     A right-click menu, not mounted in a cell: it opens at the pointer.
 
@@ -42,16 +43,12 @@ class ContextMenu:
     from your own handler. Labels and hints are set as text, never markup.
     """
 
+    _js_attr = "menu"
+
     def __init__(self, config: Optional[ContextMenuConfig] = None) -> None:
         require_js("ContextMenu")
         self.config = config or ContextMenuConfig()
-        self._event_proxies: Dict[str, List[Any]] = {}
         self.menu = js.wapyt.ContextMenu.new(js.JSON.parse(json.dumps(self.config.to_dict())))
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda *args, **kwargs: handler(*[to_plain(arg) for arg in args], **kwargs))
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.menu.on(event_name, proxy)
 
     # ------------------------------------------------------------------
     # Events
@@ -147,7 +144,7 @@ class ContextMenu:
         return bool(self.menu.isChecked(item_id))
 
     def destroy(self) -> None:
-        self.menu.destroy()
+        self._dispose()
 
 
 def _to_js(value: Any) -> Any:

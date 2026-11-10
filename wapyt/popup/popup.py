@@ -4,9 +4,10 @@ Popup (an anchored popover) and tooltips.
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
-from .._runtime import create_proxy, require_js, to_plain
+from .._base import WidgetBase
+from .._runtime import require_js
 from .popup_config import TOOLTIP_PLACEMENTS, PopupConfig, _check_placement, tooltip_attr
 
 try:  # pragma: no cover - only available inside Pyodide
@@ -28,7 +29,7 @@ def _anchor(anchor: Anchor) -> Any:
     return anchor
 
 
-class Popup:
+class Popup(WidgetBase):
     """
     An anchored popover for pickers, help text and small forms.
 
@@ -44,21 +45,17 @@ class Popup:
     the page. Anchors are an element, a CSS selector or an ``(x, y)`` point.
     """
 
+    _js_attr = "popup"
+
     def __init__(self, config: Optional[PopupConfig] = None) -> None:
         require_js("Popup")
         self.config = config or PopupConfig()
-        self._event_proxies: Dict[str, List[Any]] = {}
         self.popup = js.wapyt.Popup.new(js.JSON.parse(json.dumps(self.config.to_dict())))
 
     @property
     def body(self) -> Any:
         """The element to mount content into, like ``ModalWindow.body``."""
         return self.popup.body
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        proxy = create_proxy(lambda *args, **kwargs: handler(*[to_plain(arg) for arg in args], **kwargs))
-        self._event_proxies.setdefault(event_name, []).append(proxy)
-        self.popup.on(event_name, proxy)
 
     def on_show(self, handler: Callable[[Dict[str, Any]], Any]) -> None:
         self._bind_event("show", handler)
@@ -89,14 +86,7 @@ class Popup:
         self.popup.attachHTML(html)
 
     def destroy(self) -> None:
-        self.popup.destroy()
-        for proxies in self._event_proxies.values():
-            for proxy in proxies:
-                try:
-                    proxy.destroy()
-                except Exception:
-                    pass
-        self._event_proxies.clear()
+        self._dispose()
 
 
 def tooltip(target: Anchor, text: Optional[str], placement: Optional[str] = None, *, overflow: bool = False) -> None:

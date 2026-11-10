@@ -4,14 +4,14 @@ import logging
 import inspect
 from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Union
 
-from wapyt._runtime import js, create_proxy, require_js, to_plain
+from wapyt._base import WidgetBase
+from wapyt._runtime import js, require_js, to_plain
 from wapyt.chat.chat_config import ChatConfig, ChatAgentConfig, ChatMessageConfig
 
 
 logger = logging.getLogger(__name__)
 WRAPPER_REVISION = "wapyt-chat-wrapper/2024-05-20"
-logger.info("Chat widget wrapper loaded (%s)", WRAPPER_REVISION)
-print(f"[ChatWidget] Wrapper ready ({WRAPPER_REVISION})")
+logger.debug("Chat widget wrapper loaded (%s)", WRAPPER_REVISION)
 
 
 class ChatStreamError(RuntimeError):
@@ -25,7 +25,7 @@ class ChatStreamError(RuntimeError):
     """
 
 
-class Chat:
+class Chat(WidgetBase):
     """
     Python wrapper around the custom Chat widget.
 
@@ -40,6 +40,8 @@ class Chat:
     render responses while work is still in progress.
     """
 
+    _js_attr = "chat"
+
     def __init__(
         self,
         config: Optional[ChatConfig] = None,
@@ -53,7 +55,6 @@ class Chat:
 
         self.config = config or ChatConfig()
         self._container = container
-        self._event_proxies: Dict[str, List[Any]] = {}
 
         root_element = self._resolve_root(container=container, root=root)
         if root_element is None:
@@ -76,34 +77,6 @@ class Chat:
             raise RuntimeError(
                 "wapyt.ChatWidget is not available. Ensure the chat JavaScript bundle has been loaded."
             ) from exc
-
-    def _resolve_root(self, *, container: Any, root: Optional[Union[str, Any]]) -> Any:
-        target = container
-        if target is not None:
-            if hasattr(target, "getContainer"):
-                return target.getContainer()
-            if hasattr(target, "element"):
-                return target.element
-            return target
-        if isinstance(root, str):
-            element = js.document.querySelector(root)
-            if not element:
-                element = js.document.getElementById(root)
-            return element
-        return root
-
-    def _bind_event(self, event_name: str, handler: Callable) -> None:
-        def wrapped(*args, **kwargs):
-            converted = [
-                to_plain(arg)
-                for arg in args
-            ]
-            return handler(*converted, **kwargs)
-
-        proxy = create_proxy(wrapped)
-        bucket = self._event_proxies.setdefault(event_name, [])
-        bucket.append(proxy)
-        self.chat.on(event_name, proxy)
 
     # ------------------------------------------------------------------
     # Event binding API
@@ -513,8 +486,4 @@ class Chat:
     # ------------------------------------------------------------------
 
     def destroy(self) -> None:
-        try:
-            if hasattr(self.chat, "destroy"):
-                self.chat.destroy()
-        finally:
-            self._event_proxies.clear()
+        self._dispose()
