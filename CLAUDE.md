@@ -266,9 +266,11 @@ sources it from `../../pytincture` so the demos run against the local v1.0.0 che
 
 ## Versioning, CI and releasing (added 2026-10-07)
 
-**Version:** `0.2.0`, released 2026-10-11 after the development releases
-`0.2.0.dev1` and `0.2.0.dev2`. The remaining roadmap items (dhxpyt parity,
-the Scheduler's resource timeline) follow in later versions. The version lives in three places that must agree:
+**Version:** `0.3.0` (2026-11-10): the Foundations cleanup (#77-#80), the
+Terminal's OSC 52 copy (#76) and the ThemeEditor with the accent/status/radius
+tokens (#81). `0.2.0` was released 2026-10-11 after `0.2.0.dev1` and
+`0.2.0.dev2`. The remaining roadmap items (dhxpyt parity, the Scheduler's
+resource timeline) follow in later versions. The version lives in three places that must agree:
 `pyproject.toml`, `wapyt/__init__.py` (`__version__`, a plain string literal
 because pytincture reads it by parsing the file) and
 `wapyt/pytincture-assets.json`. `tests/test_release_metadata.py` and the
@@ -308,7 +310,7 @@ fails, with the command to run.
 
 1. Set the version in all three places (for a final release, no `.devN` suffix), run
    the manifest script, merge.
-2. Tag and push from `main`: `git tag v0.2.0 && git push origin v0.2.0`.
+2. Tag and push from `main`: `git tag v0.3.0 && git push origin v0.3.0`.
 3. The workflow checks that the tag equals all three versions, re-runs the
    checks, builds, verifies, publishes to PyPI by **trusted publishing** (no
    stored token), and creates a GitHub release with the files (marked
@@ -1920,23 +1922,18 @@ reload, download, import and a refused import, no console errors).
 
 Not bugs to fix blindly — context for when they surface:
 
-- **Three different `None` conventions** across the config dataclasses: `layout`/`chat`/`resourceboard`
-  strip `None` via a `_clean` helper, `cardpanel` uses hand-written `if x is not None` chains,
-  `sidebar` strips nothing and ships `"title": null`. Also means no optional field can be explicitly
-  *cleared* — `None` means "omit", so the JS default wins.
-- **Copy-paste**: `_clean` is still copied into most config modules (the `None` convention item).
-  `_resolve_root` / `_bind_event` / proxy release moved into `wapyt/_base.py` (2026-11-10).
-- **Theming is split**: `wapyt.css` defines `--wapyt-*` tokens but only `modal.js` uses them (4 refs).
-  `chat.js` references zero and hardcodes a palette (`sidebar.js` moved onto the tokens on 2026-10-06); `cardpanel.js` / `resourceboard.js`
-  define their own private variable sets.
+- **`None` means "omit"** (one convention since 2026-11-10, `wapyt/_config.py` `drop_none`), so
+  no optional field can be explicitly *cleared*: the JS default wins. Deliberate nulls: Form's
+  submit/cancel text and `SidebarConfig.title`.
+- **Theming is not complete**: `wapyt.css` and most widgets use the `--wapyt-*` tokens (so the
+  ThemeEditor reaches them), but `chat.js` hardcodes its own palette and `cardpanel.js` /
+  `resourceboard.js` define private variable sets, so palettes don't change them yet.
 - **System theme (2026-11-10):** `MainWindow.set_theme("system")` follows `prefers-color-scheme`
   live. `wapyt.setTheme` / `wapyt.getTheme` live in `layout.js`; "system" keeps
   `<html data-wapyt-theme>` at the resolved `light` / `dark` (plus `data-wapyt-theme-mode`), so the
   152 dark rules and the Chart / Scheduler / Chat attribute observers needed no change. Chat already
   called `wapyt.setTheme` when present, so its own toggle now switches the page out of "system".
   An open `ModalWindow` copied the attribute when shown and keeps it until it is shown again.
-- **Debug prints at import**: `chat.py:14` and `cardpanel.py:12` write to stdout on `import wapyt`,
-  with stale `WRAPPER_REVISION` cache-busters.
 - **The modal's × button calls `hide()` unless `ModalConfig(dispose_on_close=True)`**
   (added 2026-09-25), which makes ×, Escape and a backdrop click `close()` —
   remove — the dialog. Off by default because wAwesomeChat builds its modals
