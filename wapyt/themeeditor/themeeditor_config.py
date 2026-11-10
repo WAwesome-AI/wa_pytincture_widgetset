@@ -19,11 +19,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
-
-
-def drop_none(mapping: Dict[str, Any]) -> Dict[str, Any]:
-    # Same rule as wapyt._config.drop_none (#79); switch to it once that lands.
-    return {key: value for key, value in mapping.items() if value is not None}
+from .._config import drop_none
 
 #: Colour tokens the editor shows, in display order (keys of "light" / "dark").
 THEME_TOKENS = [
