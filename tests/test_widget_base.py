@@ -11,7 +11,7 @@ import wapyt._base as base
 from wapyt import (
     CardPanel, Chart, Chat, ContextMenu, DataTable, Form, Kanban, Listbox,
     MediaPlayer, MenuBar, ModalWindow, Pagination, Popup, ProgressBar,
-    ResourceBoard, Scheduler, Sidebar, TabWidget, Terminal, Toolbar, Tree, Window,
+    ResourceBoard, Scheduler, Sidebar, TabWidget, Terminal, ThemeEditor, Toolbar, Tree, Window,
 )
 from wapyt._base import WidgetBase, resolve_root
 
@@ -184,7 +184,7 @@ def test_scheduler_payloads_become_dates():
 
 WITH_DESTROY = [
     CardPanel, Chart, Chat, ContextMenu, DataTable, Kanban, Listbox, MediaPlayer,
-    MenuBar, Pagination, Popup, ProgressBar, Scheduler, Sidebar, Terminal, Toolbar, Tree,
+    MenuBar, Pagination, Popup, ProgressBar, Scheduler, Sidebar, Terminal, ThemeEditor, Toolbar, Tree,
 ]
 WITH_CLOSE = [ModalWindow, Window]
 ALL = WITH_DESTROY + WITH_CLOSE + [Form, ResourceBoard, TabWidget]

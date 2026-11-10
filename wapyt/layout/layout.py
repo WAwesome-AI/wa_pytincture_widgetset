@@ -157,6 +157,11 @@ class Layout(object, metaclass=LoadUICaller):
 
         return MediaPlayer(config=mediaplayer_config or MediaPlayerConfig(), container=self.layout.getCell(id))
 
+    def add_themeeditor(self, id: str = "mainwindow", themeeditor_config: Optional["ThemeEditorConfig"] = None) -> "ThemeEditor":
+        from ..themeeditor import ThemeEditor, ThemeEditorConfig
+
+        return ThemeEditor(config=themeeditor_config or ThemeEditorConfig(), container=self.layout.getCell(id))
+
     def add_pagination(self, id: str = "mainwindow", pagination_config: Optional["PaginationConfig"] = None) -> "Pagination":
         from ..pagination import Pagination, PaginationConfig
 

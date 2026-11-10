@@ -41,6 +41,7 @@ from .contextmenu.contextmenu import ContextMenu
 from .progressbar.progressbar import ProgressBar
 from .progressbar.progressbar_config import ProgressBarConfig, progress_html
 from .pagination.pagination import Pagination, page_slice
+from .themeeditor import ThemeEditor, ThemeEditorConfig, ThemePalette, apply_theme, restore_theme, current_theme
 from .pagination.pagination_config import PaginationConfig
 from .contextmenu.contextmenu_config import ContextMenuConfig, MenuItem
 from .menubar.menubar import MenuBar
@@ -128,6 +129,12 @@ __all__ = [
     "ProgressBarConfig",
     "progress_html",
     "Pagination",
+    "ThemeEditor",
+    "ThemeEditorConfig",
+    "ThemePalette",
+    "apply_theme",
+    "restore_theme",
+    "current_theme",
     "PaginationConfig",
     "page_slice",
     "ContextMenuConfig",

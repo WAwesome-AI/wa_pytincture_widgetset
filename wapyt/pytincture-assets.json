@@ -6,7 +6,7 @@
     {
       "path": "wapyt/assets/wapyt.css",
       "type": "css",
-      "sha256": "d55ba4e365d8ad3ab5868ce33cbd9d8d135be2db7e2b5edff4324ce8ad5f16cb"
+      "sha256": "e59a6f6682eb9e86532d05fa138b20e94e503acc3abd3b3d09d1155f60b80d23"
     },
     {
       "path": "wapyt/assets/icons.js",
@@ -22,6 +22,11 @@
       "path": "wapyt/assets/layout.js",
       "type": "javascript",
       "sha256": "59cd569be85c0805943e9313cfdf35741f611cd2a97a9c3731e6424373a55ee0"
+    },
+    {
+      "path": "wapyt/assets/themeeditor.js",
+      "type": "javascript",
+      "sha256": "4ac27658b467a23cc1c29ec3dc290ad980dbf496f103cfe3b38cb173167b3e2e"
     },
     {
       "path": "wapyt/assets/modal.js",
