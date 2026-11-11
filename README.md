@@ -83,4 +83,4 @@ wapyt/
 
 ## License
 
-MIT – see `pyproject.toml` for details.
+MIT – see [`LICENSE`](LICENSE).
