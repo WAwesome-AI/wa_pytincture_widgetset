@@ -266,7 +266,9 @@ sources it from `../../pytincture` so the demos run against the local v1.0.0 che
 
 ## Versioning, CI and releasing (added 2026-10-07)
 
-**Version:** `0.3.0` (2026-11-10): the Foundations cleanup (#77-#80), the
+**Version:** `0.3.1` (2026-11-12): ModalWindow and prompts stay open on a
+backdrop click (`close_on_backdrop`, #84) and the MIT licence text (#83).
+`0.3.0` (2026-11-10): the Foundations cleanup (#77-#80), the
 Terminal's OSC 52 copy (#76) and the ThemeEditor with the accent/status/radius
 tokens (#81). `0.2.0` was released 2026-10-11 after `0.2.0.dev1` and
 `0.2.0.dev2`. The remaining roadmap items (dhxpyt parity, the Scheduler's
