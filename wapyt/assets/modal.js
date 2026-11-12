@@ -23,7 +23,11 @@
           width: 520,
           height: 360,
           closable: true,
-          // × , Escape and a backdrop click remove the dialog (close())
+          // A click on the dim backdrop does not close the dialog unless this
+          // is set: a stray click beside a form would otherwise throw away
+          // what was typed. Off, the dialog gives a short nudge instead.
+          closeOnBackdrop: false,
+          // × , Escape (and a backdrop click, when allowed) remove the dialog (close())
           // instead of hiding it. For apps that build a modal per use; off by
           // default because apps that build one and reopen it need hide().
           disposeOnClose: false,
@@ -39,9 +43,21 @@
       this.overlay = document.createElement("div");
       this.overlay.className = "wapyt-modal-overlay";
       this.overlay.style.display = "none";
+      // Both the press and the release must land on the backdrop itself. A
+      // text selection dragged out of an input ends with a click whose target
+      // is the overlay, and that must not count as a click outside.
+      let pressedOnBackdrop = false;
+      this.overlay.addEventListener("pointerdown", (event) => {
+        pressedOnBackdrop = event.target === this.overlay;
+      });
       this.overlay.addEventListener("click", (event) => {
-        if (event.target === this.overlay) {
+        const outside = pressedOnBackdrop && event.target === this.overlay;
+        pressedOnBackdrop = false;
+        if (!outside) return;
+        if (this.options.closeOnBackdrop) {
           this._dismiss("backdrop");
+        } else {
+          this._nudge();
         }
       });
 
@@ -93,6 +109,13 @@
       } else {
         this.hide(reason);
       }
+    }
+
+    // Tells the person the dialog is still waiting for them.
+    _nudge() {
+      this.modal.classList.remove("wapyt-modal-nudge");
+      void this.modal.offsetWidth; // restart the animation on repeat clicks
+      this.modal.classList.add("wapyt-modal-nudge");
     }
 
     setTitle(title) {
@@ -196,6 +219,16 @@
   align-items: center;
   justify-content: center;
   z-index: 9999;
+}
+.wapyt-modal-nudge {
+  animation: wapyt-modal-nudge 0.18s ease-in-out;
+}
+@keyframes wapyt-modal-nudge {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.015); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wapyt-modal-nudge { animation: none; }
 }
 .wapyt-modal-overlay[data-wapyt-theme="dark"] {
   background: rgba(0, 0, 0, 0.7);
