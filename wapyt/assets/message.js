@@ -250,8 +250,17 @@
       okBtn.addEventListener("click", () => finish(true));
       if (cancelBtn) cancelBtn.addEventListener("click", () => finish(false));
       // A backdrop click never confirms: it cancels, or acknowledges an alert.
+      // A prompt ignores it, so a stray click does not lose what was typed.
       overlay.addEventListener("mousedown", (event) => {
-        if (event.target === overlay) finish(kind === "alert");
+        if (event.target !== overlay) return;
+        if (kind === "prompt") {
+          box.classList.remove("wapyt-msg-nudge");
+          void box.offsetWidth;
+          box.classList.add("wapyt-msg-nudge");
+          event.preventDefault(); // keep focus in the input
+          return;
+        }
+        finish(kind === "alert");
       });
       document.addEventListener("keydown", onKeydown, true);
 

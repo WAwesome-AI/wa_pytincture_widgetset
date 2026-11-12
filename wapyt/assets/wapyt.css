@@ -2540,6 +2540,17 @@ input[type="color"].wapyt-form-control {
 .wapyt-msg-btn-danger { background: var(--wapyt-danger); border-color: var(--wapyt-danger); }
 .wapyt-msg-btn-danger:hover { background: var(--wapyt-danger-strong); }
 [data-wapyt-theme="dark"] .wapyt-msg-overlay { background: rgba(0, 0, 0, 0.6); }
+/* A prompt stays open on a backdrop click and gives this nudge instead. */
+.wapyt-msg-nudge {
+  animation: wapyt-msg-nudge 0.18s ease-in-out;
+}
+@keyframes wapyt-msg-nudge {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.015); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wapyt-msg-nudge { animation: none; }
+}
 [data-wapyt-theme="dark"] .wapyt-msg-dialog {
   background: var(--wapyt-bg-dark);
   color: var(--wapyt-text-dark);
