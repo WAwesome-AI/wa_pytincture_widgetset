@@ -88,24 +88,14 @@
 
   async function pickFiles(options = {}) {
     const { multiple = true, directory = false } = options;
+    // Always the <input type=file> picker, never `showOpenFilePicker`. An
+    // upload only needs the File, not a handle, and the File System Access
+    // pickers apply Chromium's sensitive-path blocklist: anything under /var
+    // is refused as "system files". On Fedora Atomic / Bazzite / Silverblue
+    // /home is a symlink to /var/home, so every file in the user's own home
+    // was refused. The input element has no blocklist.
     try {
-      if (directory || !supported().openFile) {
-        // `showOpenFilePicker` is Chromium-only, and directory selection is
-        // only exposed through the input element anyway.
-        return await pickFilesViaInput(multiple, directory);
-      }
-      const picked = await globalThis.showOpenFilePicker({ multiple });
-      const files = [];
-      for (const handle of picked) {
-        const file = await handle.getFile();
-        files.push({
-          id: register(file),
-          name: file.name,
-          size: file.size,
-          path: file.name,
-        });
-      }
-      return result(true, { files });
+      return await pickFilesViaInput(multiple, directory);
     } catch (error) {
       return failure(error);
     }
